@@ -1,0 +1,949 @@
+{
+	"openapi": "3.0.0",
+	"info": {
+		"title": "ZeyOS SDK API",
+		"termsOfService": "https://www.zeyos.com/termsofservice",
+		"contact": {
+			"name": "ZeyOS GmbH & Co. KG",
+			"url": "https://www.zeyos.com",
+			"email": "info@zeyos.com"
+		},
+		"version": "v1"
+	},
+	"externalDocs": {
+		"description": "ZeyOS Developer Center",
+		"url": "https://developers.zeyos.com"
+	},
+	"servers": [
+		{
+			"url": "https://cloud.zeyos.com/{INSTANCE}/sdk/v1",
+			"description": "ZeyOS Cloud",
+			"variables": {
+				"INSTANCE": {
+					"default": "demo"
+				}
+			}
+		}
+	],
+	"security": [
+		{
+			"token": []
+		}
+	],
+	"tags": [
+		{
+			"name": "sync",
+			"description": "Synchronization"
+		},
+		{
+			"name": "console",
+			"description": "Console"
+		},
+		{
+			"name": "info",
+			"description": "Information"
+		}
+	],
+	"components": {
+		"securitySchemes": {
+			"token": {
+				"type": "http",
+				"scheme": "bearer",
+				"description": "HTTP Bearer Authentication ([RFC 6750](https://tools.ietf.org/html/rfc6750))"
+			}
+		},
+		"schemas": {
+			"applications": {
+				"type": "object",
+				"properties": {
+					"lastmodified": {
+						"type": "integer",
+						"format": "int64",
+						"description": "Last modification date and time as a [Unix timestamp](https://en.wikipedia.org/wiki/Unix_time) (auto-reset on modification)",
+						"example": 872838840
+					},
+					"name": {
+						"type": "string",
+						"minLength": 1,
+						"description": "Name",
+						"example": "My Application"
+					},
+					"vendor": {
+						"type": "string",
+						"description": "Vendor (developer or company name)",
+						"example": "ZeyOS"
+					},
+					"defaultsettings": {
+						"type": "string",
+						"format": "json",
+						"nullable": true,
+						"default": null,
+						"description": "[JSON](https://tools.ietf.org/html/rfc7159)-encoded default settings (object) ([MD5](https://tools.ietf.org/html/rfc1321) hash for `GET /sync` and actual content for `PATCH /sync`)",
+						"example": "{...}"
+					},
+					"settings": {
+						"type": "string",
+						"format": "json",
+						"nullable": true,
+						"default": null,
+						"description": "[JSON](https://tools.ietf.org/html/rfc7159)-encoded settings (object) ([MD5](https://tools.ietf.org/html/rfc1321) hash for `GET /sync` and actual content for `PATCH /sync`)",
+						"example": "{...}"
+					},
+					"readme": {
+						"type": "string",
+						"description": "README [markdown](https://en.wikipedia.org/wiki/Markdown) text ([MD5](https://tools.ietf.org/html/rfc1321) hash for `GET /sync` and actual content for `PATCH /sync`)"
+					},
+					"settingscode": {
+						"type": "string",
+						"description": "Settings form code ([MD5](https://tools.ietf.org/html/rfc1321) hash for `GET /sync` and actual content for `PATCH /sync`)"
+					},
+					"usersettingscode": {
+						"type": "string",
+						"description": "User settings form code ([MD5](https://tools.ietf.org/html/rfc1321) hash for `GET /sync` and actual content for `PATCH /sync`)"
+					},
+					"assets": {
+						"type": "object",
+						"description": "Assets; use asset filename as object key",
+						"example": {
+							"my_asset1": {},
+							"my_asset2": {}
+						}
+					},
+					"services": {
+						"type": "object",
+						"description": "Services; use partial service identifier as object key",
+						"example": {
+							"my_service1": {},
+							"my_service2": {}
+						}
+					},
+					"resources": {
+						"type": "object",
+						"description": "Resources; use partial resource identifier as object key",
+						"example": {
+							"my_resource1": {},
+							"my_resource2": {}
+						}
+					},
+					"weblets": {
+						"type": "object",
+						"description": "Weblets; use partial weblet identifier as object key",
+						"example": {
+							"my_weblet1": {},
+							"my_weblet2": {}
+						}
+					},
+					"GET": {
+						"type": "boolean",
+						"default": false,
+						"description": "Return this application; only for `PATCH /sync`"
+					}
+				}
+			},
+			"assets": {
+				"type": "object",
+				"properties": {
+					"lastmodified": {
+						"type": "integer",
+						"format": "int64",
+						"description": "Last modification date and time as a [Unix timestamp](https://en.wikipedia.org/wiki/Unix_time) (auto-reset on modification)",
+						"example": 872838840
+					},
+					"mimetype": {
+						"type": "string",
+						"pattern": "^[a-z]+/[^ \\t\\v\\r\\n]+$",
+						"default": "application/octet-stream",
+						"description": "[MIME type](https://en.wikipedia.org/wiki/Media_type) ([RFC 2045](https://tools.ietf.org/html/rfc2045))",
+						"example": "text/plain"
+					},
+					"content": {
+						"type": "string",
+						"description": "Content ([MD5](https://tools.ietf.org/html/rfc1321) hash for `GET /sync` and actual content for `PATCH /sync`); must always be [Base64](https://tools.ietf.org/html/rfc2045)-encoded"
+					},
+					"GET": {
+						"type": "boolean",
+						"default": false,
+						"description": "Return this asset; only for `PATCH /sync`"
+					},
+					"DELETE": {
+						"type": "boolean",
+						"default": false,
+						"description": "Permanently delete this asset; only for `PATCH /sync`"
+					}
+				}
+			},
+			"services": {
+				"type": "object",
+				"properties": {
+					"lastmodified": {
+						"type": "integer",
+						"format": "int64",
+						"description": "Last modification date and time as a [Unix timestamp](https://en.wikipedia.org/wiki/Unix_time) (auto-reset on modification)",
+						"example": 872838840
+					},
+					"name": {
+						"type": "string",
+						"minLength": 1,
+						"description": "Name",
+						"example": "My Service"
+					},
+					"type": {
+						"type": "integer",
+						"enum": [0, 1, 2, 3, 4, 5, 6, 7],
+						"nullable": true,
+						"default": null,
+						"description": "Service type (`0`=TIMING, `1`=REMOTECALL, `2`=AFTER_CREATION, `3`=BEFORE_MODIFICATION, `4`=AFTER_MODIFICATION, `5`=AFTER_CREATION_MODIFICATION, `6`=BEFORE_DELETION, `7`=AFTER_DELETION)",
+						"example": 5
+					},
+					"entity": {
+						"type": "string",
+						"description": "Canonical entity; only for AFTER_CREATION, BEFORE_MODIFICATION, AFTER_MODIFICATION, AFTER_CREATION_MODIFICATION, BEFORE_DELETION or AFTER_DELETION",
+						"example": "notes"
+					},
+					"schedule": {
+						"type": "integer",
+						"format": "int32",
+						"minimum": 0,
+						"default": 0,
+						"description": "Schedule as a minute of each day; only for TIMING"
+					},
+					"interval": {
+						"type": "integer",
+						"minimum": 1,
+						"maximum": 1440,
+						"default": 1,
+						"description": "Interval in minutes; only for TIMING"
+					},
+					"url": {
+						"type": "string",
+						"format": "uri",
+						"description": "Request URL (alternative to `code`)"
+					},
+					"mimetype": {
+						"type": "string",
+						"enum": ["application/ixml+xml", "text/x-zymba"],
+						"description": "[MIME type](https://en.wikipedia.org/wiki/Media_type) ([RFC 2045](https://tools.ietf.org/html/rfc2045))",
+						"example": "text/x-zymba"
+					},
+					"code": {
+						"type": "string",
+						"description": "Code ([MD5](https://tools.ietf.org/html/rfc1321) hash for `GET /sync` and actual content for `PATCH /sync`); binary data must be [Base64](https://tools.ietf.org/html/rfc2045)-encoded"
+					},
+					"GET": {
+						"type": "boolean",
+						"default": false,
+						"description": "Return this service; only for `PATCH /sync`"
+					},
+					"DELETE": {
+						"type": "boolean",
+						"default": false,
+						"description": "Permanently delete this service; only for `PATCH /sync`"
+					}
+				}
+			},
+			"resources": {
+				"type": "object",
+				"properties": {
+					"lastmodified": {
+						"type": "integer",
+						"format": "int64",
+						"description": "Last modification date and time as a [Unix timestamp](https://en.wikipedia.org/wiki/Unix_time) (auto-reset on modification)",
+						"example": 872838840
+					},
+					"name": {
+						"type": "string",
+						"minLength": 1,
+						"description": "Name",
+						"example": "My Resource"
+					},
+					"mimetype": {
+						"type": "string",
+						"pattern": "^[a-z]+/[^ \\t\\v\\r\\n]+$",
+						"description": "[MIME type](https://en.wikipedia.org/wiki/Media_type) ([RFC 2045](https://tools.ietf.org/html/rfc2045))",
+						"example": "text/x-zymba"
+					},
+					"public": {
+						"type": "integer",
+						"enum": [0, 1],
+						"default": 0,
+						"description": "Publicly accessible"
+					},
+					"code": {
+						"type": "string",
+						"description": "Code ([MD5](https://tools.ietf.org/html/rfc1321) hash for `GET /sync` and actual content for `PATCH /sync`); binary data must be [Base64](https://tools.ietf.org/html/rfc2045)-encoded"
+					},
+					"GET": {
+						"type": "boolean",
+						"default": false,
+						"description": "Return this resource; only for `PATCH /sync`"
+					},
+					"DELETE": {
+						"type": "boolean",
+						"default": false,
+						"description": "Permanently delete this resource; only for `PATCH /sync`"
+					}
+				}
+			},
+			"weblets": {
+				"type": "object",
+				"properties": {
+					"lastmodified": {
+						"type": "integer",
+						"format": "int64",
+						"description": "Last modification date and time as a [Unix timestamp](https://en.wikipedia.org/wiki/Unix_time) (auto-reset on modification)",
+						"example": 872838840
+					},
+					"name": {
+						"type": "string",
+						"minLength": 1,
+						"description": "Name",
+						"example": "My Weblet"
+					},
+					"view": {
+						"type": "string",
+						"description": "Canonical view",
+						"example": "notes.index"
+					},
+					"type": {
+						"type": "integer",
+						"enum": [0, 1, 2, 3, 4, 5, 6, 7],
+						"default": 0,
+						"description": "Weblet type (`0`=INTEGRATED, `1`=STANDALONE, `2`=DETACHED, `3`=POPUP_FRAMED, `4`=POPUP_PLAIN, `5`=EMBEDDED_FRAMED, `6`=EMBEDDED_COLLAPSED, `7`=EMBEDDED_PLAIN)"
+					},
+					"width": {
+						"type": "integer",
+						"minimum": 0,
+						"maximum": 32767,
+						"default": 0,
+						"description": "Width in pixels (`0`=100%)"
+					},
+					"height": {
+						"type": "integer",
+						"minimum": 0,
+						"maximum": 32767,
+						"default": 0,
+						"description": "Height in pixels (`0`=100%)"
+					},
+					"url": {
+						"type": "string",
+						"format": "uri",
+						"description": "Request URL (alternative to `code`)"
+					},
+					"svgpath": {
+						"type": "string",
+						"description": "[SVG path](https://www.w3.org/TR/SVG11/paths.html) for icon (square)"
+					},
+					"color": {
+						"type": "string",
+						"pattern": "^([A-F0-9]{3}){0,2}$",
+						"description": "Color code (CSS-style hexadecimal without `#`)"
+					},
+					"mimetype": {
+						"type": "string",
+						"enum": ["application/ixml+xml", "text/x-zymba"],
+						"description": "[MIME type](https://en.wikipedia.org/wiki/Media_type) ([RFC 2045](https://tools.ietf.org/html/rfc2045))",
+						"example": "text/x-zymba"
+					},
+					"langaliases": {
+						"type": "object",
+						"nullable": true,
+						"default": null,
+						"description": "Language-specific aliases; use language code as object key",
+						"example": {
+							"en_US": "My new Weblet",
+							"de_DE": "Mein neues Weblet"
+						}
+					},
+					"code": {
+						"type": "string",
+						"description": "Code ([MD5](https://tools.ietf.org/html/rfc1321) hash for `GET /sync` and actual content for `PATCH /sync`); binary data must be [Base64](https://tools.ietf.org/html/rfc2045)-encoded"
+					},
+					"GET": {
+						"type": "boolean",
+						"default": false,
+						"description": "Return this weblet; only for `PATCH /sync`"
+					},
+					"DELETE": {
+						"type": "boolean",
+						"default": false,
+						"description": "Permanently delete this weblet; only for `PATCH /sync`"
+					}
+				}
+			}
+		},
+		"parameters": {
+			"APP": {
+				"name": "APP",
+				"in": "path",
+				"required": true,
+				"description": "Unique application identifier",
+				"schema": {
+					"type": "string",
+					"maxLength": 200,
+					"pattern": "^[a-zA-Z0-9]([a-zA-Z0-9_.-]*[a-zA-Z0-9])?$",
+					"example": "my_application"
+				}
+			}
+		},
+		"requestBodies": {
+			"sync": {
+				"content": {
+					"application/x-www-form-urlencoded": {
+						"schema": {
+							"$ref": "#/components/schemas/applications"
+						}
+					},
+					"application/json": {
+						"schema": {
+							"$ref": "#/components/schemas/applications"
+						}
+					}
+				}
+			}
+		},
+		"responses": {
+			"401": {
+				"description": "Unauthorized",
+				"headers": {
+					"WWW-Authenticate": {
+						"description": "Preferred authentication scheme ([RFC 7235](https://tools.ietf.org/html/rfc7235#section-4.1))",
+						"schema": {
+							"type": "string",
+							"example": "Bearer realm=\"{INSTANCE}\" error=\"invalid_token\""
+						}
+					}
+				},
+				"content": {
+					"text/plain": {
+						"schema": {
+							"type": "string",
+							"example": "Unauthorized: Invalid bearer token"
+						}
+					}
+				}
+			},
+			"403": {
+				"description": "Forbidden",
+				"content": {
+					"text/plain": {
+						"schema": {
+							"type": "string",
+							"example": "Forbidden: Lacking developer permission"
+						}
+					}
+				}
+			},
+			"500": {
+				"description": "Runtime Error (Internal Server Error)",
+				"content": {
+					"text/plain": {
+						"schema": {
+							"type": "string",
+							"example": "I am afraid I can't do that Dave!"
+						}
+					}
+				}
+			}
+		}
+	},
+	"paths": {
+		"/sync/{APP}": {
+			"get": {
+				"tags": ["sync"],
+				"summary": "Get application",
+				"description": "Return all data and enhancements of an existing application by **`APP`** identifier.",
+				"operationId": "getApplication",
+				"parameters": [
+					{
+						"$ref": "#/components/parameters/APP"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/applications"
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/401"
+					},
+					"403": {
+						"$ref": "#/components/responses/403"
+					},
+					"404": {
+						"description": "Not Found"
+					},
+					"500": {
+						"$ref": "#/components/responses/500"
+					}
+				}
+			},
+			"put": {
+				"tags": ["sync"],
+				"summary": "Create new application",
+				"description": "Create a new application with **`APP`** identifier and return its persistent data.",
+				"operationId": "createApplication",
+				"parameters": [
+					{
+						"$ref": "#/components/parameters/APP"
+					}
+				],
+				"requestBody": {
+					"$ref": "#/components/requestBodies/sync"
+				},
+				"responses": {
+					"201": {
+						"description": "Successful Creation (Created)",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/applications"
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/401"
+					},
+					"403": {
+						"$ref": "#/components/responses/403"
+					},
+					"410": {
+						"description": "Gone"
+					},
+					"500": {
+						"$ref": "#/components/responses/500"
+					}
+				}
+			},
+			"patch": {
+				"tags": ["sync"],
+				"summary": "Update existing application",
+				"description": "Update an existing application by **`APP`** identifier and optionally return its persistent data.",
+				"operationId": "updateApplication",
+				"parameters": [
+					{
+						"$ref": "#/components/parameters/APP"
+					}
+				],
+				"requestBody": {
+					"$ref": "#/components/requestBodies/sync"
+				},
+				"responses": {
+					"200": {
+						"description": "Successful Update (OK)",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/applications"
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/401"
+					},
+					"403": {
+						"$ref": "#/components/responses/403"
+					},
+					"404": {
+						"description": "Not Found"
+					},
+					"410": {
+						"description": "Gone"
+					},
+					"500": {
+						"$ref": "#/components/responses/500"
+					}
+				}
+			},
+			"post": {
+				"tags": ["sync"],
+				"summary": "Set application activity",
+				"description": "Set the activity state of an existing application by **`APP`** identifier.",
+				"operationId": "setApplicationActivity",
+				"parameters": [
+					{
+						"$ref": "#/components/parameters/APP"
+					},
+					{
+						"name": "activity",
+						"in": "query",
+						"description": "Activity (`0`=ACTIVE, `1`=DEACTIVATED, `2`=DELETED)",
+						"schema": {
+							"type": "integer",
+							"enum": [0, 1, 2],
+							"default": 0
+						}
+					}
+				],
+				"responses": {
+					"204": {
+						"description": "Successful Update (No Content)"
+					},
+					"401": {
+						"$ref": "#/components/responses/401"
+					},
+					"403": {
+						"$ref": "#/components/responses/403"
+					},
+					"404": {
+						"description": "Not Found"
+					},
+					"409": {
+						"description": "Not Updatable (Conflict)"
+					},
+					"410": {
+						"description": "Gone"
+					},
+					"500": {
+						"$ref": "#/components/responses/500"
+					}
+				}
+			},
+			"delete": {
+				"tags": ["sync"],
+				"summary": "Delete application",
+				"description": "Permanently delete an existing application by **`APP`** identifier.",
+				"operationId": "deleteApplication",
+				"parameters": [
+					{
+						"$ref": "#/components/parameters/APP"
+					}
+				],
+				"responses": {
+					"204": {
+						"description": "Successful Deletion (No Content)"
+					},
+					"401": {
+						"$ref": "#/components/responses/401"
+					},
+					"403": {
+						"$ref": "#/components/responses/403"
+					},
+					"404": {
+						"description": "Not Found"
+					},
+					"409": {
+						"description": "Not Deletable (Conflict)"
+					},
+					"500": {
+						"$ref": "#/components/responses/500"
+					}
+				}
+			}
+		},
+		"/compile": {
+			"put": {
+				"tags": ["console"],
+				"summary": "Compile console",
+				"description": "Compile arbitrary [Zymba](https://developers.zeyos.com/zymba) or [iXML](https://developers.zeyos.com/ixml) code via the runtime console and return compilation info.",
+				"operationId": "compile",
+				"parameters": [
+					{
+						"name": "intermediate",
+						"in": "query",
+						"description": "Return intermediate code",
+						"schema": {
+							"type": "integer",
+							"enum": [0, 1],
+							"default": 0
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/ixml+xml": {},
+						"text/x-zymba": {}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"engine": {
+											"type": "string",
+											"enum": ["Zymba", "iXML"],
+											"description": "Engine"
+										},
+										"version": {
+											"type": "integer",
+											"format": "int32",
+											"minimum": 10000,
+											"description": "Engine version number (formatted as 1.00-00)",
+											"example": 10000
+										},
+										"error": {
+											"type": "string",
+											"description": "Error message",
+											"example": "I am afraid I can't do that Dave!"
+										},
+										"zcode": {
+											"type": "array",
+											"nullable": true,
+											"description": "Z code (Zmyba intermediate code)",
+											"items": {
+												"type": "object"
+											}
+										},
+										"phpcode": {
+											"type": "string",
+											"description": "Native PHP code of compilation unit"
+										}
+									}
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/401"
+					},
+					"403": {
+						"$ref": "#/components/responses/403"
+					},
+					"500": {
+						"$ref": "#/components/responses/500"
+					}
+				}
+			}
+		},
+		"/run": {
+			"put": {
+				"tags": ["console"],
+				"summary": "Run console",
+				"description": "Run arbitrary [Zymba](https://developers.zeyos.com/zymba) or [iXML](https://developers.zeyos.com/ixml) code via the runtime console and return execution info and output.",
+				"operationId": "run",
+				"parameters": [
+					{
+						"name": "identifier",
+						"in": "query",
+						"description": "Enhancement identifier",
+						"schema": {
+							"type": "string",
+							"maxLength": 200,
+							"pattern": "^[a-zA-Z0-9]([a-zA-Z0-9_.-]*[a-zA-Z0-9])?$",
+							"example": "my_enhancement"
+						}
+					},
+					{
+						"name": "appidentifier",
+						"in": "query",
+						"description": "Application identifier",
+						"schema": {
+							"type": "string",
+							"maxLength": 200,
+							"pattern": "^[a-zA-Z0-9]([a-zA-Z0-9_.-]*[a-zA-Z0-9])?$",
+							"example": "my_application"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/ixml+xml": {},
+						"text/x-zymba": {}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"load": {
+											"type": "number",
+											"format": "double",
+											"minimum": 0.0,
+											"description": "Load time duration in seconds (with nanoseconds in fractional part)",
+											"example": 0.021389961242676
+										},
+										"exec": {
+											"type": "number",
+											"format": "double",
+											"minimum": 0.0,
+											"description": "Execution time duration in seconds (with nanoseconds in fractional part)",
+											"example": 0.47201299667358
+										},
+										"memory": {
+											"type": "integer",
+											"format": "int64",
+											"minimum": 0,
+											"description": "Peak memory usage in bytes",
+											"example": 528640
+										},
+										"size": {
+											"type": "integer",
+											"format": "int64",
+											"minimum": 0,
+											"description": "Output size in bytes",
+											"example": 24
+										},
+										"engine": {
+											"type": "string",
+											"enum": ["Zymba", "iXML"],
+											"description": "Engine"
+										},
+										"version": {
+											"type": "integer",
+											"format": "int32",
+											"minimum": 10000,
+											"description": "Engine version number (formatted as 1.00-00)",
+											"example": 10000
+										},
+										"error": {
+											"type": "string",
+											"description": "Error message",
+											"example": "I am afraid I can't do that Dave!"
+										},
+										"status": {
+											"type": "integer",
+											"format": "int64",
+											"nullable": true,
+											"description": "HTTP response status code (if set)",
+											"example": 200
+										},
+										"headers": {
+											"type": "object",
+											"description": "HTTP response headers as name (lower-case) and value pairs",
+											"example": {
+												"content-type": "text/html",
+												"content-disposition": "attachment; filename=\"test.html\""
+											}
+										},
+										"debug": {
+											"type": "string",
+											"description": "Debug output ([C-style escaped](https://en.wikipedia.org/wiki/Escape_sequences_in_C))",
+											"example": "ok"
+										},
+										"output": {
+											"type": "string",
+											"description": "Regular output ([C-style escaped](https://en.wikipedia.org/wiki/Escape_sequences_in_C))",
+											"example": "Simon says:\\nHello World!"
+										}
+									}
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/401"
+					},
+					"403": {
+						"$ref": "#/components/responses/403"
+					},
+					"500": {
+						"$ref": "#/components/responses/500"
+					}
+				}
+			}
+		},
+		"/apps": {
+			"get": {
+				"tags": ["info"],
+				"summary": "List applications",
+				"description": "List all available applications.",
+				"operationId": "listApps",
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "array",
+									"items": {
+										"type": "object",
+										"properties": {
+											"identifier": {
+												"type": "string",
+												"maxLength": 200,
+												"pattern": "^[a-zA-Z0-9]([a-zA-Z0-9_.-]*[a-zA-Z0-9])?$",
+												"description": "Unique application identifier",
+												"example": "my_application"
+											},
+											"lastmodified": {
+												"type": "integer",
+												"format": "int64",
+												"description": "Last modification date and time as a [Unix timestamp](https://en.wikipedia.org/wiki/Unix_time)",
+												"example": 872838840
+											},
+											"activity": {
+												"type": "integer",
+												"enum": [0, 1, 2],
+												"default": 0,
+												"description": "Activity (`0`=ACTIVE, `1`=DEACTIVATED, `2`=DELETED)"
+											},
+											"name": {
+												"type": "string",
+												"minLength": 1,
+												"description": "Name",
+												"example": "My Application"
+											},
+											"vendor": {
+												"type": "string",
+												"description": "Vendor (developer or company name)",
+												"example": "ZeyOS"
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/401"
+					},
+					"403": {
+						"$ref": "#/components/responses/403"
+					},
+					"500": {
+						"$ref": "#/components/responses/500"
+					}
+				}
+			}
+		},
+		"/views": {
+			"get": {
+				"tags": ["info"],
+				"summary": "List views",
+				"description": "List all available view identifiers for weblets.",
+				"operationId": "listViews",
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "array",
+									"items": {
+										"type": "string"
+									}
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/401"
+					},
+					"403": {
+						"$ref": "#/components/responses/403"
+					},
+					"500": {
+						"$ref": "#/components/responses/500"
+					}
+				}
+			}
+		}
+	}
+}

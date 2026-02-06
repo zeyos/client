@@ -1,0 +1,781 @@
+{
+	"openapi": "3.0.0",
+	"info": {
+		"title": "ZeyOS OAuth 2.0 API",
+		"termsOfService": "https://www.zeyos.com/termsofservice",
+		"contact": {
+			"name": "ZeyOS GmbH & Co. KG",
+			"url": "https://www.zeyos.com",
+			"email": "info@zeyos.com"
+		},
+		"version": "v1"
+	},
+	"externalDocs": {
+		"description": "ZeyOS Developer Center",
+		"url": "https://developers.zeyos.com"
+	},
+	"servers": [
+		{
+			"url": "https://cloud.zeyos.com/{INSTANCE}/oauth2/v1",
+			"description": "ZeyOS Cloud",
+			"variables": {
+				"INSTANCE": {
+					"default": "demo"
+				}
+			}
+		}
+	],
+	"tags": [
+		{
+			"name": "auth",
+			"description": "Authorization"
+		},
+		{
+			"name": "token",
+			"description": "Token Handling"
+		},
+		{
+			"name": "userinfo",
+			"description": "User Info"
+		}
+	],
+	"components": {
+		"securitySchemes": {
+			"basic": {
+				"type": "http",
+				"scheme": "basic",
+				"description": "HTTP Basic Authentication ([RFC 7617](https://tools.ietf.org/html/rfc7617))"
+			},
+			"token": {
+				"type": "http",
+				"scheme": "bearer",
+				"description": "HTTP Bearer Authentication ([RFC 6750](https://tools.ietf.org/html/rfc6750))"
+			},
+			"session": {
+				"type": "apiKey",
+				"name": "ZEYOSID",
+				"in": "cookie",
+				"description": "Session Cookie Authentication ([RFC 6265](https://tools.ietf.org/html/rfc6265))"
+			}
+		},
+		"schemas": {
+			"token": {
+				"type": "object",
+				"required": ["client_id", "client_secret", "grant_type"],
+				"properties": {
+					"client_id": {
+						"type": "string",
+						"maxLength": 200,
+						"pattern": "^[a-zA-Z0-9]([a-zA-Z0-9_.-]*[a-zA-Z0-9])?$",
+						"description": "Client application identifier (corresponds to `applications.identifier`); only required if not supplied via the username component of the `Authorization` header",
+						"example": "my_application"
+					},
+					"client_secret": {
+						"type": "string",
+						"format": "password",
+						"minLength": 1,
+						"description": "Client application's API secret key (corresponds to `applications.secret`); only required if not supplied via the password component of the `Authorization` header",
+						"example": "519d6241f455abbe71d93e0de58083534473a65a"
+					},
+					"grant_type": {
+						"type": "string",
+						"enum": ["authorization_code", "refresh_token", "password"],
+						"description": "Grant type",
+						"example": "authorization_code"
+					},
+					"code": {
+						"type": "string",
+						"format": "password",
+						"pattern": "^[a-f0-9]{40}$",
+						"description": "Authorization code (single-use) as returned by the `/authorize` request's callback; is required if `grant_type`=`authorization_code`",
+						"example": "4c82f23d91a75961f4d08134fc5ad0dfe6a4c36a"
+					},
+					"refresh_token": {
+						"type": "string",
+						"format": "password",
+						"pattern": "^[a-f0-9]{40}$",
+						"description": "Refresh token (single-use) as returned by a previous `/token` request; is required if `grant_type`=`refresh_token`",
+						"example": "4c82f23d91a75961f4d08134fc5ad0dfe6a4c36a"
+					},
+					"code_verifier": {
+						"type": "string",
+						"format": "password",
+						"description": "PKCE code verifier ([RFC 7636](https://tools.ietf.org/html/rfc7636)) (optional); only if `grant_type`=`authorization_code`",
+						"example": "EorzMPECLYK2vhnHZX9Cel4IW9DGzr9g-Hh0Vl7w-5A"
+					},
+					"username": {
+						"type": "string",
+						"minLength": 1,
+						"description": "Username or e-mail address; might be required if `grant_type`=`password`",
+						"example": "john.doe"
+					},
+					"password": {
+						"type": "string",
+						"format": "password",
+						"description": "Password; might be required if `grant_type`=`password`",
+						"example": "**********"
+					},
+					"otp": {
+						"type": "string",
+						"format": "password",
+						"description": "OTP authentication code for 2FA (optional); only for `grant_type`=`password`",
+						"example": "123456"
+					}
+				}
+			},
+			"token-revoke-introspect": {
+				"type": "object",
+				"required": ["client_id", "client_secret", "token"],
+				"properties": {
+					"client_id": {
+						"type": "string",
+						"maxLength": 200,
+						"pattern": "^[a-zA-Z0-9]([a-zA-Z0-9_.-]*[a-zA-Z0-9])?$",
+						"description": "Client application identifier (corresponds to `applications.identifier`); only required if not supplied via the username component of the `Authorization` header",
+						"example": "my_application"
+					},
+					"client_secret": {
+						"type": "string",
+						"format": "password",
+						"minLength": 1,
+						"description": "Client application's API secret key (corresponds to `applications.secret`); only required if not supplied via the password component of the `Authorization` header",
+						"example": "519d6241f455abbe71d93e0de58083534473a65a"
+					},
+					"token": {
+						"type": "string",
+						"format": "password",
+						"pattern": "^[a-f0-9]{40}$",
+						"description": "Access or refresh token as returned by a previous `/token` request",
+						"example": "4c82f23d91a75961f4d08134fc5ad0dfe6a4c36a"
+					}
+				}
+			}
+		},
+		"requestBodies": {
+			"token-revoke-introspect": {
+				"required": true,
+				"content": {
+					"application/x-www-form-urlencoded": {
+						"schema": {
+							"$ref": "#/components/schemas/token-revoke-introspect"
+						}
+					},
+					"application/json": {
+						"schema": {
+							"$ref": "#/components/schemas/token-revoke-introspect"
+						}
+					}
+				}
+			}
+		},
+		"responses": {
+			"401": {
+				"description": "Unauthorized",
+				"headers": {
+					"WWW-Authenticate": {
+						"description": "Preferred authentication scheme ([RFC 7235](https://tools.ietf.org/html/rfc7235#section-4.1))",
+						"schema": {
+							"type": "string",
+							"example": "Basic realm=\"{INSTANCE}\""
+						}
+					}
+				},
+				"content": {
+					"application/json": {
+						"schema": {
+							"type": "object",
+							"required": ["error", "error_description"],
+							"properties": {
+								"error": {
+									"type": "string",
+									"description": "Error code",
+									"example": "invalid_client"
+								},
+								"error_description": {
+									"type": "string",
+									"description": "Error description",
+									"example": "Unauthorized: Unknown client application"
+								}
+							}
+						}
+					}
+				}
+			},
+			"500": {
+				"description": "Runtime Error (Internal Server Error)",
+				"content": {
+					"application/json": {
+						"schema": {
+							"type": "object",
+							"properties": {
+								"error": {
+									"type": "string",
+									"description": "Error code",
+									"example": "server_error"
+								},
+								"error_description": {
+									"type": "string",
+									"description": "Error description",
+									"example": "Runtime Error: I am afraid I can't do that Dave!"
+								}
+							}
+						}
+					}
+				}
+			},
+			"500-simple": {
+				"description": "Runtime Error (Internal Server Error)",
+				"content": {
+					"text/plain": {
+						"schema": {
+							"type": "string",
+							"example": "I am afraid I can't do that Dave!"
+						}
+					}
+				}
+			}
+		}
+	},
+	"paths": {
+		"/authorize": {
+			"get": {
+				"tags": ["auth"],
+				"summary": "Request authorization",
+				"description": "Request client authorization by redirecting the user agent (typically a web browser) to ZeyOS and returning to the client application via the specified callback URL according to [RFC 6749](https://tools.ietf.org/html/rfc6749#section-4.1.1).",
+				"operationId": "authorize",
+				"parameters": [
+					{
+						"name": "client_id",
+						"in": "query",
+						"required": true,
+						"description": "Client application identifier (corresponds to `applications.identifier`)",
+						"schema": {
+							"type": "string",
+							"maxLength": 200,
+							"pattern": "^[a-zA-Z0-9]([a-zA-Z0-9_.-]*[a-zA-Z0-9])?$",
+							"example": "my_application"
+						}
+					},
+					{
+						"name": "redirect_uri",
+						"in": "query",
+						"required": true,
+						"description": "Callback URL (HTTPS required, unless 127.0.0.1 or localhost)",
+						"schema": {
+							"type": "string",
+							"example": "https://www.my_site.com/oauth_callback"
+						}
+					},
+					{
+						"name": "response_type",
+						"in": "query",
+						"required": true,
+						"description": "Response type (always `code`)",
+						"schema": {
+							"type": "string",
+							"enum": ["code"],
+							"example": "code"
+						}
+					},
+					{
+						"name": "response_mode",
+						"in": "query",
+						"description": "Response mode (optional)",
+						"schema": {
+							"type": "string",
+							"enum": ["query", "form_post"],
+							"default": "query",
+							"example": "query"
+						}
+					},
+					{
+						"name": "code_challenge",
+						"in": "query",
+						"description": "PKCE code challenge ([RFC 7636](https://tools.ietf.org/html/rfc7636)) (optional)",
+						"schema": {
+							"type": "string",
+							"example": "TPWKUmcvj2m43OoxtmS6mBWcLnBfWAopmqyhsNsl3f0"
+						}
+					},
+					{
+						"name": "code_challenge_method",
+						"in": "query",
+						"description": "PKCE code challenge method ([RFC 7636](https://tools.ietf.org/html/rfc7636)); only required if `code_challenge` is provided",
+						"schema": {
+							"type": "string",
+							"enum": ["S256"],
+							"example": "S256"
+						}
+					},
+					{
+						"name": "state",
+						"in": "query",
+						"description": "State to be maintained between request and callback",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"303": {
+						"description": "See Other",
+						"headers": {
+							"Location": {
+								"description": "Authorization URL for the user to be redirected to",
+								"schema": {
+									"type": "string",
+									"example": "Location: https://cloud.zeyos.com/{INSTANCE}/?umi=auth&page=oauth&..."
+								}
+							}
+						}
+					},
+					"500": {
+						"$ref": "#/components/responses/500-simple"
+					}
+				}
+			}
+		},
+		"/token": {
+			"post": {
+				"tags": ["token"],
+				"summary": "Get access token",
+				"description": "Return a new auto-generated, cryptographically secure and persistent access token, plus accompanying single-use refresh token based on the specified authorization code or refresh token according to [RFC 6749](https://tools.ietf.org/html/rfc6749#section-4.1.3). Previous tokens will thereby invalidate.",
+				"operationId": "getToken",
+				"security": [
+					{
+						"basic": []
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/x-www-form-urlencoded": {
+							"schema": {
+								"$ref": "#/components/schemas/token"
+							}
+						},
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/token"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"required": ["token_type", "access_token", "expires_in", "refresh_token", "refresh_token_expires_in"],
+									"properties": {
+										"token_type": {
+											"type": "string",
+											"enum": ["Bearer"],
+											"description": "Access token type (always `Bearer`)",
+											"example": "Bearer"
+										},
+										"access_token": {
+											"type": "string",
+											"format": "password",
+											"pattern": "^[a-f0-9]{40}$",
+											"description": "Auto-generated bearer token for use in subsequent requests' `Authorization` header",
+											"example": "97c4281ea528ef02ba573fffce2fa80a3a8414b7"
+										},
+										"expires_in": {
+											"type": "integer",
+											"enum": [3600],
+											"description": "Expiry time (time-to-live) of the access token in seconds (always 1 hour)",
+											"example": 3600
+										},
+										"refresh_token": {
+											"type": "string",
+											"format": "password",
+											"pattern": "^[a-f0-9]{40}$",
+											"description": "Auto-generated single-use refresh token to obtain a new access token",
+											"example": "4c82f23d91a75961f4d08134fc5ad0dfe6a4c36a"
+										},
+										"refresh_token_expires_in": {
+											"type": "integer",
+											"enum": [8640000],
+											"description": "Expiry time (time-to-live) of the refresh token in seconds (always 100 days)",
+											"example": 8640000
+										}
+									}
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/401"
+					},
+					"403": {
+						"description": "Forbidden",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"required": ["error", "error_description"],
+									"properties": {
+										"error": {
+											"type": "string",
+											"description": "Error code",
+											"example": "invalid_grant"
+										},
+										"error_description": {
+											"type": "string",
+											"description": "Error description",
+											"example": "Forbidden: Invalid or expired refresh_token"
+										}
+									}
+								}
+							}
+						}
+					},
+					"500": {
+						"$ref": "#/components/responses/500"
+					}
+				}
+			}
+		},
+		"/revoke": {
+			"post": {
+				"tags": ["token"],
+				"summary": "Revoke token",
+				"description": "Invalidates an existing token according to [RFC 7009](https://tools.ietf.org/html/rfc7009). If the specified token is a refresh token, the associated access token will also be invalidated.",
+				"operationId": "revokeToken",
+				"security": [
+					{
+						"basic": []
+					}
+				],
+				"requestBody": {
+					"$ref": "#/components/requestBodies/token-revoke-introspect"
+				},
+				"responses": {
+					"200": {
+						"description": "OK"
+					},
+					"401": {
+						"$ref": "#/components/responses/401"
+					},
+					"500": {
+						"$ref": "#/components/responses/500"
+					}
+				}
+			}
+		},
+		"/introspect": {
+			"post": {
+				"tags": ["token"],
+				"summary": "Introspect token",
+				"description": "Return details of a specified token according to [RFC 7662](https://tools.ietf.org/html/rfc7662).",
+				"operationId": "introspectToken",
+				"security": [
+					{
+						"basic": []
+					}
+				],
+				"requestBody": {
+					"$ref": "#/components/requestBodies/token-revoke-introspect"
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"required": ["active"],
+									"properties": {
+										"active": {
+											"type": "boolean",
+											"description": "Token is active (valid and not yet expired)",
+											"example": true
+										},
+										"client_id": {
+											"type": "string",
+											"maxLength": 200,
+											"pattern": "^[a-zA-Z0-9]([a-zA-Z0-9_.-]*[a-zA-Z0-9])?$",
+											"description": "Client application identifier (corresponds to `applications.identifier`)",
+											"example": "my_application"
+										},
+										"username": {
+											"type": "string",
+											"minLength": 1,
+											"description": "Username",
+											"example": "john.doe"
+										},
+										"sub": {
+											"type": "string",
+											"pattern": "^[1-9][0-9]*$",
+											"description": "User ID as subject identifier (always a stringified positive integer)",
+											"example": "1"
+										},
+										"exp": {
+											"type": "integer",
+											"format": "int64",
+											"description": "Token expiry date and time as a [Unix timestamp](https://en.wikipedia.org/wiki/Unix_time)",
+											"example": 872838840
+										}
+									}
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/401"
+					},
+					"500": {
+						"$ref": "#/components/responses/500"
+					}
+				}
+			}
+		},
+		"/userinfo": {
+			"get": {
+				"tags": ["userinfo"],
+				"summary": "Get user info",
+				"description": "Return details of a user based on the header-supplied access token with profile information according to [OpenID Connect 1.0](https://openid.net/specs/openid-connect-core-1_0.html#UserInfo) and ZeyOS-specific fields as an extension.",
+				"operationId": "getUserInfo",
+				"security": [
+					{
+						"token": []
+					},
+					{
+						"session": []
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"required": ["sub", "name", "preferred_username", "email", "zoneinfo", "locale", "nopublic", "apionly", "updated_at"],
+									"properties": {
+										"sub": {
+											"type": "string",
+											"pattern": "^[1-9][0-9]*$",
+											"description": "User ID as subject identifier (always a stringified positive integer)",
+											"example": "1"
+										},
+										"name": {
+											"type": "string",
+											"minLength": 1,
+											"description": "User's real name or username (fallback)",
+											"example": "John Doe"
+										},
+										"preferred_username": {
+											"type": "string",
+											"minLength": 1,
+											"description": "Username",
+											"example": "john.doe"
+										},
+										"email": {
+											"type": "string",
+											"format": "email",
+											"minLength": 1,
+											"description": "User's system e-mail address",
+											"example": "john.doe@company.com"
+										},
+										"zoneinfo": {
+											"type": "string",
+											"minLength": 1,
+											"description": "Time zone name as defined by the [IANA Time Zone Database](https://www.iana.org/time-zones)",
+											"example": "Europe/Berlin"
+										},
+										"locale": {
+											"type": "string",
+											"enum": ["de-DE", "en-US", "es-ES"],
+											"description": "User's locale as a BCP47 language tag ([RFC 5646](https://tools.ietf.org/html/rfc5646))",
+											"example": "en-US"
+										},
+										"nopublic": {
+											"type": "boolean",
+											"description": "User has no access to public data (ZeyOS extension)",
+											"example": false
+										},
+										"apionly": {
+											"type": "boolean",
+											"description": "User is restricted to API access, no regular login (ZeyOS extension)",
+											"example": false
+										},
+										"updated_at": {
+											"type": "integer",
+											"format": "int64",
+											"description": "Last modification date and time as a [Unix timestamp](https://en.wikipedia.org/wiki/Unix_time)",
+											"example": 872838840
+										},
+										"given_name": {
+											"type": "string",
+											"minLength": 1,
+											"description": "User's first name (given name)",
+											"example": "John"
+										},
+										"family_name": {
+											"type": "string",
+											"description": "User's last name (surname or company name)",
+											"example": "Doe"
+										},
+										"phone_number": {
+											"type": "string",
+											"description": "User's primary phone number",
+											"example": "+1 123-456-7890"
+										},
+										"birthdate": {
+											"type": "string",
+											"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+											"description": "Birth date in [ISO 8601](https://en.wikipedia.org/wiki/ISO_8601) `YYYY-MM-DD` format",
+											"example": "1982-12-09"
+										},
+										"address": {
+											"type": "object",
+											"description": "User's full address",
+											"properties": {
+												"street_address": {
+													"type": "string",
+													"description": "Address (street and building/suite number)",
+													"example": "123 Main St."
+												},
+												"locality": {
+													"type": "string",
+													"description": "City or locality",
+													"example": "Anytown"
+												},
+												"region": {
+													"type": "string",
+													"description": "Region or state",
+													"example": "CA"
+												},
+												"postal_code": {
+													"type": "string",
+													"description": "Postal or ZIP code",
+													"example": "95060"
+												},
+												"country": {
+													"type": "string",
+													"pattern": "^([A-Z]{2})?$",
+													"description": "Country code ([ISO 3166-1 alpha-2](https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2))",
+													"example": "US"
+												}
+											}
+										},
+										"groups": {
+											"type": "array",
+											"description": "User's groups (ZeyOS extension)",
+											"items": {
+												"type": "object",
+												"properties": {
+													"id": {
+														"type": "integer",
+														"format": "int32",
+														"description": "Group ID",
+														"example": 1
+													},
+													"name": {
+														"type": "string",
+														"minLength": 1,
+														"description": "Group name",
+														"example": "Operations"
+													},
+													"writable": {
+														"type": "boolean",
+														"description": "Allow writing of group-owned data by user",
+														"example": true
+													}
+												}
+											}
+										},
+										"permissions": {
+											"type": "array",
+											"description": "User's permissions (ZeyOS extension)",
+											"items": {
+												"oneOf": [
+													{
+														"type": "object",
+														"properties": {
+															"identifier": {
+																"type": "string",
+																"maxLength": 200,
+																"pattern": "^[a-zA-Z0-9]([a-zA-Z0-9_.-]*[a-zA-Z0-9])?$",
+																"description": "Permission identifier (e.g. module)",
+																"example": "billing"
+															},
+															"writable": {
+																"type": "boolean",
+																"description": "Allow writing of permission-specific data by user",
+																"example": true
+															}
+														}
+													},
+													{
+														"type": "object",
+														"properties": {
+															"fork": {
+																"type": "integer",
+																"format": "int32",
+																"description": "Fork ID",
+																"example": 1
+															},
+															"writable": {
+																"type": "boolean",
+																"description": "Allow writing of permission-specific data by user",
+																"example": true
+															}
+														}
+													},
+													{
+														"type": "object",
+														"properties": {
+															"application": {
+																"type": "integer",
+																"format": "int32",
+																"description": "Application ID",
+																"example": 1
+															},
+															"writable": {
+																"type": "boolean",
+																"description": "Allow writing of permission-specific data by user",
+																"example": true
+															}
+														}
+													}
+												]
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Unauthorized",
+						"headers": {
+							"WWW-Authenticate": {
+								"description": "Preferred authentication scheme ([RFC 7235](https://tools.ietf.org/html/rfc7235#section-4.1))",
+								"schema": {
+									"type": "string",
+									"example": "Bearer realm=\"{INSTANCE}\" error=\"invalid_token\""
+								}
+							}
+						},
+						"content": {
+							"text/plain": {
+								"schema": {
+									"type": "string",
+									"example": "Unauthorized: Invalid bearer token"
+								}
+							}
+						}
+					},
+					"500": {
+						"$ref": "#/components/responses/500-simple"
+					}
+				}
+			}
+		}
+	}
+}
