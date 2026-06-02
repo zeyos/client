@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ZeyOS Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Subtle fade-in for cards */
+    .fade-in { animation: fadeIn 0.4s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
+</head>
+
+<!--
+  Configuration
+
+  Set data-zeyos-url to your ZeyOS instance URL.
+  Optionally provide tokens obtained via the CLI (zeyos login).
+
+  Alternatively, use the browser console:
+    ZeyOS.setUrl('https://cloud.zeyos.com/demo/')
+    ZeyOS.setToken('your-access-token')
+    ZeyOS.reconnect()
+
+  If you are already logged into ZeyOS in this browser,
+  just set the URL -- session detection will handle the rest.
+-->
+<body class="bg-slate-100 min-h-screen font-sans antialiased"
+      data-zeyos-url="https://cloud.zeyos.com/cpqdemo/"
+      data-zeyos-accesstoken=""
+      data-zeyos-refreshtoken="">
+
+  <!-- == Connection Screen ==================================================== -->
+  <div id="connection-screen" class="hidden min-h-screen flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
+
+      <!-- Logo / title -->
+      <div class="text-center mb-6">
+        <div class="w-14 h-14 rounded-2xl bg-blue-600 flex items-center justify-center mx-auto mb-4">
+          <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+          </svg>
+        </div>
+        <h1 class="text-2xl font-bold text-slate-900">ZeyOS Dashboard</h1>
+        <p id="connection-message" class="text-slate-500 text-sm mt-1">Not connected</p>
+      </div>
+
+      <!-- Setup instructions -->
+      <div class="space-y-4 text-sm text-slate-600">
+
+        <div class="p-4 bg-blue-50 border border-blue-200 rounded-xl">
+          <h3 class="font-semibold text-blue-800 mb-2">Option 1 &mdash; Body Attributes</h3>
+          <p class="mb-2 leading-relaxed">Set connection details directly in <code class="text-xs bg-blue-100 px-1 py-0.5 rounded">index.html</code>:</p>
+          <pre class="text-xs bg-white p-3 rounded-lg border border-blue-100 overflow-x-auto leading-relaxed"><code>&lt;body
+  data-zeyos-url="https://cloud.zeyos.com/demo/"
+  data-zeyos-accesstoken="your-token"&gt;</code></pre>
+        </div>
+
+        <div class="p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+          <h3 class="font-semibold text-emerald-800 mb-2">Option 2 &mdash; Console API</h3>
+          <p class="mb-2 leading-relaxed">Open DevTools (<kbd class="text-xs bg-emerald-100 px-1.5 py-0.5 rounded font-mono">F12</kbd>) and run:</p>
+          <pre class="text-xs bg-white p-3 rounded-lg border border-emerald-100 overflow-x-auto leading-relaxed"><code>ZeyOS.setUrl('https://cloud.zeyos.com/demo/')
+ZeyOS.setToken('your-access-token')
+ZeyOS.reconnect()</code></pre>
+        </div>
+
+        <div class="p-4 bg-amber-50 border border-amber-200 rounded-xl">
+          <h3 class="font-semibold text-amber-800 mb-2">Option 3 &mdash; Session Mode</h3>
+          <p class="leading-relaxed">
+            If you are already logged into ZeyOS in this browser,
+            just set the URL &mdash; the app will detect your session automatically.
+          </p>
+        </div>
+
+        <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-500 space-y-1.5">
+          <p>
+            <strong>Tip:</strong> Use the CLI to obtain a token:
+            <code class="bg-slate-100 px-1 py-0.5 rounded font-mono">zeyos login</code> then
+            copy the token from <code class="bg-slate-100 px-1 py-0.5 rounded font-mono">.zeyos/auth.json</code>
+          </p>
+          <p>
+            <strong>Debug:</strong> Run <code class="bg-slate-100 px-1 py-0.5 rounded font-mono">ZeyOS.status()</code>
+            in the console to see the current config.
+          </p>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- == App Shell ============================================================ -->
+  <div id="app-shell" class="hidden min-h-screen flex flex-col">
+
+    <!-- Navbar -->
+    <header class="bg-white border-b border-slate-200 px-4 lg:px-6 py-2.5 flex items-center gap-3 flex-shrink-0 shadow-sm">
+
+      <!-- Logo -->
+      <div class="flex items-center gap-2 mr-2">
+        <div class="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center">
+          <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+          </svg>
+        </div>
+        <span class="font-semibold text-slate-800 hidden sm:inline">ZeyOS Dashboard</span>
+      </div>
+
+      <div class="flex-1"></div>
+
+      <!-- Reload button -->
+      <button id="btn-reload" title="Refresh data"
+        class="p-2 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+      </button>
+
+      <!-- Logout -->
+      <button id="btn-logout" title="Log out"
+        class="p-2 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-red-500 transition-colors">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+        </svg>
+      </button>
+
+    </header>
+
+    <!-- Dashboard Content -->
+    <main class="flex-1 overflow-y-auto p-4 lg:p-6">
+      <div class="max-w-7xl mx-auto space-y-6">
+
+        <!-- KPI Cards Row -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+
+          <!-- Total Tickets -->
+          <div class="fade-in bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+            <div class="flex items-center gap-3 mb-3">
+              <div class="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+              </div>
+              <span class="text-xs font-medium text-slate-500 uppercase tracking-wide">Total Tickets</span>
+            </div>
+            <p id="kpi-total-tickets" class="text-3xl font-bold text-slate-800">--</p>
+          </div>
+
+          <!-- Active Tickets -->
+          <div class="fade-in bg-white rounded-xl shadow-sm border border-slate-200 p-5" style="animation-delay:0.05s">
+            <div class="flex items-center gap-3 mb-3">
+              <div class="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
+                <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </div>
+              <span class="text-xs font-medium text-slate-500 uppercase tracking-wide">Active Tickets</span>
+            </div>
+            <p id="kpi-active-tickets" class="text-3xl font-bold text-slate-800">--</p>
+          </div>
+
+          <!-- Overdue Tickets -->
+          <div class="fade-in bg-white rounded-xl shadow-sm border border-slate-200 p-5" style="animation-delay:0.1s">
+            <div class="flex items-center gap-3 mb-3">
+              <div class="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center flex-shrink-0">
+                <svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <span class="text-xs font-medium text-slate-500 uppercase tracking-wide">Overdue</span>
+            </div>
+            <p id="kpi-overdue-tickets" class="text-3xl font-bold text-red-600">--</p>
+          </div>
+
+          <!-- Total Accounts -->
+          <div class="fade-in bg-white rounded-xl shadow-sm border border-slate-200 p-5" style="animation-delay:0.15s">
+            <div class="flex items-center gap-3 mb-3">
+              <div class="w-10 h-10 rounded-lg bg-violet-50 flex items-center justify-center flex-shrink-0">
+                <svg class="w-5 h-5 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+              </div>
+              <span class="text-xs font-medium text-slate-500 uppercase tracking-wide">Total Accounts</span>
+            </div>
+            <p id="kpi-total-accounts" class="text-3xl font-bold text-slate-800">--</p>
+          </div>
+
+        </div>
+
+        <!-- Status Distribution Chart -->
+        <div class="fade-in bg-white rounded-xl shadow-sm border border-slate-200 p-5" style="animation-delay:0.2s">
+          <h2 class="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-4">Ticket Status Distribution</h2>
+          <div id="status-chart" class="space-y-2">
+            <p class="text-sm text-slate-400 italic">Loading...</p>
+          </div>
+        </div>
+
+        <!-- Two-Column Tables -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+          <!-- Recent Tickets -->
+          <div class="fade-in bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden" style="animation-delay:0.25s">
+            <div class="px-5 py-4 border-b border-slate-100">
+              <h2 class="text-sm font-semibold text-slate-700 uppercase tracking-wide">Recent Tickets</h2>
+              <p class="text-xs text-slate-400 mt-0.5">Last 10 modified</p>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full">
+                <thead>
+                  <tr class="bg-slate-50/80 text-left">
+                    <th class="px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">ID</th>
+                    <th class="px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Name</th>
+                    <th class="px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
+                    <th class="px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Priority</th>
+                    <th class="px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Due Date</th>
+                  </tr>
+                </thead>
+                <tbody id="recent-tickets-body">
+                  <tr><td colspan="5" class="px-4 py-8 text-center text-sm text-slate-400 italic">Loading...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Recent Accounts -->
+          <div class="fade-in bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden" style="animation-delay:0.3s">
+            <div class="px-5 py-4 border-b border-slate-100">
+              <h2 class="text-sm font-semibold text-slate-700 uppercase tracking-wide">Recent Accounts</h2>
+              <p class="text-xs text-slate-400 mt-0.5">Last 10 modified</p>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full">
+                <thead>
+                  <tr class="bg-slate-50/80 text-left">
+                    <th class="px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">ID</th>
+                    <th class="px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Name</th>
+                    <th class="px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Type</th>
+                    <th class="px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">City</th>
+                    <th class="px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Assigned To</th>
+                  </tr>
+                </thead>
+                <tbody id="recent-accounts-body">
+                  <tr><td colspan="5" class="px-4 py-8 text-center text-sm text-slate-400 italic">Loading...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </main>
+
+  </div>
+
+  <!-- == Toast Container ====================================================== -->
+  <div id="toast-container"
+    class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none">
+  </div>
+
+  <!-- == Loading Overlay ====================================================== -->
+  <div id="loading-overlay"
+    class="hidden fixed inset-0 bg-white/60 backdrop-blur-sm z-50 flex items-center justify-center">
+    <div class="flex flex-col items-center gap-3">
+      <div class="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+      <span class="text-sm text-slate-600 font-medium">Loading&hellip;</span>
+    </div>
+  </div>
+
+  <script type="module" src="./js/main.js"></script>
+
+</body>
+</html>

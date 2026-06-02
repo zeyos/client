@@ -1,0 +1,4 @@
+interface:
+  display_name: "ZeyOS Notes and SOPs"
+  short_description: "Notes, SOP search, internal knowledge lookup"
+  default_prompt: "Use $zeyos-notes-and-sops to retrieve notes, SOPs, documents, and operational guidance."

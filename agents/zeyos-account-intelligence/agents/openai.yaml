@@ -1,0 +1,4 @@
+interface:
+  display_name: "ZeyOS Account Intelligence"
+  short_description: "Accounts, contacts, contracts, customer 360"
+  default_prompt: "Use $zeyos-account-intelligence to answer customer 360 questions across accounts, contacts, opportunities, contracts, and related records."

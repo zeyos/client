@@ -1,0 +1,15 @@
+{
+  "live": {
+    "url": "https://cloud.zeyos.com/demo",
+    "instance": "demo",
+    "port": 8080,
+    "clientId": "your.client.id",
+    "clientSecret": "your-client-secret",
+    "token": {
+      "accessToken": null,
+      "refreshToken": null,
+      "expiresAt": null,
+      "obtainedAt": null
+    }
+  }
+}

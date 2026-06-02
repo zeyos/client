@@ -1,0 +1,4 @@
+interface:
+  display_name: "ZeyOS Collaboration And Activity"
+  short_description: "Inspect timelines, comments, channels, and followers."
+  default_prompt: "Use $zeyos-collaboration-and-activity to inspect record timelines, comments, followers, channels, and recent activity in ZeyOS."

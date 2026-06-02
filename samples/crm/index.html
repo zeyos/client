@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ZeyOS CRM Contacts</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Native dialog reset */
+    dialog { padding: 0; border: none; border-radius: 1rem; max-width: 90vw; }
+    dialog::backdrop { background: rgba(0,0,0,0.5); }
+
+    /* Sortable column header indicators */
+    .sort-asc::after  { content: ' \25B2'; font-size: 0.65em; opacity: 0.7; }
+    .sort-desc::after { content: ' \25BC'; font-size: 0.65em; opacity: 0.7; }
+
+    /* Clickable table rows */
+    #accounts-tbody tr { cursor: pointer; }
+    #accounts-tbody tr:hover { background: #f1f5f9; }
+  </style>
+</head>
+
+<!--
+  +-----------------------------------------------------------------------+
+  |  CONFIGURATION                                                        |
+  |                                                                       |
+  |  Set data-zeyos-url to your ZeyOS instance URL.                       |
+  |  Optionally provide tokens obtained via the CLI (zeyos login).        |
+  |                                                                       |
+  |  Alternatively, use the browser console:                              |
+  |    ZeyOS.setUrl('https://cloud.zeyos.com/demo/')                      |
+  |    ZeyOS.setToken('your-access-token')                                |
+  |    ZeyOS.reconnect()                                                  |
+  |                                                                       |
+  |  If you are already logged into ZeyOS in this browser,                |
+  |  just set the URL -- session detection will handle the rest.          |
+  +-----------------------------------------------------------------------+
+-->
+<body class="bg-slate-100 min-h-screen font-sans antialiased"
+      data-zeyos-url="https://cloud.zeyos.com/cpqdemo/"
+      data-zeyos-accesstoken=""
+      data-zeyos-refreshtoken="">
+
+  <!-- == Connection Screen ================================================ -->
+  <div id="connection-screen" class="hidden min-h-screen flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
+
+      <!-- Logo / title -->
+      <div class="text-center mb-6">
+        <div class="w-14 h-14 rounded-2xl bg-blue-600 flex items-center justify-center mx-auto mb-4">
+          <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        </div>
+        <h1 class="text-2xl font-bold text-slate-900">ZeyOS CRM Contacts</h1>
+        <p id="connection-message" class="text-slate-500 text-sm mt-1">Not connected</p>
+      </div>
+
+      <!-- Setup instructions -->
+      <div class="space-y-4 text-sm text-slate-600">
+
+        <div class="p-4 bg-blue-50 border border-blue-200 rounded-xl">
+          <h3 class="font-semibold text-blue-800 mb-2">Option 1 &mdash; Body Attributes</h3>
+          <p class="mb-2 leading-relaxed">Set connection details directly in <code class="text-xs bg-blue-100 px-1 py-0.5 rounded">index.html</code>:</p>
+          <pre class="text-xs bg-white p-3 rounded-lg border border-blue-100 overflow-x-auto leading-relaxed"><code>&lt;body
+  data-zeyos-url="https://cloud.zeyos.com/demo/"
+  data-zeyos-accesstoken="your-token"&gt;</code></pre>
+        </div>
+
+        <div class="p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+          <h3 class="font-semibold text-emerald-800 mb-2">Option 2 &mdash; Console API</h3>
+          <p class="mb-2 leading-relaxed">Open DevTools (<kbd class="text-xs bg-emerald-100 px-1.5 py-0.5 rounded font-mono">F12</kbd>) and run:</p>
+          <pre class="text-xs bg-white p-3 rounded-lg border border-emerald-100 overflow-x-auto leading-relaxed"><code>ZeyOS.setUrl('https://cloud.zeyos.com/demo/')
+ZeyOS.setToken('your-access-token')
+ZeyOS.reconnect()</code></pre>
+        </div>
+
+        <div class="p-4 bg-amber-50 border border-amber-200 rounded-xl">
+          <h3 class="font-semibold text-amber-800 mb-2">Option 3 &mdash; Session Mode</h3>
+          <p class="leading-relaxed">
+            If you are already logged into ZeyOS in this browser,
+            just set the URL &mdash; the app will detect your session automatically.
+          </p>
+        </div>
+
+        <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-500 space-y-1.5">
+          <p>
+            <strong>Tip:</strong> Use the CLI to obtain a token:
+            <code class="bg-slate-100 px-1 py-0.5 rounded font-mono">zeyos login</code> then
+            copy the token from <code class="bg-slate-100 px-1 py-0.5 rounded font-mono">.zeyos/auth.json</code>
+          </p>
+          <p>
+            <strong>Debug:</strong> Run <code class="bg-slate-100 px-1 py-0.5 rounded font-mono">ZeyOS.status()</code>
+            in the console to see the current config.
+          </p>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- == App Shell ======================================================== -->
+  <div id="app-shell" class="hidden flex flex-col" style="height:100dvh">
+
+    <!-- Navbar -->
+    <header class="bg-white border-b border-slate-200 px-4 py-2.5 flex items-center gap-3 flex-shrink-0 shadow-sm">
+
+      <!-- Logo -->
+      <div class="flex items-center gap-2 mr-2">
+        <div class="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center">
+          <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        </div>
+        <span class="font-semibold text-slate-800 hidden sm:inline">ZeyOS CRM</span>
+      </div>
+
+      <!-- Search bar -->
+      <div class="flex-1 max-w-md relative">
+        <svg class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <input id="search-input" type="text" placeholder="Search accounts..."
+          class="w-full pl-9 pr-3 py-1.5 rounded-lg bg-slate-100 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-slate-400">
+      </div>
+
+      <div class="flex-1"></div>
+
+      <!-- Reload button -->
+      <button id="btn-reload" title="Reload accounts"
+        class="p-2 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+      </button>
+
+      <!-- New account -->
+      <button id="btn-new-account"
+        class="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 active:bg-blue-800 transition-colors">
+        <span class="text-base leading-none">+</span>
+        <span class="hidden sm:inline">New Account</span>
+      </button>
+
+      <!-- Logout -->
+      <button id="btn-logout" title="Log out"
+        class="p-2 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-red-500 transition-colors">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+        </svg>
+      </button>
+
+    </header>
+
+    <!-- Main content area -->
+    <main class="flex-1 overflow-auto p-4">
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+
+        <!-- Table -->
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm text-left">
+            <thead>
+              <tr class="bg-slate-50 border-b border-slate-200">
+                <th class="sortable-col px-4 py-3 font-semibold text-slate-600 cursor-pointer hover:text-blue-600 whitespace-nowrap select-none" data-sort="AccountNum">Account #</th>
+                <th class="sortable-col px-4 py-3 font-semibold text-slate-600 cursor-pointer hover:text-blue-600 whitespace-nowrap select-none" data-sort="Name">Name</th>
+                <th class="sortable-col px-4 py-3 font-semibold text-slate-600 cursor-pointer hover:text-blue-600 whitespace-nowrap select-none" data-sort="Email">Email</th>
+                <th class="sortable-col px-4 py-3 font-semibold text-slate-600 cursor-pointer hover:text-blue-600 whitespace-nowrap select-none" data-sort="Phone">Phone</th>
+                <th class="sortable-col px-4 py-3 font-semibold text-slate-600 cursor-pointer hover:text-blue-600 whitespace-nowrap select-none" data-sort="City">City</th>
+                <th class="sortable-col px-4 py-3 font-semibold text-slate-600 cursor-pointer hover:text-blue-600 whitespace-nowrap select-none" data-sort="AssignedUser">Assigned User</th>
+                <th class="sortable-col px-4 py-3 font-semibold text-slate-600 cursor-pointer hover:text-blue-600 whitespace-nowrap select-none" data-sort="Type">Type</th>
+                <th class="sortable-col px-4 py-3 font-semibold text-slate-600 cursor-pointer hover:text-blue-600 whitespace-nowrap select-none" data-sort="LastModified">Last Modified</th>
+              </tr>
+            </thead>
+            <tbody id="accounts-tbody" class="divide-y divide-slate-100">
+              <!-- Rows injected by main.js -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Empty state -->
+        <div id="empty-state" class="hidden py-16 text-center">
+          <svg class="w-12 h-12 text-slate-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+              d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          <p class="text-slate-500 font-medium">No accounts found</p>
+          <p class="text-slate-400 text-sm mt-1">Try adjusting your search or create a new account.</p>
+        </div>
+
+        <!-- Pagination -->
+        <div id="pagination-bar" class="flex items-center justify-between px-4 py-3 border-t border-slate-200 bg-slate-50">
+          <div class="text-xs text-slate-500">
+            <span id="pagination-info">Showing 0 accounts</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <button id="btn-prev-page"
+              class="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              disabled>
+              &larr; Previous
+            </button>
+            <span id="page-indicator" class="text-xs text-slate-500 font-medium min-w-[60px] text-center">Page 1</span>
+            <button id="btn-next-page"
+              class="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              disabled>
+              Next &rarr;
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </main>
+
+  </div>
+
+  <!-- == Account Edit / Create Dialog ===================================== -->
+  <dialog id="account-modal" style="width:min(560px,92vw)">
+    <div class="p-6">
+      <!-- Header -->
+      <div class="flex items-center justify-between mb-5">
+        <h2 id="modal-title" class="text-lg font-semibold text-slate-900">Edit Account</h2>
+        <button id="modal-close"
+          class="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 leading-none text-lg">&times;</button>
+      </div>
+
+      <!-- Form -->
+      <form id="account-form" class="space-y-4">
+        <input type="hidden" id="form-id" value="">
+
+        <!-- Name row -->
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label for="form-firstname" class="block text-xs font-medium text-slate-600 mb-1">First Name</label>
+            <input id="form-firstname" type="text"
+              class="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+          </div>
+          <div>
+            <label for="form-lastname" class="block text-xs font-medium text-slate-600 mb-1">Last Name / Company</label>
+            <input id="form-lastname" type="text" required
+              class="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+          </div>
+        </div>
+
+        <!-- Type -->
+        <div>
+          <label for="form-type" class="block text-xs font-medium text-slate-600 mb-1">Account Type</label>
+          <select id="form-type"
+            class="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white">
+            <option value="0">Prospect</option>
+            <option value="1">Customer</option>
+            <option value="2">Supplier</option>
+            <option value="3">Customer &amp; Supplier</option>
+            <option value="4">Competitor</option>
+            <option value="5">Employee</option>
+          </select>
+        </div>
+
+        <!-- Description -->
+        <div>
+          <label for="form-description" class="block text-xs font-medium text-slate-600 mb-1">Description</label>
+          <textarea id="form-description" rows="3"
+            class="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"></textarea>
+        </div>
+
+        <!-- Contact info (read-only when editing, hidden on create) -->
+        <div id="contact-section" class="hidden">
+          <div class="border-t border-slate-200 pt-4 mt-4">
+            <h3 class="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-3">Contact Info (read-only)</h3>
+            <p class="text-xs text-slate-400 mb-3">Contact details are managed on the linked contact record.</p>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-medium text-slate-500 mb-1">Email</label>
+                <div id="contact-email" class="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-sm text-slate-600 min-h-[38px]">&mdash;</div>
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-slate-500 mb-1">Phone</label>
+                <div id="contact-phone" class="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-sm text-slate-600 min-h-[38px]">&mdash;</div>
+              </div>
+              <div class="col-span-2">
+                <label class="block text-xs font-medium text-slate-500 mb-1">City</label>
+                <div id="contact-city" class="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-sm text-slate-600 min-h-[38px]">&mdash;</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex items-center justify-between pt-2">
+          <button type="button" id="btn-delete-account"
+            class="hidden text-sm text-red-500 hover:text-red-700 font-medium transition-colors">
+            Delete Account
+          </button>
+          <div class="flex items-center gap-3 ml-auto">
+            <button type="button" id="btn-cancel"
+              class="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 transition-colors">
+              Cancel
+            </button>
+            <button type="submit" id="btn-save"
+              class="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 active:bg-blue-800 transition-colors">
+              Save
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+  <!-- == Toast Container ================================================== -->
+  <div id="toast-container"
+    class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none">
+  </div>
+
+  <!-- == Loading Overlay ================================================== -->
+  <div id="loading-overlay"
+    class="hidden fixed inset-0 bg-white/60 backdrop-blur-sm z-50 flex items-center justify-center">
+    <div class="flex flex-col items-center gap-3">
+      <div class="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+      <span class="text-sm text-slate-600 font-medium">Loading&hellip;</span>
+    </div>
+  </div>
+
+  <script type="module" src="./js/main.js"></script>
+</body>
+</html>

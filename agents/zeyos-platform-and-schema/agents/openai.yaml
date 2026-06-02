@@ -1,0 +1,4 @@
+interface:
+  display_name: "ZeyOS Platform and Schema"
+  short_description: "Apps, services, custom fields, schema admin"
+  default_prompt: "Use $zeyos-platform-and-schema to inspect applications, services, weblets, custom fields, groups, permissions, and custom objects."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "ZeyOS Work Management"
+  short_description: "Tasks, projects, tickets, workload tracing"
+  default_prompt: "Use $zeyos-work-management to answer questions about tickets, tasks, projects, assignees, and work status."

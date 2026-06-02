@@ -1,0 +1,4 @@
+interface:
+  display_name: "ZeyOS Commerce and Inventory"
+  short_description: "Items, pricing, stock, suppliers, catalogs"
+  default_prompt: "Use $zeyos-commerce-and-inventory to analyze items, prices, stock, suppliers, and customer-specific pricing."

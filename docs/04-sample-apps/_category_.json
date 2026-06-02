@@ -1,0 +1,9 @@
+{
+  "label": "Sample Applications",
+  "position": 7,
+  "collapsed": false,
+  "link": {
+    "type": "generated-index",
+    "description": "Three ready-to-run sample applications demonstrating different ZeyOS API integration patterns."
+  }
+}

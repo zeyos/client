@@ -1,0 +1,9 @@
+{
+  "label": "CLI",
+  "position": 4,
+  "collapsed": true,
+  "link": {
+    "type": "generated-index",
+    "description": "The ZeyOS command-line interface for scripting, automation, and coding-agent workflows across the curated CLI resource registry."
+  }
+}

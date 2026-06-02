@@ -1,0 +1,4 @@
+interface:
+  display_name: "ZeyOS Campaign And Outreach"
+  short_description: "Inspect campaigns, audiences, and mailing coverage."
+  default_prompt: "Use $zeyos-campaign-and-outreach to inspect campaign setup, mailing-list membership, participant coverage, and campaign-linked messaging workflows in ZeyOS."

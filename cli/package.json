@@ -1,0 +1,26 @@
+{
+  "name": "@zeyos/cli",
+  "version": "0.1.0",
+  "description": "Command-line interface for the ZeyOS API",
+  "type": "module",
+  "bin": {
+    "zeyos": "./bin/zeyos.mjs"
+  },
+  "exports": {
+    ".": "./bin/zeyos.mjs"
+  },
+  "files": [
+    "bin",
+    "commands",
+    "config",
+    "lib",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18.3"
+  },
+  "dependencies": {
+    "@zeyos/client": "file:../"
+  },
+  "license": "UNLICENSED"
+}

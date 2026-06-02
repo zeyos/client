@@ -1,0 +1,16 @@
+{
+  "list": {
+    "fields": {
+      "ID": "ID",
+      "Num": "projectnum",
+      "Name": "name",
+      "Status": "status",
+      "Agent": "assigneduser.name",
+      "Modified": "lastmodified"
+    }
+  },
+  "get": {
+    "fields": ["ID", "projectnum", "name", "description", "status", "assigneduser", "visibility", "created", "lastmodified"],
+    "expand": ["extdata"]
+  }
+}

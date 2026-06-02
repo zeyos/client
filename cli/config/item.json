@@ -1,0 +1,16 @@
+{
+  "list": {
+    "fields": {
+      "ID": "ID",
+      "Num": "itemnum",
+      "Name": "name",
+      "Manufacturer": "manufacturer",
+      "Type": "type",
+      "Selling": "sellingprice",
+      "Purchase": "purchaseprice"
+    }
+  },
+  "get": {
+    "fields": ["ID", "itemnum", "name", "manufacturer", "type", "sellingprice", "purchaseprice", "description", "created", "lastmodified"]
+  }
+}

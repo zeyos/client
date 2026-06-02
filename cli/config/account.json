@@ -1,0 +1,18 @@
+{
+  "list": {
+    "fields": {
+      "ID": "ID",
+      "Num": "customernum",
+      "Lastname": "lastname",
+      "Firstname": "firstname",
+      "City": "contact.city",
+      "Country": "contact.country",
+      "Agent": "assigneduser.name",
+      "Modified": "lastmodified"
+    }
+  },
+  "get": {
+    "fields": ["ID", "customernum", "lastname", "firstname", "type", "assigneduser", "visibility", "created", "lastmodified"],
+    "expand": ["extdata"]
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "label": "JavaScript Client",
+  "position": 3,
+  "collapsed": false,
+  "link": {
+    "type": "generated-index",
+    "description": "The ZeyOS JavaScript client: installation, authentication, CRUD operations, and real-world implementation patterns."
+  }
+}

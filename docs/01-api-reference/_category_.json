@@ -1,0 +1,9 @@
+{
+  "label": "API Reference",
+  "position": 2,
+  "collapsed": false,
+  "link": {
+    "type": "generated-index",
+    "description": "Complete reference for the ZeyOS REST API: query language, authentication, resource endpoints, and field schemas."
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "name": "@zeyos/client",
+  "version": "0.1.0",
+  "description": "Dependency-light JavaScript client for ZeyOS OpenAPI services",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": [
+    "src",
+    "scripts",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "generate": "node scripts/generate-client.mjs",
+    "test": "node scripts/test.mjs"
+  },
+  "license": "UNLICENSED"
+}

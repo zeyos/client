@@ -1,0 +1,4 @@
+interface:
+  display_name: "ZeyOS Mail Operations"
+  short_description: "Email search, summaries, drafts, threads"
+  default_prompt: "Use $zeyos-mail-operations to summarize messages, trace customer email threads, and draft replies."

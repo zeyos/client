@@ -1,0 +1,4 @@
+interface:
+  display_name: "ZeyOS Billing Insights"
+  short_description: "Revenue, invoices, payments, transaction detail"
+  default_prompt: "Use $zeyos-billing-insights to analyze transactions, payments, invoices, and revenue questions."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "ZeyOS Collections And Dunning"
+  short_description: "Inspect dunning, receivables, and payment gaps."
+  default_prompt: "Use $zeyos-collections-and-dunning to inspect overdue invoices, dunning notices, payment gaps, and collection workflows in ZeyOS."

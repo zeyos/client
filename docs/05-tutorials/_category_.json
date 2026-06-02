@@ -1,0 +1,9 @@
+{
+  "label": "Application Developers",
+  "position": 6,
+  "collapsed": false,
+  "link": {
+    "type": "generated-index",
+    "description": "Guides for developers building browser UIs, server-side integrations, and connected applications on top of ZeyOS."
+  }
+}

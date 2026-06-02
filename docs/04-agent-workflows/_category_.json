@@ -1,0 +1,9 @@
+{
+  "label": "Agent Workflows",
+  "position": 5,
+  "collapsed": false,
+  "link": {
+    "type": "generated-index",
+    "description": "CLI-first workflows for coding agents, automation scripts, and operational tooling built on top of ZeyOS."
+  }
+}
