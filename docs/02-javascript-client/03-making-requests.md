@@ -350,6 +350,79 @@ const transaction = await client.api.getTransaction({
 Do not confuse `expand` with `extdata`. The `expand` parameter is strictly for JSON and binary columns -- it does not apply to extended data fields. To include extended data, use `extdata: 1` instead.
 :::
 
+## Schema Introspection and Validation
+
+The `client.schema` surface lets you (or an AI agent) discover the data model and validate inputs **without any network call** -- it is built from the generated schema. This is the fastest way to learn fields, types, foreign keys, and enum values before issuing a request.
+
+```js
+client.schema.resources();                 // all resource names
+client.schema.describe('tickets');          // { name, type, fields: { status: { type, enum }, account: { fk }, … } }
+client.schema.fields('accounts');           // ['ID', 'lastname', 'firstname', 'type', …]
+client.schema.operations('tickets');        // ['listTickets', 'getTicket', 'createTicket', …]
+client.schema.resourceForOperation('listDunningNotices'); // 'dunning'
+client.schema.suggestOperation('listDunning');            // 'listDunningNotices'
+```
+
+### Validating a Call
+
+`client.schema.validate(operationId, input)` returns structured, self-correcting hints. It never throws and is lenient about dot-notation joins (`contact.city`) and extended fields (`extdata.*`):
+
+```js
+const result = client.schema.validate('createAccount', { name: 'Acme' });
+// {
+//   valid: false,
+//   errors: [{ field: 'name', message: 'Unknown field "name". Did you mean "lastname"?', suggestion: 'lastname' }]
+// }
+```
+
+It flags unknown fields (with a suggestion), `filter` used where `filters` is preferred, and invalid enum values (listing the valid set).
+
+### Pre-flight Validation
+
+Set `validate: true` on the client to validate every request before it is sent and throw a `ZeyosValidationError` (rather than letting the server reject it):
+
+```js
+import { ZeyosValidationError } from '@zeyos/client';
+
+const client = createZeyosClient({ platform: 'live', instance: 'demo', validate: true });
+
+try {
+  await client.api.createAccount({ name: 'Acme' });   // wrong field
+} catch (err) {
+  if (err instanceof ZeyosValidationError) {
+    console.log(err.operationId);   // 'createAccount'
+    console.log(err.errors);        // structured hints (see above)
+  }
+}
+```
+
+Validation is **off by default** so that custom and extended fields are never blocked; enable it in agent or development workflows where fast, descriptive feedback is more valuable.
+
+## Retries and Rate Limiting
+
+The client automatically retries transient failures. By default it retries `429 Too Many Requests` and `503 Service Unavailable` up to twice, using exponential backoff with jitter and honoring a `Retry-After` header when present. Retries are abort-aware (an `AbortSignal` cancels pending waits).
+
+```js
+// Customize the policy
+const client = createZeyosClient({
+  platform: 'live',
+  instance: 'demo',
+  retry: {
+    maxRetries: 3,
+    retryOn: [429, 503],     // statuses to retry
+    baseDelayMs: 300,        // backoff base
+    maxDelayMs: 10000        // cap per wait
+  }
+});
+
+// Disable retries entirely
+const noRetry = createZeyosClient({ platform: 'live', instance: 'demo', retry: false });
+```
+
+:::note
+Only `429`/`503` are retried by default -- statuses that clearly mean "try again later". `5xx` codes such as `500`/`502` are **not** retried automatically, to avoid re-applying a non-idempotent write that may have partially succeeded. Add them to `retryOn` only for read-heavy workloads.
+:::
+
 ## Error Handling
 
 All API errors are thrown as `ZeyosApiError` instances. This class extends `Error` and includes structured information about the failed request.
@@ -384,6 +457,19 @@ The `ZeyosApiError` properties:
 | `url` | `string` | The full request URL |
 | `body` | `any` | The parsed error response body |
 | `headers` | `object` | Response headers as a plain object |
+
+### Unknown Operations
+
+Calling an operation that does not exist rejects with a `ZeyosApiError` that suggests the closest match, instead of an opaque `is not a function` error -- useful when an operationId differs from the underlying table name:
+
+```js
+await client.api.listDunning({});
+// ZeyosApiError: Unknown operation 'api.listDunning'. Did you mean 'listDunningNotices'?
+```
+
+### Validation Errors
+
+When the client is created with `validate: true`, malformed requests reject with a `ZeyosValidationError` **before** any network call (see [Schema Introspection and Validation](#schema-introspection-and-validation)). It carries `operationId` and a structured `errors` array.
 
 ## Low-Level Requests
 

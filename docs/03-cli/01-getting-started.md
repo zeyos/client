@@ -107,6 +107,26 @@ zeyos resources
 
 If the resource you need does not appear there, switch to [`@zeyos/client`](../02-javascript-client/01-getting-started.md).
 
+## Discover the Schema
+
+Inspect a resource's fields, types, foreign keys, and enum values before querying. This works offline -- no login required -- so it is a fast way to learn the data model:
+
+```bash
+zeyos describe tickets
+zeyos describe accounts --json
+```
+
+## Install Agent Skills
+
+If you are driving the CLI from a coding agent (Claude, Codex, …), install the bundled ZeyOS skill packs into your project so the agent picks up the right query conventions:
+
+```bash
+zeyos skills list                 # see the available skills
+zeyos skills install              # copy them into .claude/skills (or .codex)
+```
+
+See the [Commands Reference](./02-commands.md#skills) for details.
+
 ## Working with Filters
 
 Query specific records using JSON filter expressions:

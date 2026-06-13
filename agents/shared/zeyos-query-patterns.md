@@ -20,6 +20,7 @@ For cross-platform benchmark guidance, read [business-app-benchmarks.md](./busin
 
 ## Common Guardrails
 
+- Discover before guessing: `zeyos describe <resource>` (or `client.schema.describe(resource)`) lists a resource's fields, types, foreign keys, and enum values; both run offline. Pre-check a call with `client.schema.validate(operationId, input)` — it flags unknown fields (with suggestions), `filter` vs `filters`, and invalid enum values. An unknown operation name rejects with a "did you mean …?" suggestion.
 - Use `visibility: 0` on resources that expose a `visibility` field, unless the user explicitly wants archived or deleted records.
 - Treat list operations as `POST` queries.
 - Treat `filter` versus `filters` as a source inconsistency, not a universal rule:

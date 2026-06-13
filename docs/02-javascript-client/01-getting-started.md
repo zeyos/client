@@ -61,6 +61,7 @@ The returned `client` object exposes:
 - **`client.oauth2`** -- OAuth 2.0 token operations and authorization URL helpers
 - **`client.legacyAuth`** -- Legacy session authentication operations (`login`, `logout`, `verify`, `getUserInfo`)
 - **`client.request()`** -- Low-level escape hatch for custom or advanced requests
+- **`client.schema`** -- Runtime introspection and input validation (`describe`, `fields`, `resources`, `operations`, `validate`); see [Making Requests](./03-making-requests.md#schema-introspection-and-validation)
 - **`client.auth`** -- Token management (`getTokenSet`, `setTokenSet`, `clearTokenSet`)
 - **`client.metadata`** -- Read-only info about the generated client (`generatedAt` timestamp, `services` array)
 
@@ -133,6 +134,8 @@ const client = createZeyosClient({
 | `auth.session.cookie` | `string \| function` | Explicit session cookie value or async function returning one (Node.js) |
 | `headers` | `object` | Default headers applied to every request |
 | `fetch` | `function` | Custom `fetch` implementation (defaults to `globalThis.fetch`) |
+| `retry` | `object \| false` | Transient-failure retry policy. Default retries `429`/`503` twice with exponential backoff, honoring `Retry-After`. Shape: `{ maxRetries, retryOn, baseDelayMs, maxDelayMs }`. Pass `false` to disable. See [Making Requests](./03-making-requests.md#retries-and-rate-limiting) |
+| `validate` | `boolean` | When `true`, validate each request against the schema before sending and throw `ZeyosValidationError` on problems (default: `false`). See [Making Requests](./03-making-requests.md#schema-introspection-and-validation) |
 
 ## Next Steps
 
