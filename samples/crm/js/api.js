@@ -14,7 +14,6 @@
  * IMPORTANT implementation notes (from project memory):
  *  - Use `filters` (plural) NOT `filter` for list queries
  *  - Always include `visibility: 0` in filters
- *  - For updates: MUST use `{ ID: id, body: data }` (body inference bug)
  *  - Normalise list responses: Array.isArray(result) ? result : (result?.data ?? [])
  */
 import { createZeyosClient, MemoryTokenStore } from '../../../src/index.js';
@@ -178,9 +177,6 @@ export async function createAccount(data) {
 
 /**
  * Update an existing account.
- * IMPORTANT: Must use { ID: id, body: data } -- NOT { ID: id, ...data }
- * due to the body inference bug when input contains a path param name.
- *
  * @param {number|string} id   - Account ID
  * @param {Object}        data - Fields to update
  */

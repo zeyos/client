@@ -8,7 +8,7 @@ import { randomBytes, createHash } from 'node:crypto';
 import readline from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
 
-import { createZeyosClient } from '../src/index.js';
+import { createZeyosClient, normalizeTokenSet } from '../src/index.js';
 
 function isObject(value) {
   return value != null && typeof value === 'object' && !Array.isArray(value);
@@ -455,29 +455,8 @@ async function runLiveAssertions({ target, clientId, clientSecret, tokenSet }) {
   console.log('✔ Live checks completed successfully.');
 }
 
-function normalizeStoredToken(token) {
-  if (!isObject(token)) {
-    return null;
-  }
-
-  const accessToken = token.accessToken ?? token.access_token ?? null;
-  const refreshToken = token.refreshToken ?? token.refresh_token ?? null;
-
-  if (!accessToken && !refreshToken) {
-    return null;
-  }
-
-  return {
-    tokenType: token.tokenType ?? token.token_type ?? 'Bearer',
-    accessToken,
-    refreshToken,
-    expiresAt: token.expiresAt ?? token.expires_at ?? null,
-    obtainedAt: token.obtainedAt ?? token.obtained_at ?? null
-  };
-}
-
 async function tryReuseStoredToken({ target, clientId, clientSecret, storedToken }) {
-  const normalized = normalizeStoredToken(storedToken);
+  const normalized = normalizeTokenSet(storedToken);
   if (!normalized?.refreshToken) {
     return null;
   }

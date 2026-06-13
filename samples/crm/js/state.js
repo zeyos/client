@@ -82,6 +82,7 @@ export const runtime = {
   url:      null,      // resolved ZeyOS instance URL
   authMode: null,      // 'token' | 'session' | null
   accounts: [],        // current page of account records
+  hasNextPage: false,  // true when the next page has at least one record
   page:     1,         // current page number (1-based)
   pageSize: 25,        // records per page
   search:   '',        // current search query

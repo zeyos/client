@@ -31,24 +31,28 @@ Interactive login:
 zeyos login
 ```
 
-Fully non-interactive login:
+Pre-fill login parameters:
 
 ```bash
 zeyos login \
   --base-url https://cloud.zeyos.com/demo \
   --client-id myapp \
-  --secret mysecret
+  --secret "$ZEYOS_CLIENT_SECRET"
 ```
+
+This still starts the OAuth authorization-code flow and requires a browser redirect or pasted code. For fully unattended agents, inject `ZEYOS_BASE_URL`, `ZEYOS_TOKEN`, and optionally `ZEYOS_REFRESH_TOKEN`, `ZEYOS_CLIENT_ID`, and `ZEYOS_CLIENT_SECRET` through the environment.
 
 The CLI stores credentials in `.zeyos/auth.json` in the current project tree, or in `~/.config/zeyos/credentials.json` when `--global` is used.
 
 ## Verify the Session
 
-Check the current user and token-backed context:
+Check the current user:
 
 ```bash
 zeyos whoami --json
 ```
+
+`whoami` hides access tokens by default. Use `zeyos whoami --show-token --json` only when the token must be handed to another local tool.
 
 Discover which curated resources the CLI can operate on directly:
 

@@ -96,8 +96,10 @@ zeyos list tickets --fields ID,name --filter '{"visibility":0}' --json | jq '.[]
 Extract the current access token for another tool:
 
 ```bash
-zeyos whoami --json | jq -r '.accessToken'
+zeyos whoami --show-token --json | jq -r '.accessToken'
 ```
+
+Treat printed access tokens as secrets. Avoid writing them to logs, shared shell history, or agent transcripts.
 
 ## Destructive Guardrails
 

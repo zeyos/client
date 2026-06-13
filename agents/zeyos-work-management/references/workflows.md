@@ -8,6 +8,11 @@
 - `actionsteps`: smaller follow-up work linked to tasks, tickets, accounts, or transactions; default to these when the user is really asking for a scheduled follow-up rather than a broader deliverable
 - `users`: system identities for assignees
 
+These are dbref nouns, not operationIds. Note `actionsteps` -> `listActionSteps` /
+`getActionStep` / `createActionStep` (compound CamelCase, not `listActionsteps`). See
+[../../shared/zeyos-entity-reference.md](../../shared/zeyos-entity-reference.md#entity-noun-to-rest-operationid)
+before calling `@zeyos/client`.
+
 ## Resolve Before Querying
 
 1. Resolve the user or account first.

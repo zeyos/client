@@ -20,7 +20,7 @@ The dashboard follows the same browser auth model as the other samples:
 
 Configuration can come from `data-zeyos-*` attributes, `localStorage`, or the `window.ZeyOS` console API.
 
-For long-lived browser sessions, prefer session mode or move OAuth refresh to a backend. The sample avoids shipping client credentials in browser code.
+For long-lived browser sessions, prefer session mode or move OAuth refresh to a backend. Session mode only works from the same origin or when the ZeyOS instance allows credentialed CORS, so token mode is usually the local-development path. The sample avoids shipping client credentials in browser code.
 
 ## Main API Calls
 
@@ -47,6 +47,8 @@ The dashboard is a good template for:
 - home pages for internal operator portals
 - management dashboards that aggregate a few targeted ZeyOS queries
 - small browser apps that need strong perceived performance from parallel loading
+
+When copying code outside this repository, replace source-tree imports such as `../../../src/index.js` with an import path that exists in your app: an npm package import, a vendored copy of `src/`, or a local symlink.
 
 ## Run Locally
 

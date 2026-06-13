@@ -41,8 +41,8 @@ export function isAuthenticated() {
   const tokens = loadTokens();
   if (!tokens?.accessToken) return false;
   if (!tokens.expiresAt) return true;
-  // Token still valid with 2-minute buffer
-  return Date.now() < tokens.expiresAt - 120_000;
+  // Token still valid with 2-minute buffer (expiresAt is Unix seconds)
+  return Date.now() / 1000 < tokens.expiresAt - 120;
 }
 
 /**

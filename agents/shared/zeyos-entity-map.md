@@ -4,6 +4,12 @@ Use this file when a question spans more than one business area.
 
 This is the high-level relationship map. For the source-backed inventory, read [zeyos-entity-reference.md](./zeyos-entity-reference.md), which is derived from [../../openapi/dbref.json](../../openapi/dbref.json) and [../../openapi/api.json](../../openapi/api.json).
 
+The names below are dbref/DB-table nouns used to describe relationships. They are **not** the
+`@zeyos/client` operationIds. Several diverge (e.g. `dunning` -> `listDunningNotices`,
+`dunning2transactions` -> `listDunningToTransactions`, `pricelists2accounts` ->
+`listPriceListsToAccounts`, `mailinglists` -> `listMailingLists`). Before constructing a call, map
+the noun to its operationId via [zeyos-entity-reference.md](./zeyos-entity-reference.md#entity-noun-to-rest-operationid).
+
 ## Work Graph
 
 - `projects` are the top-level work containers.

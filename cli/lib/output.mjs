@@ -7,16 +7,14 @@
 
 // ── Colors ────────────────────────────────────────────────────────────────────
 
-const USE_COLOR = process.stdout.isTTY && !process.argv.includes('--no-color');
+const USE_COLOR = process.stdout.isTTY && !process.argv.includes('--no-color') && !process.env.NO_COLOR;
 
 const c = {
-  reset:  s => USE_COLOR ? `\x1b[0m${s}\x1b[0m`  : s,
   bold:   s => USE_COLOR ? `\x1b[1m${s}\x1b[0m`  : s,
   dim:    s => USE_COLOR ? `\x1b[2m${s}\x1b[0m`  : s,
   green:  s => USE_COLOR ? `\x1b[32m${s}\x1b[0m` : s,
   red:    s => USE_COLOR ? `\x1b[31m${s}\x1b[0m` : s,
   yellow: s => USE_COLOR ? `\x1b[33m${s}\x1b[0m` : s,
-  blue:   s => USE_COLOR ? `\x1b[34m${s}\x1b[0m` : s,
   cyan:   s => USE_COLOR ? `\x1b[36m${s}\x1b[0m` : s,
 };
 
@@ -40,7 +38,7 @@ export function printJson(data) {
 // ── YAML ──────────────────────────────────────────────────────────────────────
 
 export function printYaml(data) {
-  process.stdout.write(toYaml(data) + '\n');
+  process.stdout.write(toYaml(data).replace(/^\n/, '') + '\n');
 }
 
 function toYaml(value, indent = 0) {

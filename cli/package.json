@@ -3,8 +3,26 @@
   "version": "0.1.0",
   "description": "Command-line interface for the ZeyOS API",
   "type": "module",
+  "license": "MIT",
+  "author": "Peter Haider <peter.haider@zeyos.com>",
+  "homepage": "https://github.com/zeyos/api#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zeyos/api.git",
+    "directory": "cli"
+  },
+  "bugs": {
+    "url": "https://github.com/zeyos/api/issues"
+  },
+  "keywords": [
+    "zeyos",
+    "cli",
+    "erp",
+    "crm",
+    "api"
+  ],
   "bin": {
-    "zeyos": "./bin/zeyos.mjs"
+    "zeyos": "bin/zeyos.mjs"
   },
   "exports": {
     ".": "./bin/zeyos.mjs"
@@ -14,13 +32,16 @@
     "commands",
     "config",
     "lib",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "engines": {
     "node": ">=18.3"
   },
   "dependencies": {
-    "@zeyos/client": "file:../"
+    "@zeyos/client": "^0.1.0"
   },
-  "license": "UNLICENSED"
+  "scripts": {
+    "test": "node --test test/offline.mjs"
+  }
 }

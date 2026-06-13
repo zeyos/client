@@ -62,9 +62,9 @@ export async function run(values, positional) {
     }
   }
 
-  let client, tokenStore;
+  let client, tokenStore, configSource;
   try {
-    ({ client, tokenStore } = buildClient());
+    ({ client, tokenStore, configSource } = buildClient());
   } catch (err) {
     error(err.message);
     process.exit(1);
@@ -78,7 +78,7 @@ export async function run(values, positional) {
       process.exit(1);
     }
     await fn({ ID: id });
-    await syncTokens(tokenStore);
+    await syncTokens(tokenStore, configSource);
   } catch (err) {
     if (err.status === 404) {
       error(`${resourceName} #${id} not found.`);

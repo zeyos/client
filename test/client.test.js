@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createZeyosClient, MemoryTokenStore } from '../src/index.js';
+import { createZeyosClient, MemoryTokenStore, ZeyosApiError, normalizeListResult } from '../src/index.js';
 import { SERVICES } from '../src/generated/operations.js';
 
 function jsonResponse(data, status = 200, headers = {}) {
@@ -109,6 +109,74 @@ test('supports live platform preset URL resolution', async () => {
 
   const result = await client.api.getAccount({ ID: 9 });
   assert.equal(result.ID, 9);
+});
+
+test('infers update request bodies from non-parameter input fields', async () => {
+  const fetch = createFetchSequence([
+    ({ url, init }) => {
+      const parsed = new URL(url);
+      assert.equal(parsed.pathname, '/demo/api/v1/accounts/42');
+      assert.equal(init.method, 'PATCH');
+
+      const body = JSON.parse(String(init.body));
+      assert.deepEqual(body, {
+        lastname: 'Updated',
+        type: 1
+      });
+
+      return jsonResponse({ ID: 42, lastname: 'Updated', type: 1 });
+    }
+  ]);
+
+  const client = createZeyosClient({
+    instance: 'demo',
+    fetch,
+    auth: {
+      mode: 'session'
+    }
+  });
+
+  const result = await client.api.updateAccount({
+    ID: 42,
+    lastname: 'Updated',
+    type: 1
+  });
+
+  assert.equal(result.ID, 42);
+  assert.equal(fetch.calls(), 1);
+});
+
+test('passes non-plain raw request bodies through without structured cloning', async () => {
+  const params = new URLSearchParams({ a: '1', b: '2' });
+
+  const fetch = createFetchSequence([
+    ({ url, init }) => {
+      const parsed = new URL(url);
+      assert.equal(parsed.pathname, '/demo/api/v1/custom-endpoint');
+      assert.equal(init.method, 'POST');
+      assert.equal(init.body, params);
+      return jsonResponse({ ok: true });
+    }
+  ]);
+
+  const client = createZeyosClient({
+    instance: 'demo',
+    fetch,
+    auth: {
+      mode: 'none'
+    }
+  });
+
+  const result = await client.request({
+    service: 'api',
+    method: 'POST',
+    path: '/custom-endpoint',
+    body: params,
+    bodyType: 'raw'
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(fetch.calls(), 1);
 });
 
 test('oauth2 helper builds and parses authorization URLs', () => {
@@ -249,6 +317,56 @@ test('exchangeAuthorizationCode posts form data and stores tokens', async () => 
   const stored = await tokenStore.get();
   assert.equal(stored.accessToken, 'new-access-token');
   assert.equal(stored.refreshToken, 'new-refresh-token');
+});
+
+test('auto mode proactively refreshes expired access tokens before bearer requests', async () => {
+  const tokenStore = new MemoryTokenStore({
+    tokenType: 'Bearer',
+    accessToken: 'expired-token',
+    refreshToken: 'refresh-token',
+    expiresAt: Math.floor(Date.now() / 1000) - 30
+  });
+
+  const seenAuthHeaders = [];
+
+  const fetch = createFetchSequence([
+    ({ url, init }) => {
+      assert.match(url, /\/demo\/oauth2\/v1\/token$/);
+      const headers = new Headers(init.headers);
+      assert.match(headers.get('authorization') || '', /^Basic\s+/);
+      return jsonResponse({
+        token_type: 'Bearer',
+        access_token: 'fresh-token',
+        expires_in: 3600,
+        refresh_token: 'fresh-refresh-token',
+        refresh_token_expires_in: 8640000
+      });
+    },
+    ({ init }) => {
+      const headers = new Headers(init.headers);
+      seenAuthHeaders.push(headers.get('authorization'));
+      return jsonResponse({ ID: 1, name: 'Recovered' });
+    }
+  ]);
+
+  const client = createZeyosClient({
+    instance: 'demo',
+    fetch,
+    auth: {
+      mode: 'auto',
+      oauth: {
+        clientId: 'client-id',
+        clientSecret: 'client-secret',
+        tokenStore
+      }
+    }
+  });
+
+  const account = await client.api.getAccount({ ID: 1 });
+
+  assert.equal(account.ID, 1);
+  assert.deepEqual(seenAuthHeaders, ['Bearer fresh-token']);
+  assert.equal(fetch.calls(), 2);
 });
 
 test('auto mode refreshes token on 401 and retries bearer request', async () => {
@@ -397,4 +515,200 @@ test('legacy login uses /auth/v1 and form encoding', async () => {
 
   assert.equal(result.user, 1);
   assert.equal(result.token, 'legacy-token');
+});
+
+test('infers list request body from filters/limit/count fields', async () => {
+  const fetch = createFetchSequence([
+    ({ url, init }) => {
+      const parsed = new URL(url);
+      assert.equal(parsed.pathname, '/demo/api/v1/accounts');
+      assert.equal(init.method, 'POST');
+
+      const headers = new Headers(init.headers);
+      assert.match(headers.get('content-type') || '', /application\/json/);
+
+      const body = JSON.parse(String(init.body));
+      assert.deepEqual(body, {
+        filters: { visibility: 0, type: 1 },
+        limit: 50,
+        count: true
+      });
+
+      return jsonResponse([{ ID: 1 }, { ID: 2 }]);
+    }
+  ]);
+
+  const client = createZeyosClient({
+    instance: 'demo',
+    fetch,
+    auth: {
+      mode: 'session'
+    }
+  });
+
+  const result = await client.api.listAccounts({
+    filters: { visibility: 0, type: 1 },
+    limit: 50,
+    count: true
+  });
+
+  assert.equal(Array.isArray(result), true);
+  assert.equal(result.length, 2);
+  assert.equal(fetch.calls(), 1);
+});
+
+test('throws when a reserved key drops orphaned payload fields', async () => {
+  const fetch = createFetchSequence([]);
+
+  const client = createZeyosClient({
+    instance: 'demo',
+    fetch,
+    auth: {
+      mode: 'session'
+    }
+  });
+
+  await assert.rejects(
+    () =>
+      client.api.updateAccount({
+        ID: 7,
+        query: { term: 'acme' },
+        lastname: 'Updated'
+      }),
+    (error) => {
+      assert.ok(error instanceof ZeyosApiError);
+      assert.match(error.message, /lastname/);
+      assert.match(error.message, /query/);
+      assert.match(error.message, /body/);
+      return true;
+    }
+  );
+
+  assert.equal(fetch.calls(), 0);
+});
+
+test('treats a scalar query as a full-text search payload field, not a control key', async () => {
+  const fetch = createFetchSequence([
+    ({ url, init }) => {
+      const parsed = new URL(url);
+      assert.equal(parsed.search, '');
+
+      const body = JSON.parse(String(init.body));
+      assert.deepEqual(body, {
+        filters: { visibility: 0 },
+        query: 'acme',
+        limit: 20
+      });
+
+      return jsonResponse([{ ID: 1 }]);
+    }
+  ]);
+
+  const client = createZeyosClient({
+    instance: 'demo',
+    fetch,
+    auth: {
+      mode: 'session'
+    }
+  });
+
+  const result = await client.api.listAccounts({
+    filters: { visibility: 0 },
+    query: 'acme',
+    limit: 20
+  });
+
+  assert.equal(Array.isArray(result), true);
+  assert.equal(fetch.calls(), 1);
+});
+
+test('populates ZeyosApiError shape on non-2xx responses', async () => {
+  const fetch = createFetchSequence([
+    () =>
+      new Response(JSON.stringify({ error: 'not_found', message: 'no such account' }), {
+        status: 404,
+        statusText: 'Not Found',
+        headers: { 'content-type': 'application/json' }
+      })
+  ]);
+
+  const client = createZeyosClient({
+    instance: 'demo',
+    fetch,
+    auth: {
+      mode: 'session'
+    }
+  });
+
+  await assert.rejects(
+    () => client.api.getAccount({ ID: 999 }),
+    (error) => {
+      assert.ok(error instanceof ZeyosApiError);
+      assert.equal(error.status, 404);
+      assert.equal(error.statusText, 'Not Found');
+      assert.equal(error.operationId, 'getAccount');
+      assert.equal(error.service, 'api');
+      assert.equal(error.method, 'GET');
+      assert.match(error.url, /\/demo\/api\/v1\/accounts\/999$/);
+      assert.deepEqual(error.body, { error: 'not_found', message: 'no such account' });
+      return true;
+    }
+  );
+});
+
+test('normalizeListResult normalises arrays, wrappers, and invalid input', () => {
+  assert.deepEqual(normalizeListResult([{ ID: 1 }, { ID: 2 }]), {
+    data: [{ ID: 1 }, { ID: 2 }]
+  });
+
+  assert.deepEqual(normalizeListResult({ data: [{ ID: 3 }], count: 17 }), {
+    data: [{ ID: 3 }],
+    count: 17
+  });
+
+  assert.deepEqual(normalizeListResult(null), { data: [] });
+  assert.deepEqual(normalizeListResult('nope'), { data: [] });
+  assert.deepEqual(normalizeListResult({ data: 'not-an-array' }), { data: [] });
+});
+
+test('form-url-encodes bodies with nested object/array/boolean values', async () => {
+  const fetch = createFetchSequence([
+    ({ url, init }) => {
+      const parsed = new URL(url);
+      assert.equal(parsed.pathname, '/demo/api/v1/accounts');
+      assert.equal(init.method, 'PUT');
+
+      const headers = new Headers(init.headers);
+      assert.match(headers.get('content-type') || '', /application\/x-www-form-urlencoded/);
+
+      const params = new URLSearchParams(String(init.body));
+      assert.equal(params.get('flag'), 'true');
+      assert.equal(params.get('nested'), JSON.stringify({ a: 1, b: 'two' }));
+      assert.deepEqual(params.getAll('tags'), ['x', 'y']);
+      assert.equal(params.get('name'), 'Acme');
+
+      return jsonResponse({ ID: 5 });
+    }
+  ]);
+
+  const client = createZeyosClient({
+    instance: 'demo',
+    fetch,
+    auth: {
+      mode: 'session'
+    }
+  });
+
+  const result = await client.api.createAccount({
+    body: {
+      name: 'Acme',
+      flag: true,
+      nested: { a: 1, b: 'two' },
+      tags: ['x', 'y']
+    },
+    bodyType: 'form'
+  });
+
+  assert.equal(result.ID, 5);
+  assert.equal(fetch.calls(), 1);
 });

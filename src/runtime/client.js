@@ -27,12 +27,22 @@ const RESERVED_INPUT_KEYS = new Set([
   'baseUrl'
 ]);
 
+// Reserved keys that act as control *containers* and are only meaningful when
+// object-valued. A scalar value for one of these (most commonly `query: 'term'`
+// for ZeyOS full-text search) is a payload field, not a control directive, so it
+// must not disable body inference or be excluded from the inferred body.
+const OBJECT_CONTROL_KEYS = new Set(['path', 'query', 'headers']);
+
 function isObject(value) {
   return value != null && typeof value === 'object' && !Array.isArray(value);
 }
 
+function isPlainObject(value) {
+  return Object.prototype.toString.call(value) === '[object Object]';
+}
+
 function cloneValue(value) {
-  if (value == null || typeof value !== 'object') {
+  if (!Array.isArray(value) && !isPlainObject(value)) {
     return value;
   }
   return structuredClone(value);
@@ -132,14 +142,6 @@ function mergeHeaders(...sources) {
   return merged;
 }
 
-function headersToRecord(headers) {
-  const result = {};
-  for (const [key, value] of headers.entries()) {
-    result[key] = value;
-  }
-  return result;
-}
-
 function isSuccessfulHttpStatus(status) {
   return Number.isInteger(status) && status >= 200 && status < 400;
 }
@@ -176,26 +178,16 @@ function shouldInferBody(operation, input) {
     return false;
   }
 
-  for (const parameterName of operation.parameterNames.path) {
-    if (Object.prototype.hasOwnProperty.call(input, parameterName)) {
-      return false;
-    }
-  }
-  for (const parameterName of operation.parameterNames.query) {
-    if (Object.prototype.hasOwnProperty.call(input, parameterName)) {
-      return false;
-    }
-  }
-  for (const parameterName of operation.parameterNames.header) {
-    if (Object.prototype.hasOwnProperty.call(input, parameterName)) {
-      return false;
-    }
-  }
-
   for (const key of RESERVED_INPUT_KEYS) {
-    if (Object.prototype.hasOwnProperty.call(input, key)) {
-      return false;
+    if (!Object.prototype.hasOwnProperty.call(input, key)) {
+      continue;
     }
+    // Object-container control keys only disable inference when actually
+    // object-valued; a scalar (e.g. query: 'acme') is a payload field.
+    if (OBJECT_CONTROL_KEYS.has(key) && !isObject(input[key])) {
+      continue;
+    }
+    return false;
   }
 
   return true;
@@ -206,10 +198,22 @@ function prepareOperationInput(operation, inputValue) {
   const pathParams = isObject(input.path) ? { ...input.path } : {};
   const query = isObject(input.query) ? { ...input.query } : {};
   const headers = isObject(input.headers) ? { ...input.headers } : {};
+  const consumedInputKeys = new Set(RESERVED_INPUT_KEYS);
+  // Scalar object-container keys (e.g. query: 'acme') are payload fields, so do
+  // not pre-exclude them from the inferred body. A declared path/query/header
+  // parameter of the same name is still routed correctly by the loops below.
+  for (const key of OBJECT_CONTROL_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(input, key) && !isObject(input[key])) {
+      consumedInputKeys.delete(key);
+    }
+  }
 
   for (const name of operation.parameterNames.path) {
     if (!Object.prototype.hasOwnProperty.call(pathParams, name) && Object.prototype.hasOwnProperty.call(input, name)) {
       pathParams[name] = input[name];
+    }
+    if (Object.prototype.hasOwnProperty.call(input, name)) {
+      consumedInputKeys.add(name);
     }
   }
 
@@ -217,11 +221,17 @@ function prepareOperationInput(operation, inputValue) {
     if (!Object.prototype.hasOwnProperty.call(query, name) && Object.prototype.hasOwnProperty.call(input, name)) {
       query[name] = input[name];
     }
+    if (Object.prototype.hasOwnProperty.call(input, name)) {
+      consumedInputKeys.add(name);
+    }
   }
 
   for (const name of operation.parameterNames.header) {
     if (!Object.prototype.hasOwnProperty.call(headers, name) && Object.prototype.hasOwnProperty.call(input, name)) {
       headers[name] = input[name];
+    }
+    if (Object.prototype.hasOwnProperty.call(input, name)) {
+      consumedInputKeys.add(name);
     }
   }
 
@@ -231,7 +241,45 @@ function prepareOperationInput(operation, inputValue) {
   } else if (Object.prototype.hasOwnProperty.call(input, 'data')) {
     body = input.data;
   } else if (shouldInferBody(operation, input)) {
-    body = input;
+    body = {};
+    for (const [key, value] of Object.entries(input)) {
+      if (!consumedInputKeys.has(key)) {
+        body[key] = value;
+      }
+    }
+    if (Object.keys(body).length === 0) {
+      body = undefined;
+    }
+  } else if (Array.isArray(operation.requestContentTypes) && operation.requestContentTypes.length > 0) {
+    // Body inference was skipped because a reserved control key is present in the
+    // input (shouldInferBody returned false). Any remaining input fields that are
+    // not reserved control keys and not path/query/header parameters would have
+    // become the request body, but are now silently dropped. Surface that clearly
+    // instead of sending a request that omits the caller's payload.
+    const collidingReservedKeys = [];
+    for (const key of RESERVED_INPUT_KEYS) {
+      if (Object.prototype.hasOwnProperty.call(input, key)) {
+        collidingReservedKeys.push(key);
+      }
+    }
+
+    const orphanedFields = Object.keys(input).filter((key) => !consumedInputKeys.has(key));
+
+    if (orphanedFields.length > 0) {
+      const operationLabel = operation.operationId || `${operation.method} ${operation.path}`;
+      throw new ZeyosApiError(
+        `${operationLabel}: payload field(s) ${orphanedFields.map((field) => `"${field}"`).join(', ')} ` +
+          `would be dropped because the reserved key(s) ${collidingReservedKeys
+            .map((key) => `"${key}"`)
+            .join(', ')} disabled body inference. ` +
+          'Wrap payload fields in an explicit `body: { ... }` (or `data: { ... }`).',
+        {
+          operationId: operation.operationId,
+          method: operation.method,
+          url: operation.path
+        }
+      );
+    }
   }
 
   return {
@@ -457,6 +505,18 @@ function canRefreshAccessToken({ mode, operation, tokenSet, oauthConfig }) {
   return Boolean(oauthConfig.clientId && oauthConfig.clientSecret);
 }
 
+function isAccessTokenExpired(tokenSet, skewSeconds = 60) {
+  if (!tokenSet?.accessToken || tokenSet.expiresAt == null) {
+    return false;
+  }
+  const expiresAt = Number(tokenSet.expiresAt);
+  if (!Number.isFinite(expiresAt)) {
+    return false;
+  }
+  const now = Math.floor(Date.now() / 1000);
+  return expiresAt <= now + skewSeconds;
+}
+
 export function createZeyosClient(rawConfig = {}) {
   const config = isObject(rawConfig) ? rawConfig : {};
   const fetchImpl = config.fetch ?? globalThis.fetch;
@@ -654,6 +714,21 @@ export function createZeyosClient(rawConfig = {}) {
     const mode = normalizeAuthMode(requestAuth.mode, defaultMode);
     const schemes = securitySchemesFromOperation(operation);
     let tokenSet = await getTokenSet();
+
+    if (
+      schemes.includes('bearer') &&
+      isAccessTokenExpired(tokenSet) &&
+      canRefreshAccessToken({ mode, operation, tokenSet, oauthConfig })
+    ) {
+      try {
+        const refreshed = await refreshAccessToken(tokenSet, requestAuth, requestOptions);
+        if (refreshed?.accessToken) {
+          tokenSet = refreshed;
+        }
+      } catch {
+        // Fall back to the normal request path; a 401 can still trigger refresh.
+      }
+    }
 
     const candidates = resolveAuthCandidates({
       mode,

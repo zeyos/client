@@ -143,17 +143,13 @@ async function _loadDashboard() {
 
 /**
  * Count overdue tickets: duedate < now AND status < 8 (not cancelled/completed/failed/booked).
- * We query tickets with a duedate that is set (> 0) and status 0-7,
- * then filter client-side for overdue since the API may not support < operator on duedate.
  */
 async function _countOverdueTickets() {
   const now = Math.floor(Date.now() / 1000); // Unix timestamp in seconds
-  // Fetch tickets that might be overdue: status 0-7 with a duedate set
-  // We fetch minimal data and filter client-side
   const promises = [];
   for (let status = 0; status < 8; status++) {
     promises.push(
-      countTickets({ status, duedate: `<${now}` }).catch(() => 0)
+      countTickets({ status, duedate: { '<': now } })
     );
   }
   const counts = await Promise.all(promises);

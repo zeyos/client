@@ -14,6 +14,12 @@
 - `coupons`
 - `couponcodes`
 
+These are dbref nouns, not operationIds. Several diverge: `pricelists` -> `listPriceLists`,
+`pricelists2accounts` -> `listPriceListsToAccounts`, `stocktransactions` -> `listStockTransactions`,
+`relateditems` -> `listRelatedItems`, `couponcodes` -> `listCouponCodes`. See
+[../../shared/zeyos-entity-reference.md](../../shared/zeyos-entity-reference.md#entity-noun-to-rest-operationid)
+before calling `@zeyos/client`.
+
 ## Pattern: Effective Price For A Customer
 
 Use this for prompts like:

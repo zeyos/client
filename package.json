@@ -3,13 +3,38 @@
   "version": "0.1.0",
   "description": "Dependency-light JavaScript client for ZeyOS OpenAPI services",
   "type": "module",
+  "license": "MIT",
+  "author": "Peter Haider <peter.haider@zeyos.com>",
+  "homepage": "https://github.com/zeyos/api#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zeyos/api.git"
+  },
+  "bugs": {
+    "url": "https://github.com/zeyos/api/issues"
+  },
+  "keywords": [
+    "zeyos",
+    "erp",
+    "crm",
+    "openapi",
+    "rest",
+    "api-client",
+    "oauth2"
+  ],
+  "main": "./src/index.js",
   "exports": {
     ".": "./src/index.js"
   },
   "files": [
     "src",
     "scripts",
-    "README.md"
+    "openapi",
+    "docs",
+    "samples",
+    "agents",
+    "README.md",
+    "LICENSE"
   ],
   "engines": {
     "node": ">=18"
@@ -17,6 +42,5 @@
   "scripts": {
     "generate": "node scripts/generate-client.mjs",
     "test": "node scripts/test.mjs"
-  },
-  "license": "UNLICENSED"
+  }
 }

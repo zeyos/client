@@ -29,7 +29,7 @@ function appendQueryValue(search, key, value) {
   search.append(key, encodePrimitive(value));
 }
 
-export function buildQueryString(query = {}) {
+function buildQueryString(query = {}) {
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
     appendQueryValue(search, key, value);
@@ -37,7 +37,7 @@ export function buildQueryString(query = {}) {
   return search.toString();
 }
 
-export function applyPathParams(pathTemplate, pathParams = {}) {
+function applyPathParams(pathTemplate, pathParams = {}) {
   return pathTemplate.replace(/\{([^}]+)\}/g, (_, token) => {
     if (!Object.prototype.hasOwnProperty.call(pathParams, token)) {
       throw new Error(`Missing path parameter: ${token}`);
@@ -92,7 +92,7 @@ function toFormUrlEncoded(value) {
   return search.toString();
 }
 
-export function headersToObject(headers) {
+function headersToObject(headers) {
   const result = {};
   for (const [key, value] of headers.entries()) {
     result[key] = value;

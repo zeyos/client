@@ -31,17 +31,22 @@ npm install -g @zeyos/cli
 Authenticate:
 
 ```bash
+export ZEYOS_CLIENT_SECRET="..."
 zeyos login \
   --base-url https://cloud.zeyos.com/demo \
   --client-id myapp \
-  --secret mysecret
+  --secret "$ZEYOS_CLIENT_SECRET"
 ```
+
+For interactive use, omit `--secret`; the CLI prompts without echoing the secret to the terminal.
 
 Verify the current user:
 
 ```bash
 zeyos whoami --json
 ```
+
+`whoami` does not print access tokens by default. Use `zeyos whoami --show-token --json` only when you intentionally need to pass a token to another local tool.
 
 Inspect the CLI-supported resource registry:
 

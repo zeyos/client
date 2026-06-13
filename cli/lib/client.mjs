@@ -3,17 +3,18 @@
  * Also provides a helper that persists refreshed tokens back to the config file.
  */
 import { createZeyosClient, MemoryTokenStore } from '@zeyos/client';
-import { loadConfig, saveConfig, requireConfig } from './config.mjs';
+import { loadConfigWithSource, saveConfig, requireConfig } from './config.mjs';
 
 /**
  * Build a ready-to-use ZeyOS API client.
  * Throws a friendly error if required config keys are missing.
  *
  * @param {Record<string,any>} [overrides]  Extra config values (e.g. from CLI flags)
- * @returns {{ client: ReturnType<typeof createZeyosClient>, config: Record<string,any> }}
+ * @returns {{ client: ReturnType<typeof createZeyosClient>, config: Record<string,any>, tokenStore: MemoryTokenStore, configSource: 'local'|'global'|null }}
  */
 export function buildClient(overrides = {}) {
-  const config = { ...loadConfig(), ...overrides };
+  const loaded = loadConfigWithSource();
+  const config = { ...loaded.config, ...overrides };
   requireConfig(['baseUrl', 'clientId', 'clientSecret', 'accessToken'], config);
 
   const tokenStore = new MemoryTokenStore({
@@ -36,7 +37,7 @@ export function buildClient(overrides = {}) {
     },
   });
 
-  return { client, config, tokenStore };
+  return { client, config, tokenStore, configSource: loaded.source };
 }
 
 /**
@@ -44,9 +45,12 @@ export function buildClient(overrides = {}) {
  * Call this after API operations to keep tokens up-to-date.
  *
  * @param {MemoryTokenStore} tokenStore
- * @param {'local'|'global'} scope
+ * @param {'local'|'global'|null} scope
  */
 export async function syncTokens(tokenStore, scope = 'local') {
+  if (!scope) {
+    return;
+  }
   try {
     const ts = await tokenStore.get();
     if (ts?.accessToken) {

@@ -46,9 +46,9 @@ export async function run(values, positional) {
     process.exit(1);
   }
 
-  let client, tokenStore;
+  let client, tokenStore, configSource;
   try {
-    ({ client, tokenStore } = buildClient());
+    ({ client, tokenStore, configSource } = buildClient());
   } catch (err) {
     error(err.message);
     process.exit(1);
@@ -75,7 +75,7 @@ export async function run(values, positional) {
       process.exit(1);
     }
     result = await fn(body);
-    await syncTokens(tokenStore);
+    await syncTokens(tokenStore, configSource);
   } catch (err) {
     error(`API error: ${err.message}`);
     process.exit(1);

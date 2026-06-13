@@ -45,9 +45,9 @@ zeyos login [options]
 # Interactive login (prompts for missing values)
 zeyos login
 
-# Fully non-interactive
+# Pre-fill connection values; the OAuth browser/code step still runs
 zeyos login --base-url https://cloud.zeyos.com/demo \
-            --client-id myapp --secret s3cr3t
+            --client-id myapp --secret "$ZEYOS_CLIENT_SECRET"
 
 # Start fresh, ignore any saved credentials
 zeyos login --clean
@@ -57,7 +57,7 @@ zeyos login --manual
 ```
 
 :::info
-When values are not provided as flags, the CLI prompts interactively for the ZeyOS URL, application ID, and application secret.
+When values are not provided as flags, the CLI prompts interactively for the ZeyOS URL, application ID, and application secret. The secret prompt does not echo input. For CI or fully unattended agents, provide `ZEYOS_BASE_URL`, `ZEYOS_TOKEN`, and optionally `ZEYOS_REFRESH_TOKEN`, `ZEYOS_CLIENT_ID`, and `ZEYOS_CLIENT_SECRET` through the environment instead of running `zeyos login`.
 :::
 
 ---
@@ -95,7 +95,8 @@ zeyos whoami [--json|--yaml]
 
 ```bash
 zeyos whoami          # Table output
-zeyos whoami --json   # JSON output (useful for extracting the current token)
+zeyos whoami --json
+zeyos whoami --show-token --json   # explicitly include the current access token
 ```
 
 ---

@@ -62,7 +62,7 @@ const client = createZeyosClient({
 const accounts = await client.api.listAccounts({ limit: 25 });
 ```
 
-This is the safest default when you already have a valid access token. When `autoRefresh` is enabled and a request receives a 401 response, the client automatically uses the refresh token to obtain a new access token and retries the request. This requires `clientId` and `clientSecret` to be configured:
+This is the safest default when you already have a valid access token. When `autoRefresh` is enabled and the token has expired or a bearer request receives a 401 response, the client uses the refresh token to obtain a new access token. This requires `clientId` and `clientSecret` to be configured:
 
 ```js
 const client = createZeyosClient({
@@ -221,7 +221,7 @@ await client.auth.clearTokenSet();
 The default `auto` mode implements an intelligent fallback chain:
 
 1. **Bearer token** -- if the token store contains an access token, use it
-2. **Token refresh** -- if the bearer request returns 401 and a refresh token is available (with `clientId`/`clientSecret`), refresh the access token and retry
+2. **Token refresh** -- if the stored token is expired or the bearer request returns 401 and a refresh token is available (with `clientId`/`clientSecret`), refresh the access token
 3. **Session fallback** -- if bearer authentication is unavailable or fails, fall back to session cookies (when `session.enabled` is `true`)
 
 This makes `auto` mode the most flexible option. It works seamlessly when tokens are available and gracefully degrades to session authentication when they are not.

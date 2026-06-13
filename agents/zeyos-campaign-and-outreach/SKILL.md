@@ -24,7 +24,7 @@ Typical prompts:
 2. Resolve the campaign or mailing list first.
 3. Use the correct structural layer:
    - `campaigns` for initiative state
-   - `mailinglists` for sender-facing list containers
+   - `mailinglists` for sender-facing list containers (operationId `listMailingLists`; `mailingrecipients` -> `listMailingRecipients`, `messagereads` -> `listMessageReads` — these dbref nouns do not map naively; see [../shared/zeyos-entity-reference.md](../shared/zeyos-entity-reference.md#entity-noun-to-rest-operationid))
    - `participants` for audience membership
    - `messages` plus `mailingrecipients` for actual outbound sends
 4. Separate audience definition from execution. A participant in a campaign is not proof that a message was sent.

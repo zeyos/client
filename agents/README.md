@@ -24,6 +24,7 @@ Cross-platform modeling guidance lives in [`shared/business-app-benchmarks.md`](
 - Resolve business names to IDs before answering cross-record questions.
 - Start with the smallest primary query, then follow relationships with a second query when needed.
 - Use `visibility: 0` for resources that expose a `visibility` field.
+- Check `zeyos resources --json` before assuming CLI coverage. If a required resource is missing from the curated CLI registry, switch to `@zeyos/client`.
 - Treat `filter` vs `filters` as a source inconsistency; follow the interface-native convention and verify raw REST behavior against the target instance.
 - Treat list responses and count-enabled responses defensively.
 - Treat "worked on", "revenue", and "latest SOP" as potentially ambiguous business concepts and state the chosen interpretation.
@@ -43,6 +44,10 @@ Cross-platform modeling guidance lives in [`shared/business-app-benchmarks.md`](
 | `zeyos-campaign-and-outreach` | Campaign setup, mailing-list membership, participant coverage, outreach execution | "How many participants are in campaign Spring Renewal?"; "Which mailing lists belong to campaign XYZ?"; "Who received the latest mailing?" |
 | `zeyos-collaboration-and-activity` | Activity timelines, comments, channels, followers, attachments, recent changes | "What happened on account ACME this week?"; "Who follows Project Atlas?"; "Which channel is linked to ticket 812?" |
 | `zeyos-platform-and-schema` | App inventory, service hooks, custom schema, group permissions | "Which custom fields exist on tickets?"; "Which services run after ticket modification?"; "Which groups grant access to application XYZ?" |
+
+## Interface Boundary
+
+The CLI covers common operational resources such as accounts, contacts, documents, items, projects, tasks, tickets, users, and groups. Skills that depend on platform, pricing, campaign-recipient, permission, channel, follower, or other specialist resources should start with `zeyos resources --json`; if the resource is absent, use `@zeyos/client` and the generated operation names from the API reference.
 
 ## Recommended Loading Order
 

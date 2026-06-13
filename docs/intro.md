@@ -128,7 +128,7 @@ Three ready-to-run sample applications demonstrate different integration pattern
 | Sample | What it demonstrates | Docs |
 |--------|---------------------|------|
 | **Kanban Board** | Drag-and-drop ticket management, optimistic UI updates, status changes via PATCH, task tables, project/account filtering | [Kanban](./04-sample-apps/01-kanban.md) |
-| **CRM Contact List** | Dot-notation joins, field aliasing, full-text search, sortable columns, pagination, inline editing | [CRM](./04-sample-apps/02-crm.md) |
+| **CRM Account List** | Dot-notation joins, field aliasing, full-text search, sortable columns, pagination, modal editing | [CRM](./04-sample-apps/02-crm.md) |
 | **Dashboard** | KPI cards with `count: true`, parallel API queries, status distribution charts, overdue calculations, read-only patterns | [Dashboard](./04-sample-apps/03-dashboard.md) |
 
 ## Prerequisites

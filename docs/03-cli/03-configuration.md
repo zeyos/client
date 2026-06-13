@@ -20,7 +20,7 @@ Credentials are resolved from three sources in priority order:
 | 2 | Local config file | `.zeyos/auth.json` (walks up from CWD) |
 | 3 (lowest) | Global config file | `~/.config/zeyos/credentials.json` |
 
-Higher-priority sources override lower ones. For example, setting `ZEYOS_TOKEN` as an environment variable will override the token stored in `.zeyos/auth.json`.
+Configuration is merged from global, then local, then environment variables. Higher-priority sources override individual fields from lower-priority sources. For example, setting `ZEYOS_TOKEN` as an environment variable overrides the stored token while still allowing `baseUrl` and client credentials to come from a config file.
 
 ## Environment Variables
 
@@ -83,7 +83,7 @@ For credentials shared across all projects, use the global config:
 zeyos login --global
 ```
 
-This saves to `~/.config/zeyos/credentials.json` (same format as the local file). The global file is only used when no local `.zeyos/auth.json` is found.
+This saves to `~/.config/zeyos/credentials.json` (same format as the local file). Local config values override global values field-by-field, so a project can override only the fields it needs.
 
 ## Resource Field Configuration
 

@@ -6,10 +6,10 @@
  * Options:
  *   --json    Output as JSON
  *   --yaml    Output as YAML
+ *   --show-token Include the current access token in output
  */
 
 import { buildClient, syncTokens } from '../lib/client.mjs';
-import { loadConfig } from '../lib/config.mjs';
 import { outputMode, printJson, printYaml, printRecord, formatDate, error } from '../lib/output.mjs';
 
 export const USAGE = `\
@@ -18,15 +18,16 @@ Usage: zeyos whoami [options]
 Show information about the currently authenticated user.
 
 Options:
-  --json      Output as JSON
-  --yaml      Output as YAML
-  -h, --help  Show this help
+  --json        Output as JSON
+  --yaml        Output as YAML
+  --show-token  Include the current access token in output
+  -h, --help    Show this help
 `;
 
 export async function run(values) {
-  let client, config, tokenStore;
+  let client, config, tokenStore, configSource;
   try {
-    ({ client, config, tokenStore } = buildClient());
+    ({ client, config, tokenStore, configSource } = buildClient());
   } catch (err) {
     error(err.message);
     process.exit(1);
@@ -35,7 +36,7 @@ export async function run(values) {
   let userInfo;
   try {
     userInfo = await client.oauth2.getUserInfo();
-    await syncTokens(tokenStore);
+    await syncTokens(tokenStore, configSource);
   } catch (err) {
     error(`Failed to fetch user info: ${err.message}`);
     process.exit(1);
@@ -43,12 +44,11 @@ export async function run(values) {
 
   const mode = outputMode(values);
 
-  // Re-read config to get the (possibly refreshed) token
-  const cfg = loadConfig();
-
-  // Append token info to the output
   const output = { ...userInfo };
-  if (cfg.accessToken) output.accessToken = cfg.accessToken;
+  if (values['show-token']) {
+    const tokenSet = await tokenStore.get();
+    if (tokenSet?.accessToken) output.accessToken = tokenSet.accessToken;
+  }
 
   if (mode === 'json') {
     printJson(output);
@@ -56,7 +56,7 @@ export async function run(values) {
     printYaml(output);
   } else {
     // Pretty key-value record with custom formatters
-    const dateFormat = cfg.dateFormat ?? 'YYYY-MM-DD HH:mm';
+    const dateFormat = config.dateFormat ?? 'YYYY-MM-DD HH:mm';
     const keys = Object.keys(output);
     const formatters = {};
 

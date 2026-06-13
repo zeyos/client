@@ -66,27 +66,22 @@ const newTicket = await client.api.createTicket({
 
 ### Update a Record
 
-Update an existing record with a PATCH request. Pass the `ID` as a path parameter and the fields to change inside an explicit `body` key:
+Update an existing record with a PATCH request. Pass the `ID` and changed fields in one object:
 
 ```js
 await client.api.updateTicket({
   ID: 42,
-  body: { status: 4, priority: 4 },
+  status: 4,
+  priority: 4,
 });
 ```
 
-:::warning Use the explicit `body` key for updates
-When the input contains a path parameter name like `ID`, the client's body-inference algorithm determines that the caller has already separated path params from body fields -- and skips body inference entirely. This means the flat style silently sends an **empty** request body:
+:::tip Explicit body is also supported
+Use `body` or `data` when you want to separate URL parameters from payload fields manually:
 
 ```js
-// WRONG -- sends PATCH with no body, nothing is updated
-await client.api.updateTicket({ ID: 42, status: 4, priority: 4 });
-
-// CORRECT -- ID goes to the URL path, body becomes the request body
 await client.api.updateTicket({ ID: 42, body: { status: 4, priority: 4 } });
 ```
-
-This applies to **all** update operations: `updateTicket`, `updateTask`, `updateAccount`, etc. -- any PATCH or PUT that has both a path parameter and a request body.
 :::
 
 The PATCH response body contains the full updated record. Use it to confirm the server applied your changes:
@@ -94,7 +89,7 @@ The PATCH response body contains the full updated record. Use it to confirm the 
 ```js
 const updated = await client.api.updateTicket({
   ID: 42,
-  body: { status: 4 },
+  status: 4,
 });
 console.log(updated.status); // 4 -- confirmed by the server
 ```

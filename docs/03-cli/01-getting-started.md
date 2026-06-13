@@ -8,7 +8,22 @@ The ZeyOS CLI gives you fast, scriptable access to the ZeyOS REST API from your 
 
 ## Installation
 
-The CLI runs directly from the repository — no global install required:
+:::info Requirements
+Node.js 18.3+ is required. The CLI has zero external dependencies beyond the bundled `@zeyos/client` package.
+:::
+
+### Published package (recommended)
+
+Install the CLI globally from npm:
+
+```bash
+npm install -g @zeyos/cli
+zeyos --help
+```
+
+### Running from source
+
+If you are contributing to the CLI or need to run an unreleased version, clone the repository and run directly from the source tree:
 
 ```bash
 # Clone the repository
@@ -25,10 +40,6 @@ For convenience, create a symlink so you can run `zeyos` from anywhere:
 ln -s $(pwd)/cli/bin/zeyos.mjs /usr/local/bin/zeyos
 ```
 
-:::info Requirements
-Node.js 18.3+ is required. The CLI has zero external dependencies beyond the bundled `@zeyos/client` package.
-:::
-
 ## First Login
 
 Authenticate with your ZeyOS instance using the `login` command:
@@ -41,8 +52,10 @@ zeyos login
 zeyos login \
   --base-url https://cloud.zeyos.com/demo \
   --client-id myapp \
-  --secret mysecret
+  --secret "$ZEYOS_CLIENT_SECRET"
 ```
+
+For interactive use, omit `--secret`; the CLI prompts without echoing the secret to the terminal. Passing secrets as command-line arguments is best reserved for controlled automation.
 
 **What happens:**
 
@@ -162,6 +175,8 @@ For coding agents and non-interactive scripts, prefer `--json` output and JSON-f
 zeyos create ticket --data '{"name":"Fix login bug","status":0,"priority":3,"visibility":0}' --json
 zeyos update ticket 42 --data '{"status":4}' --json
 ```
+
+`zeyos whoami --json` does not print access tokens. If a local tool explicitly needs the current token, use `zeyos whoami --show-token --json` and treat the output as a secret.
 
 ## Credential Storage
 

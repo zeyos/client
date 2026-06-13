@@ -59,7 +59,7 @@ export async function run(values) {
   // Prompt interactively for any missing values
   if (!baseUrl)      baseUrl      = await _prompt('ZeyOS platform URL');
   if (!clientId)     clientId     = await _prompt('Application ID');
-  if (!clientSecret) clientSecret = await _prompt('Application secret');
+  if (!clientSecret) clientSecret = await _promptSecret('Application secret');
 
   if (!baseUrl || !clientId || !clientSecret) {
     error('ZeyOS URL, application ID and secret are all required.');
@@ -172,6 +172,27 @@ async function _browserFlowWithFallback(authUrl, port, state) {
 
 function _prompt(question) {
   const rl = createInterface({ input: process.stdin, output: process.stderr });
+  return new Promise(resolve => {
+    rl.question(`${question}: `, answer => {
+      rl.close();
+      resolve(answer.trim());
+    });
+  });
+}
+
+function _promptSecret(question) {
+  if (!process.stdin.isTTY || !process.stderr.isTTY) {
+    return _prompt(question);
+  }
+
+  const rl = createInterface({ input: process.stdin, output: process.stderr, terminal: true });
+  const originalWrite = rl._writeToOutput.bind(rl);
+  rl._writeToOutput = (value) => {
+    if (String(value).includes(question) || value === '\n' || value === '\r\n') {
+      originalWrite(value);
+    }
+  };
+
   return new Promise(resolve => {
     rl.question(`${question}: `, answer => {
       rl.close();

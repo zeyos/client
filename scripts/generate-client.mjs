@@ -247,7 +247,9 @@ async function main() {
   }
 
   const generated = {
-    generatedAt: new Date().toISOString(),
+    // Deterministic by default (avoids per-build/test git churn). Publish
+    // pipelines can stamp a real timestamp by setting ZEYOS_GENERATED_AT.
+    generatedAt: process.env.ZEYOS_GENERATED_AT ?? null,
     services: buildServices(specEntries)
   };
 

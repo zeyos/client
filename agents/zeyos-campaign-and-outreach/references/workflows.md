@@ -9,6 +9,11 @@
 - `mailingrecipients`
 - `messagereads`
 
+These are dbref nouns, not operationIds. Several diverge: `mailinglists` -> `listMailingLists`,
+`mailingrecipients` -> `listMailingRecipients`, `messagereads` -> `listMessageReads`. See
+[../../shared/zeyos-entity-reference.md](../../shared/zeyos-entity-reference.md#entity-noun-to-rest-operationid)
+before calling `@zeyos/client`.
+
 ## Schema Shape To Respect
 
 - A `participant` belongs either to a `campaign` or to a `mailinglist`.

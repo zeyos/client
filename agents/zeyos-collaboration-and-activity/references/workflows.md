@@ -11,6 +11,11 @@
 - `follows`
 - `likes`
 
+These are dbref nouns, not operationIds. Note the junction `entities2channels` ->
+`listEntitiesToChannels` / `getEntityToChannel` (not `listEntities2channels`). See
+[../../shared/zeyos-entity-reference.md](../../shared/zeyos-entity-reference.md#entity-noun-to-rest-operationid)
+before calling `@zeyos/client`.
+
 ## Benchmark-Backed Default
 
 Treat this layer like the record timeline or collaboration feed found in Salesforce, Odoo, and Dynamics:

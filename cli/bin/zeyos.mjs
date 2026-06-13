@@ -18,8 +18,6 @@
  *   resources            List available resource types
  */
 
-import { parseArgs } from 'node:util';
-
 // ── Global help ───────────────────────────────────────────────────────────────
 
 const HELP = `\
@@ -45,7 +43,7 @@ Global options:
   -h, --help           Show help for a command
 
 Examples:
-  zeyos login --base-url https://cloud.zeyos.com/demo --client-id myapp --secret s3cr3t
+  zeyos login --base-url https://cloud.zeyos.com/demo --client-id myapp --secret "$ZEYOS_CLIENT_SECRET"
   zeyos list tickets --filter '{"status":1}' --sort -lastmodified
   zeyos count tickets --filter '{"status":1}'
   zeyos get ticket 42
@@ -84,10 +82,33 @@ const OPTIONS = {
   'tags':       { type: 'boolean' },
   // get
   'all':        { type: 'boolean' },
+  // whoami
+  'show-token': { type: 'boolean' },
   // create / update
   'data':       { type: 'string' },
   // delete
   // (--force is already declared above)
+};
+
+// ── Command registry ──────────────────────────────────────────────────────────
+// Maps every command and alias to the module that implements it.
+
+const COMMANDS = {
+  login:     '../commands/login.mjs',
+  logout:    '../commands/logout.mjs',
+  whoami:    '../commands/whoami.mjs',
+  list:      '../commands/list.mjs',
+  count:     '../commands/count.mjs',
+  get:       '../commands/get.mjs',
+  show:      '../commands/get.mjs',
+  create:    '../commands/create.mjs',
+  update:    '../commands/update.mjs',
+  edit:      '../commands/update.mjs',
+  delete:    '../commands/delete.mjs',
+  rm:        '../commands/delete.mjs',
+  remove:    '../commands/delete.mjs',
+  resources: '../commands/resources.mjs',
+  resource:  '../commands/resources.mjs',
 };
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -104,81 +125,24 @@ async function main() {
   const command = argv[0];
   const rest    = argv.slice(1);
 
-  // Parse remaining args with a permissive approach:
-  //   - known options are parsed normally
-  //   - unknown --key value flags are also captured (for create/update)
-  let values, positional;
-  try {
-    const parsed = _parsePermissive(rest, OPTIONS);
-    values    = parsed.values;
-    positional = parsed.positional;
-  } catch (err) {
-    process.stderr.write(`Error: ${err.message}\n`);
+  // Parse remaining args permissively: known options are parsed normally and
+  // unknown --key value flags are captured too (so create/update accept fields).
+  const { values, positional } = _parsePermissive(rest, OPTIONS);
+
+  const modulePath = COMMANDS[command];
+  if (!modulePath) {
+    process.stderr.write(`Unknown command: "${command}"\n\n${HELP}`);
     process.exit(1);
   }
 
+  const mod = await import(modulePath);
+
   if (values.help) {
-    // Try to show command-specific help
-    const mod = await _loadCommand(command, /* silent */ true);
-    if (mod?.USAGE) {
-      process.stdout.write(mod.USAGE);
-    } else {
-      process.stdout.write(HELP);
-    }
+    process.stdout.write(mod.USAGE ?? HELP);
     process.exit(0);
   }
 
-  // ── Dispatch ───────────────────────────────────────────────────────────────
-  switch (command) {
-    case 'login':
-      await (await import('../commands/login.mjs')).run(values, positional);
-      break;
-
-    case 'logout':
-      await (await import('../commands/logout.mjs')).run(values, positional);
-      break;
-
-    case 'whoami':
-      await (await import('../commands/whoami.mjs')).run(values, positional);
-      break;
-
-    case 'list':
-      await (await import('../commands/list.mjs')).run(values, positional);
-      break;
-
-    case 'count':
-      await (await import('../commands/count.mjs')).run(values, positional);
-      break;
-
-    case 'get':
-    case 'show':
-      await (await import('../commands/get.mjs')).run(values, positional);
-      break;
-
-    case 'create':
-      await (await import('../commands/create.mjs')).run(values, positional);
-      break;
-
-    case 'update':
-    case 'edit':
-      await (await import('../commands/update.mjs')).run(values, positional);
-      break;
-
-    case 'delete':
-    case 'rm':
-    case 'remove':
-      await (await import('../commands/delete.mjs')).run(values, positional);
-      break;
-
-    case 'resources':
-    case 'resource':
-      await (await import('../commands/resources.mjs')).run(values, positional);
-      break;
-
-    default:
-      process.stderr.write(`Unknown command: "${command}"\n\n${HELP}`);
-      process.exit(1);
-  }
+  await mod.run(values, positional);
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -212,8 +176,16 @@ function _parsePermissive(argv, options) {
       }
 
       if (opt?.type === 'string') {
-        values[key] = argv[i + 1] ?? '';
-        i += 2;
+        const next = argv[i + 1];
+        // Don't consume the next token as the value if it looks like a flag
+        // (starts with '--'), unless it's a negative number like -3 or -3.5.
+        if (next !== undefined && next.startsWith('--')) {
+          values[key] = '';
+          i++;
+        } else {
+          values[key] = next ?? '';
+          i += 2;
+        }
         continue;
       }
 
@@ -239,8 +211,14 @@ function _parsePermissive(argv, options) {
           values[key] = true;
           i++;
         } else {
-          values[key] = argv[i + 1] ?? '';
-          i += 2;
+          const next = argv[i + 1];
+          if (next !== undefined && next.startsWith('--')) {
+            values[key] = '';
+            i++;
+          } else {
+            values[key] = next ?? '';
+            i += 2;
+          }
         }
       } else {
         i++;
@@ -253,30 +231,6 @@ function _parsePermissive(argv, options) {
   }
 
   return { values, positional };
-}
-
-async function _loadCommand(name, silent = false) {
-  const map = {
-    login:     '../commands/login.mjs',
-    logout:    '../commands/logout.mjs',
-    whoami:    '../commands/whoami.mjs',
-    list:      '../commands/list.mjs',
-    count:     '../commands/count.mjs',
-    get:       '../commands/get.mjs',
-    show:      '../commands/get.mjs',
-    create:    '../commands/create.mjs',
-    update:    '../commands/update.mjs',
-    delete:    '../commands/delete.mjs',
-    resources: '../commands/resources.mjs',
-  };
-  const path = map[name];
-  if (!path) return null;
-  try {
-    return await import(path);
-  } catch {
-    if (!silent) throw new Error(`Failed to load command "${name}"`);
-    return null;
-  }
 }
 
 main().catch(err => {

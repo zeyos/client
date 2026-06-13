@@ -14,6 +14,14 @@
 - `customfields`
 - `objects`
 
+These are dbref nouns, not operationIds. Several diverge: `applicationassets` ->
+`listApplicationAssets`, `groups2users` -> `listGroupsToUsers` / `getGroupToUser`, `customfields` ->
+`listCustomFields`. Note that `applications`, `applicationassets`, `customfields`, `forks`, `groups`,
+`groups2users`, `permissions`, `resources`, `services`, and `weblets` are **read-only** (only
+`list*`, `get*`, `exists*` — no create/update/delete). See
+[../../shared/zeyos-entity-reference.md](../../shared/zeyos-entity-reference.md#entity-noun-to-rest-operationid)
+before calling `@zeyos/client`.
+
 ## Pattern: Custom Fields For An Entity
 
 Use this for prompts like:

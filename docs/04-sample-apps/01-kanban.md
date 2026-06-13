@@ -24,7 +24,7 @@ Configuration can come from:
 - persisted `localStorage` values
 - the `window.ZeyOS` console API
 
-For long-lived browser sessions, prefer session mode or move OAuth refresh to a backend. The sample does not embed client credentials for browser-side refresh.
+For long-lived browser sessions, prefer session mode or move OAuth refresh to a backend. Session mode only works from the same origin or when the ZeyOS instance allows credentialed CORS, so token mode is usually the local-development path. The sample does not embed client credentials for browser-side refresh.
 
 ## Main API Calls
 
@@ -54,6 +54,8 @@ The following pieces are good starting points for a new UI:
 - the session detection helper in `samples/kanban/js/auth.js`
 - the optimistic update pattern around `updateTicket`
 - the `window.ZeyOS` console API for local development and troubleshooting
+
+When copying code outside this repository, replace source-tree imports such as `../../../src/index.js` with an import path that exists in your app: an npm package import, a vendored copy of `src/`, or a local symlink.
 
 ## Run Locally
 

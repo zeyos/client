@@ -1,5 +1,5 @@
 /**
- * CRM Contact List -- Application entry point.
+ * CRM Account List -- Application entry point.
  *
  * Bootstraps the client, handles auth, wires up all UI events,
  * and orchestrates data loading / table rendering.
@@ -141,13 +141,16 @@ async function _bootApp() {
 async function _loadAccounts() {
   const offset = (runtime.page - 1) * runtime.pageSize;
 
-  runtime.accounts = await fetchAccounts({
+  const records = await fetchAccounts({
     search:    runtime.search || undefined,
     sortField: runtime.sort.field,
     sortDir:   runtime.sort.dir,
-    limit:     runtime.pageSize,
+    limit:     runtime.pageSize + 1,
     offset,
   });
+
+  runtime.hasNextPage = records.length > runtime.pageSize;
+  runtime.accounts = records.slice(0, runtime.pageSize);
 }
 
 async function _refresh() {
@@ -247,9 +250,7 @@ function _updatePagination() {
   // Previous is disabled on page 1
   if (prevBtn) prevBtn.disabled = (runtime.page <= 1);
 
-  // Next is disabled when fewer records than pageSize were returned
-  // (meaning we are on the last page)
-  if (nextBtn) nextBtn.disabled = (count < runtime.pageSize);
+  if (nextBtn) nextBtn.disabled = !runtime.hasNextPage;
 }
 
 // ── Event Wiring ─────────────────────────────────────────────────────────────
@@ -293,8 +294,7 @@ function _wireEvents() {
   });
 
   document.getElementById('btn-next-page')?.addEventListener('click', async () => {
-    // Only go next if current page is full
-    if (runtime.accounts.length >= runtime.pageSize) {
+    if (runtime.hasNextPage) {
       runtime.page++;
       await _refresh();
     }
@@ -434,7 +434,6 @@ async function _handleFormSubmit(e) {
   try {
     if (id) {
       // Update existing account
-      // MUST use { ID: id, body: data } pattern (body inference bug)
       await updateAccount(id, data);
       showToast('Account updated.', 'success');
     } else {

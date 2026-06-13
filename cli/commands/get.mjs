@@ -77,9 +77,9 @@ export async function run(values, positional) {
 
   const resName = canonicalName(resourceName);
 
-  let client, tokenStore;
+  let client, tokenStore, configSource;
   try {
-    ({ client, tokenStore } = buildClient());
+    ({ client, tokenStore, configSource } = buildClient());
   } catch (err) {
     error(err.message);
     process.exit(1);
@@ -91,7 +91,7 @@ export async function run(values, positional) {
   const params = { ID: id };
 
   // Collect query params from CLI flags, config defaults, and --all
-  const query = getGetParams(resName, values);
+  const query = getGetParams(resName);
 
   // Explicit CLI flags always win
   if (values.extdata) query.extdata = 1;
@@ -123,7 +123,7 @@ export async function run(values, positional) {
       process.exit(1);
     }
     record = await fn(params);
-    await syncTokens(tokenStore);
+    await syncTokens(tokenStore, configSource);
   } catch (err) {
     if (err.status === 404) {
       error(`${resourceName} #${id} not found.`);

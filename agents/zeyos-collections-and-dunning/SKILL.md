@@ -26,7 +26,7 @@ Typical prompts:
 3. Use the correct primary resource:
    - `transactions` for invoice and credit obligations
    - `payments` for cash actually received
-   - `dunning` and `dunning2transactions` for reminder and notice state
+   - `dunning` and `dunning2transactions` for reminder and notice state (operationIds: `listDunningNotices`, `listDunningToTransactions` — these dbref nouns do not map naively; see [../shared/zeyos-entity-reference.md](../shared/zeyos-entity-reference.md#entity-noun-to-rest-operationid))
 4. State what "overdue" means in the answer:
    - past `duedate`
    - unpaid or not fully settled

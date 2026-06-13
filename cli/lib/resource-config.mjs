@@ -13,6 +13,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { error } from './output.mjs';
 
 // ── Paths ────────────────────────────────────────────────────────────────────
 
@@ -51,7 +52,7 @@ export function loadResourceConfig(name) {
  * Priority:
  *   1. --fields CLI override
  *   2. Config file list.fields object
- *   3. Registry res.fields array (backward-compat, self-aliased)
+ *   3. Registry res.fields array (display-only default, no API field selection)
  *
  * The --fields flag supports three formats:
  *   - Comma-separated:  "ID,name,status"          → self-aliased object
@@ -153,31 +154,19 @@ export function getGetFields(name, override) {
 // ── Get params ───────────────────────────────────────────────────────────────
 
 /**
- * Get the default query parameters for GET operations from config.
- * Config can specify `get.params` (object) or legacy `get.expand` (array).
+ * Get the default query parameters for GET operations from a resource's
+ * `get.params` config (e.g. `{ extdata: 1, tags: 1 }`). These are sent as URL
+ * query parameters; explicit CLI flags override them on the caller's side.
  *
- * @param {string}   name     - canonical resource name
- * @param {object}   [values] - parsed CLI values (for flag merging)
- * @returns {object} query parameters to merge into the GET request
+ * @param {string} name - canonical resource name
+ * @returns {Record<string, number|string>} query parameters for the GET request
  */
-export function getGetParams(name, values) {
+export function getGetParams(name) {
   const config = loadResourceConfig(name);
-  const query = {};
-
-  // Support legacy config format: get.expand: ['extdata', 'tags']
-  // These are converted to query params: { extdata: 1, tags: 1 }
-  if (config?.get?.expand && Array.isArray(config.get.expand)) {
-    for (const key of config.get.expand) {
-      query[key] = 1;
-    }
-  }
-
-  // New config format: get.params: { extdata: 1, tags: 1 }
   if (config?.get?.params && typeof config.get.params === 'object') {
-    Object.assign(query, config.get.params);
+    return { ...config.get.params };
   }
-
-  return query;
+  return {};
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -197,9 +186,7 @@ function _parseFieldsOverride(raw) {
         return { apiFields: obj, displayColumns: Object.keys(obj) };
       }
     } catch (e) {
-      // Give a helpful error for invalid JSON
-      const { error: errFn } = await_import_error();
-      errFn(`--fields JSON is invalid: ${e.message}\n  Got: ${trimmed}\n  Expected format: '{"Alias": "field.path", ...}'`);
+      error(`--fields JSON is invalid: ${e.message}\n  Got: ${trimmed}\n  Expected format: '{"Alias": "field.path", ...}'`);
       process.exit(1);
     }
   }
@@ -215,8 +202,7 @@ function _parseFieldsOverride(raw) {
         return { apiFields, displayColumns: paths };
       }
     } catch (e) {
-      const { error: errFn } = await_import_error();
-      errFn(`--fields JSON is invalid: ${e.message}\n  Got: ${trimmed}\n  Expected format: '["field1", "field2", ...]'`);
+      error(`--fields JSON is invalid: ${e.message}\n  Got: ${trimmed}\n  Expected format: '["field1", "field2", ...]'`);
       process.exit(1);
     }
   }
@@ -226,14 +212,6 @@ function _parseFieldsOverride(raw) {
   const apiFields = {};
   for (const p of paths) apiFields[p] = p;
   return { apiFields, displayColumns: paths };
-}
-
-// Lazy error import helper — avoids circular dependency
-function await_import_error() {
-  // Inline stderr writer (output.mjs uses same pattern)
-  return {
-    error: (msg) => process.stderr.write(`\x1b[31m✗\x1b[0m ${msg}\n`),
-  };
 }
 
 // ── Internals ────────────────────────────────────────────────────────────────

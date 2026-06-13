@@ -23,27 +23,20 @@ The most important one to internalise: **list operations are POST requests**. Th
 
 ## Passing the Request Body for Update Operations
 
-When calling an operation that has **both a path parameter and a request body** (i.e. PATCH and some PUTs), you must pass the body fields using the explicit `body` key — **not** spread flat alongside the ID:
+Generated methods accept the natural flat style for operations that have both a path parameter and a request body:
 
 ```js
-// ✗ WRONG — the client sees 'ID' in the input, determines no body inference
-//   is needed, and sends an empty request body. No fields are updated.
 await client.api.updateTicket({ ID: 42, status: 4, priority: 2 });
-
-// ✓ CORRECT — 'ID' is routed to the URL path; 'body' becomes the request body
-await client.api.updateTicket({ ID: 42, body: { status: 4, priority: 2 } });
 ```
 
-The same rule applies to all PATCH operations:
+The client routes known path/query/header parameters to the request URL and sends the remaining non-reserved keys as the body. Explicit `body` and `data` keys are still supported when you want to separate those concerns yourself:
 
 ```js
-await client.api.updateTask({ ID: taskId, body: { name: 'New name', duedate: ts } });
-await client.api.updateAccount({ ID: accountId, body: { lastname: 'Smith' } });
+await client.api.updateTicket({ ID: 42, body: { status: 4, priority: 2 } });
+await client.api.updateTask({ ID: taskId, data: { name: 'New name', duedate: ts } });
 ```
 
-**Why this happens:** The client uses an inference algorithm to decide whether the flat input object should be treated as the request body. When the input contains a field that matches a path parameter name (like `ID`), the algorithm conservatively assumes the caller has already separated path params from body params — and skips body inference. Using an explicit `body` key bypasses this and sends exactly what you intend.
-
-Operations without path parameters (like `createTicket`, `listTickets`) are not affected and work fine with flat inputs.
+For low-level `client.request()` calls, prefer explicit `body` because there is no generated operation metadata to tell the client which keys are URL parameters.
 
 ## `filter` vs `filters`
 

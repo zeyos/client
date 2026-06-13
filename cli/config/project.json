@@ -11,6 +11,6 @@
   },
   "get": {
     "fields": ["ID", "projectnum", "name", "description", "status", "assigneduser", "visibility", "created", "lastmodified"],
-    "expand": ["extdata"]
+    "params": { "extdata": 1 }
   }
 }

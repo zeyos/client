@@ -14,7 +14,7 @@ Recommended defaults when the user does not specify:
 - Use `transactions.type = 3` for billing invoices.
 - Use `netamount` for invoiced revenue unless the user asks for gross.
 - Subtract billing credits (`transactions.type = 4`) if the user asks for net revenue after credits.
-- If the question is about reminders, notices, or overdue follow-up, switch to `dunning` and `dunning2transactions` instead of answering from revenue data alone.
+- If the question is about reminders, notices, or overdue follow-up, switch to `dunning` and `dunning2transactions` instead of answering from revenue data alone. These dbref nouns diverge: call `listDunningNotices` (not `listDunning`) and `listDunningToTransactions` (not `listDunning2transactions`). See [../../shared/zeyos-entity-reference.md](../../shared/zeyos-entity-reference.md#entity-noun-to-rest-operationid).
 
 ## Important Status Caution
 

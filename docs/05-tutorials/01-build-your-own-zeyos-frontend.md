@@ -7,7 +7,7 @@ sidebar_label: Browser UI Playbook
 
 This playbook walks through building a browser-based interface on top of the ZeyOS REST API using the `@zeyos/client` JavaScript library. By the end, you will have a working single-page application that authenticates, queries data, renders a UI, and writes changes back with patterns you can reuse in any ZeyOS-connected browser app.
 
-We will build a minimal **Ticket Dashboard** step by step. No frameworks, no build tools -- just ES modules, the ZeyOS client, and a browser.
+We will build a minimal **Ticket Dashboard** step by step. No application framework or build step is required -- just ES modules, the ZeyOS client, and a browser. The starter HTML below uses the Tailwind CDN only for concise demo styling; remove it or self-host your CSS for production or stricter security environments.
 
 ---
 
@@ -338,20 +338,19 @@ document.getElementById('create-form').addEventListener('submit', async e => {
 });
 ```
 
-For create operations, the flat input style works fine -- there are no path parameters to confuse the body inference.
+For generated create and update operations, the flat input style works for normal record fields.
 
 ---
 
 ## Step 6: Update a Ticket
 
-This is where the most important gotcha comes in. **When updating, you must use the explicit `body` key:**
+Update a record by passing the record ID and the changed fields:
 
 ```js
 async function updateTicketStatus(ticketId, newStatus) {
-  // CORRECT: Separate the path param (ID) from the body
   const updated = await client.api.updateTicket({
     ID: ticketId,
-    body: { status: newStatus },
+    status: newStatus,
   });
 
   // The response contains the full updated record -- use it to
@@ -360,9 +359,11 @@ async function updateTicketStatus(ticketId, newStatus) {
 }
 ```
 
-Why? The client's body-inference algorithm sees `ID` in your input and assumes you have already handled the body separately. If you spread everything flat (`{ ID: 42, status: 4 }`), the PATCH request is sent with an empty body and nothing changes -- silently.
+If you prefer explicit separation, `body` and `data` are also supported:
 
-This applies to **all update operations**: `updateTicket`, `updateTask`, `updateAccount`, etc.
+```js
+await client.api.updateTicket({ ID: ticketId, body: { status: newStatus } });
+```
 
 ---
 

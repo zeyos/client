@@ -13,6 +13,6 @@
   },
   "get": {
     "fields": ["ID", "tasknum", "name", "description", "status", "priority", "duedate", "ticket", "creator", "created", "lastmodified"],
-    "expand": ["extdata"]
+    "params": { "extdata": 1 }
   }
 }

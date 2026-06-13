@@ -42,12 +42,12 @@
   │    ZeyOS.setToken('your-access-token')                                 │
   │    ZeyOS.reconnect()                                                   │
   │                                                                        │
-  │  If you are already logged into ZeyOS in this browser,                 │
-  │  just set the URL — session detection will handle the rest.            │
+  │  Session mode only works from the same origin or with credentialed     │
+  │  CORS enabled on the ZeyOS instance. Use token mode for localhost.     │
   └─────────────────────────────────────────────────────────────────────────┘
 -->
 <body class="bg-slate-100 min-h-screen font-sans antialiased"
-      data-zeyos-url="https://cloud.zeyos.com/cpqdemo/"
+      data-zeyos-url=""
       data-zeyos-accesstoken=""
       data-zeyos-refreshtoken="">
 
@@ -89,16 +89,16 @@ ZeyOS.reconnect()</code></pre>
         <div class="p-4 bg-amber-50 border border-amber-200 rounded-xl">
           <h3 class="font-semibold text-amber-800 mb-2">Option 3 &mdash; Session Mode</h3>
           <p class="leading-relaxed">
-            If you are already logged into ZeyOS in this browser,
-            just set the URL &mdash; the app will detect your session automatically.
+            Session mode only works from the same origin or when the ZeyOS instance
+            allows credentialed CORS. For localhost demos, use token mode.
           </p>
         </div>
 
         <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-500 space-y-1.5">
           <p>
-            <strong>Tip:</strong> Use the CLI to obtain a token:
-            <code class="bg-slate-100 px-1 py-0.5 rounded font-mono">zeyos login</code> then
-            copy the token from <code class="bg-slate-100 px-1 py-0.5 rounded font-mono">.zeyos/auth.json</code>
+            <strong>Tip:</strong> Use the CLI to obtain a token with
+            <code class="bg-slate-100 px-1 py-0.5 rounded font-mono">zeyos login</code>, then explicitly print one with
+            <code class="bg-slate-100 px-1 py-0.5 rounded font-mono">zeyos whoami --show-token --json</code>
           </p>
           <p>
             <strong>Debug:</strong> Run <code class="bg-slate-100 px-1 py-0.5 rounded font-mono">ZeyOS.status()</code>

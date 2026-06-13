@@ -2,11 +2,20 @@
 
 ## Primary Resources
 
-- `accounts`
-- `transactions`
-- `payments`
-- `dunning`
-- `dunning2transactions`
+The DB-table noun is not the operationId. Use the operationIds below with `@zeyos/client`
+(`client.api.<operationId>(...)`); see [../../shared/zeyos-entity-reference.md](../../shared/zeyos-entity-reference.md#entity-noun-to-rest-operationid) for the full mapping.
+
+| Concept | dbref noun | list operationId | single-record operationIds |
+|---------|------------|------------------|----------------------------|
+| Accounts | `accounts` | `listAccounts` | `getAccount`, `createAccount`, `updateAccount`, `deleteAccount` |
+| Transactions / invoices | `transactions` | `listTransactions` | `getTransaction`, `createTransaction`, `updateTransaction`, `deleteTransaction` |
+| Payments | `payments` | `listPayments` | `getPayment`, `createPayment`, `updatePayment`, `deletePayment` |
+| Dunning notices | `dunning` | `listDunningNotices` | `getDunningNotice`, `createDunningNotice`, `updateDunningNotice`, `deleteDunningNotice` |
+| Dunning-to-transaction links | `dunning2transactions` | `listDunningToTransactions` | `getDunningToTransaction`, `createDunningToTransaction`, `deleteDunningToTransaction` |
+
+Note: `dunning` is the **`DunningNotice`** entity (not `Dunning`), and `dunning2transactions`
+is the `DunningToTransaction` junction. Calling `client.api.listDunning(...)` or
+`client.api.listDunning2transactions(...)` will fail with "operation not found".
 
 ## Important Status Caution
 
@@ -55,8 +64,8 @@ Use this for prompts like:
 Recommended approach:
 
 1. Resolve the dunning record or account first.
-2. Query `dunning` for active or recently relevant notices.
-3. Query `dunning2transactions` for the linked transaction IDs.
+2. Query `dunning` notices via `listDunningNotices` for active or recently relevant notices.
+3. Query `dunning2transactions` via `listDunningToTransactions` for the linked transaction IDs.
 4. Fetch the linked `transactions` to show invoice numbers, due dates, and values.
 5. Present the result by dunning notice, then by covered invoice.
 

@@ -25,9 +25,24 @@ const GLOBAL_FILE = join(GLOBAL_DIR, 'credentials.json');
  * Returns a merged object; env vars always win over file values.
  */
 export function loadConfig() {
-  const file = _findLocalFile() ?? _readGlobal();
-  const env  = _fromEnv();
-  return { ...file, ...env };
+  return loadConfigWithSource().config;
+}
+
+/**
+ * Load config and identify the credential file scope that should receive
+ * refreshed tokens. Local config overrides global config field-by-field, so a
+ * partial local file cannot shadow global connection parameters.
+ */
+export function loadConfigWithSource() {
+  const localPath = _findLocalPath();
+  const globalFile = _readGlobal();
+  const localFile = localPath ? _readJson(localPath) : {};
+  const env = _fromEnv();
+
+  return {
+    config: { ...globalFile, ...localFile, ...env },
+    source: localPath ? 'local' : (existsSync(GLOBAL_FILE) ? 'global' : null)
+  };
 }
 
 /**
@@ -119,11 +134,6 @@ function _findLocalPath() {
     dir = parent;
   }
   return null;
-}
-
-function _findLocalFile() {
-  const path = _findLocalPath();
-  return path ? _readJson(path) : null;
 }
 
 function _readGlobal() {

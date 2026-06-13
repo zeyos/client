@@ -21,8 +21,8 @@ Typical prompts:
 3. Use:
    - `items` for product identity
    - `prices` and `pricelists` for effective commercial pricing
-   - `pricelists2accounts` for account-specific price-list assignment
-   - `stocktransactions` and `storages` for inventory movement and location
+   - `pricelists2accounts` for account-specific price-list assignment (operationId `listPriceListsToAccounts`; `pricelists` -> `listPriceLists`)
+   - `stocktransactions` and `storages` for inventory movement and location (`stocktransactions` -> `listStockTransactions`; these dbref nouns do not map naively — see [../shared/zeyos-entity-reference.md](../shared/zeyos-entity-reference.md#entity-noun-to-rest-operationid))
    - `suppliers` for vendor sourcing
 4. State whether a quoted price is:
    - base item price

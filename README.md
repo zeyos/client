@@ -1,6 +1,6 @@
 # ZeyOS Client, CLI, and Integration Docs
 
-This repository contains the JavaScript client, the CLI, the OpenAPI specs, and the sample applications for integrating external tools with ZeyOS.
+This repository contains the JavaScript client, the CLI, the OpenAPI specs, and the sample applications for integrating external tools with ZeyOS. The `@zeyos/client` npm package ships the client, docs, OpenAPI specs, sample apps, and agent guidance. The CLI is published separately as `@zeyos/cli`.
 
 The authoritative documentation lives in [`docs/`](./docs/).
 
@@ -22,10 +22,11 @@ Install dependencies:
 npm install
 ```
 
-Run the CLI from the repository:
+Install the CLI package when you want the `zeyos` command:
 
 ```bash
-node cli/bin/zeyos.mjs --help
+npm install -g @zeyos/cli
+zeyos --help
 ```
 
 Use the client in JavaScript:
@@ -53,7 +54,7 @@ const tickets = await client.api.listTickets({
 ## Repository Layout
 
 - [`src/`](./src/) contains the JavaScript client
-- [`cli/`](./cli/) contains the CLI package
+- `cli/` contains the CLI package in the source repository; npm users should install `@zeyos/cli`
 - [`docs/`](./docs/) contains the authoritative documentation
 - [`agents/`](./agents/) contains repo-local ZeyOS agent skills and query playbooks
 - [`openapi/`](./openapi/) contains the OpenAPI specifications

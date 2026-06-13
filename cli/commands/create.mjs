@@ -13,6 +13,7 @@
 
 import { buildClient, syncTokens }        from '../lib/client.mjs';
 import { resolveResource }                from '../lib/resources.mjs';
+import { collectFieldFlags }              from '../lib/flags.mjs';
 import { outputMode, printJson, printYaml, printRecord, success, error } from '../lib/output.mjs';
 
 export const USAGE = `\
@@ -32,7 +33,7 @@ Options:
 
 Examples:
   zeyos create ticket --name "Fix login bug" --status 0 --priority 2
-  zeyos create account --data '{"name":"Acme Corp","email":"info@acme.com"}'
+  zeyos create account --data '{"lastname":"Acme Corp","email":"info@acme.com"}'
 `;
 
 export async function run(values, positional) {
@@ -52,9 +53,9 @@ export async function run(values, positional) {
     process.exit(1);
   }
 
-  let client, tokenStore;
+  let client, tokenStore, configSource;
   try {
-    ({ client, tokenStore } = buildClient());
+    ({ client, tokenStore, configSource } = buildClient());
   } catch (err) {
     error(err.message);
     process.exit(1);
@@ -72,16 +73,8 @@ export async function run(values, positional) {
     }
   }
 
-  // Merge extra --key value flags (skip known CLI flags)
-  const SKIP = new Set([
-    'data', 'json', 'yaml', 'help', 'h',
-    'no-color', 'force', 'fields', 'filter', 'sort',
-    'limit', 'offset', 'expand', 'base-url', 'client-id',
-    'secret', 'scope', 'global', 'port', 'manual',
-  ]);
-  for (const [k, v] of Object.entries(values)) {
-    if (!SKIP.has(k)) data[k] = _coerce(v);
-  }
+  // Merge extra --<field> value flags on top of any --data payload
+  Object.assign(data, collectFieldFlags(values));
 
   if (Object.keys(data).length === 0) {
     error('No fields provided.  Use --data or individual --<field> flags.');
@@ -97,7 +90,7 @@ export async function run(values, positional) {
       process.exit(1);
     }
     record = await fn(data);
-    await syncTokens(tokenStore);
+    await syncTokens(tokenStore, configSource);
   } catch (err) {
     error(`API error: ${err.message}`);
     process.exit(1);
@@ -114,15 +107,4 @@ export async function run(values, positional) {
     success(`Created ${resourceName} #${id}.`);
     if (record) printRecord(record, res.fields);
   }
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-/** Coerce string values from CLI flags to appropriate JS types. */
-function _coerce(v) {
-  if (v === 'true')  return true;
-  if (v === 'false') return false;
-  if (v === 'null')  return null;
-  if (typeof v === 'string' && v !== '' && !isNaN(Number(v))) return Number(v);
-  return v;
 }

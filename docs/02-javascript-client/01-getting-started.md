@@ -15,6 +15,10 @@ Use the JavaScript client when:
 
 ## Installation
 
+:::info ESM only
+`@zeyos/client` is an ES module (ESM) package. Use `import` (or dynamic `import()`) to load it. CommonJS `require()` is not supported.
+:::
+
 The client is distributed as an ES module source package. If you are working inside this repository, import it directly from the source tree:
 
 ```js
@@ -104,7 +108,7 @@ const client = createZeyosClient({
 
 - **Zero dependencies** -- no external packages; only the standard `fetch` API is required
 - **Browser + Node.js 18+** -- works in any environment with global `fetch`
-- **Auto token refresh** -- transparently refreshes expired access tokens on 401 responses
+- **Auto token refresh** -- transparently refreshes expired access tokens before requests or after bearer 401 responses
 - **Generated API methods** -- the broader generated API surface is available as `client.api.<operationId>()`
 - **Session + OAuth support** -- choose between cookie-based sessions, bearer tokens, or automatic fallback
 - **Low-level escape hatch** -- `client.request()` for custom endpoints and advanced use cases
@@ -123,7 +127,7 @@ const client = createZeyosClient({
 | `auth.oauth.clientId` | `string` | OAuth 2.0 client ID for token operations |
 | `auth.oauth.clientSecret` | `string` | OAuth 2.0 client secret for token operations |
 | `auth.oauth.tokenStore` | `TokenStore` | Token storage backend (must implement `get()` and `set()`) |
-| `auth.oauth.autoRefresh` | `boolean` | Automatically refresh access tokens on 401 responses (default: `true`) |
+| `auth.oauth.autoRefresh` | `boolean` | Automatically refresh access tokens before requests or after bearer 401 responses (default: `true`) |
 | `auth.session.enabled` | `boolean` | Enable session-based authentication (default: `true`) |
 | `auth.session.credentials` | `string` | Fetch credentials mode: `'include'`, `'same-origin'`, or `'omit'` |
 | `auth.session.cookie` | `string \| function` | Explicit session cookie value or async function returning one (Node.js) |

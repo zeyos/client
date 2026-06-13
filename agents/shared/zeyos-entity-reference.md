@@ -28,6 +28,70 @@ Agent rule:
 - For CLI, use the documented `--filter` flag.
 - For raw REST/OpenAPI examples, mention that the spec documents `filter` and verify behavior against the target instance before hardcoding one spelling as universally correct.
 
+## Entity Noun to REST operationId
+
+The DB-table noun (from `dbref.json`, also the REST URL path segment) is **not** the
+operationId. The `@zeyos/client` methods and the names you reason about are CamelCase
+compound operationIds, and several diverge from a naive "capitalize + pluralize the noun".
+
+**Agent rule: when calling `@zeyos/client` (`client.api.<operationId>(...)`) or constructing
+CLI resource names, use the operationIds below, not the raw `dbref.json` table noun.** Building
+`client.api.listDunning(...)` or `zeyos list dunning` from the noun will fail with
+"operation not found".
+
+### The regular rule (most entities)
+
+For most entities the operationIds follow this pattern, where `<Plural>` is the CamelCase plural
+and `<Singular>` is the CamelCase singular:
+
+- `list<Plural>`, `get<Singular>`, `create<Singular>`, `update<Singular>`, `delete<Singular>`, `exists<Singular>`
+
+Example (`accounts`): `listAccounts`, `getAccount`, `createAccount`, `updateAccount`, `deleteAccount`, `existsAccount`.
+
+Entities that follow the regular rule directly (lowercase noun, single English word): `accounts`,
+`addresses`, `applications`*, `appointments`, `associations`, `campaigns`, `channels`, `comments`,
+`components`, `contacts`, `contracts`, `coupons`, `devices`, `documents`, `events`, `files`,
+`follows`, `forks`*, `groups`*, `invitations`, `items`, `ledgers`, `likes`, `links`, `messages`,
+`notes`, `objects`, `opportunities`, `participants`, `payments`, `permissions`*, `prices`,
+`projects`, `records`, `resources`*, `services`*, `storages`, `suppliers`, `tasks`, `tickets`,
+`transactions`, `users`*, `weblets`*.
+
+`*` = read-only entity: only `list*`, `get*`, and `exists*` exist (no create/update/delete).
+
+### Exceptions (verify these — the noun does NOT map naively)
+
+Every operationId below was verified to exist in `src/generated/operations.js`. Junction tables
+(`X2Y`) become `XToY` (CamelCase, with the **left** side often re-pluralized). Some entities are
+renamed entirely (`dunning` -> `DunningNotice`), and several are compound words that must keep their
+internal capitalization (e.g. `MailingLists`, not `Mailinglists`).
+
+| dbref noun | list | get | create | update | delete | exists | Notes |
+|------------|------|-----|--------|--------|--------|--------|-------|
+| `actionsteps` | `listActionSteps` | `getActionStep` | `createActionStep` | `updateActionStep` | `deleteActionStep` | `existsActionStep` | Compound `ActionStep` |
+| `applicationassets` | `listApplicationAssets` | `getApplicationAsset` | — | — | — | `existsApplicationAsset` | Read-only; compound |
+| `binfiles` | `listBinFiles` | — | — | — | — | — | **List-only.** `BinFiles` |
+| `categories` | `listCategorys` | `getCategory` | `createCategory` | `updateCategory` | `deleteCategory` | `existsCategory` | List op is `listCategorys` (sic — no irregular plural); singular ops use `Category` |
+| `contacts2contacts` | `listContactsToContacts` | `getContactToContact` | `createContactToContact` | `updateContactToContact` | `deleteContactToContact` | `existsContactToContact` | Junction `X2Y` -> `XToY` |
+| `couponcodes` | `listCouponCodes` | `getCouponCode` | `createCouponCode` | `updateCouponCode` | `deleteCouponCode` | `existsCouponCode` | Compound `CouponCode` |
+| `customfields` | `listCustomFields` | `getCustomField` | — | — | — | `existsCustomField` | Read-only; compound |
+| `davservers` | `listDAVServers` | `getDAVServer` | `createDAVServer` | `updateDAVServer` | `deleteDAVServer` | `existsDAVServer` | Acronym uppercased: `DAVServer` |
+| `dunning` | `listDunningNotices` | `getDunningNotice` | `createDunningNotice` | `updateDunningNotice` | `deleteDunningNotice` | `existsDunningNotice` | Entity is **`DunningNotice`**, not `Dunning` |
+| `dunning2transactions` | `listDunningToTransactions` | `getDunningToTransaction` | `createDunningToTransaction` | `updateDunningToTransaction` | `deleteDunningToTransaction` | `existsDunningToTransaction` | Junction `dunning2transactions` -> `DunningToTransaction(s)` |
+| `entities2channels` | `listEntitiesToChannels` | `getEntityToChannel` | `createEntityToChannel` | `updateEntityToChannel` | `deleteEntityToChannel` | `existsEntityToChannel` | Junction; singular re-singularized to `EntityToChannel` |
+| `feedservers` | `listFeedServers` | `getFeedServer` | `createFeedServer` | `updateFeedServer` | `deleteFeedServer` | `existsFeedServer` | Compound `FeedServer` |
+| `groups2users` | `listGroupsToUsers` | `getGroupToUser` | — | — | — | `existsGroupToUser` | Read-only junction `X2Y` -> `XToY` |
+| `mailinglists` | `listMailingLists` | `getMailingList` | `createMailingList` | `updateMailingList` | `deleteMailingList` | `existsMailingList` | Compound `MailingList` |
+| `mailingrecipients` | `listMailingRecipients` | `getMailingRecipient` | `createMailingRecipient` | `updateMailingRecipient` | `deleteMailingRecipient` | `existsMailingRecipients` | Compound; **exists op is plural** `existsMailingRecipients` (sic) |
+| `mailservers` | `listMailServers` | `getMailServer` | `createMailServer` | `updateMailServer` | `deleteMailServer` | `existsMailServer` | Compound `MailServer` |
+| `messagereads` | `listMessageReads` | `getMessageRead` | `createMessageRead` | `updateMessageRead` | `deleteMessageRead` | `existsMessageRead` | Compound `MessageRead` |
+| `pricelists` | `listPriceLists` | `getPriceList` | `createPriceList` | `updatePriceList` | `deletePriceList` | `existsPriceList` | Compound `PriceList` |
+| `pricelists2accounts` | `listPriceListsToAccounts` | `getPriceListToAccount` | `createPriceListToAccount` | `updatePriceListToAccount` | `deletePriceListToAccount` | `existsPriceListToAccount` | Junction; compound on both sides |
+| `relateditems` | `listRelatedItems` | `getRelatedItem` | `createRelatedItem` | `updateRelatedItem` | `deleteRelatedItem` | `existsRelatedItem` | Compound `RelatedItem` |
+| `stocktransactions` | `listStockTransactions` | `getStockTransaction` | `createStockTransaction` | `updateStockTransaction` | `deleteStockTransaction` | `existsStockTransaction` | Compound `StockTransaction` |
+
+When in doubt, look up the operationId in `src/generated/operations.js` (or `openapi/api.json`) rather
+than constructing it from the noun.
+
 ## API-Backed Entities
 
 These are the 64 entities that have direct list endpoints in `api.json`.
@@ -469,7 +533,7 @@ Entities:
 Use this priority order when deciding what to read first:
 
 1. Core business entities such as `accounts`, `contacts`, `tickets`, `tasks`, `projects`, `messages`, `notes`, `documents`, `transactions`, and `payments`
-2. Junction entities such as `mailingrecipients`, `pricelists2accounts`, `dunning2transactions`, `groups2users`, `entities2channels`
+2. Junction entities such as `mailingrecipients`, `pricelists2accounts`, `dunning2transactions`, `groups2users`, `entities2channels` (note: these have diverging operationIds — see [Entity Noun to REST operationId](#entity-noun-to-rest-operationid))
 3. Platform and extensibility entities such as `customfields`, `objects`, `applications`, `services`, `weblets`, `forks`
 4. Internal helper families such as `extdata*`, `tagrels*`, `meta_*`, and runtime tables
 

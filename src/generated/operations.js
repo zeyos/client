@@ -2,7 +2,7 @@
 // Do not edit manually.
 
 export const GENERATED = {
-  "generatedAt": "2026-03-09T07:29:47.447Z",
+  "generatedAt": null,
   "services": {
     "api": {
       "key": "api",
