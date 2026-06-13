@@ -127,6 +127,20 @@ A token set object contains the following fields:
 | `refreshTokenExpiresIn` | `number \| null` | Refresh token lifetime in seconds |
 | `refreshTokenExpiresAt` | `number \| null` | Refresh token absolute expiry (Unix timestamp) |
 
+### Token Set Helpers
+
+Two helpers are exported for working with token sets directly — handy when persisting and re-hydrating tokens:
+
+- **`normalizeTokenSet(input)`** — normalize a partial token set into the shape above, tolerating both camelCase and snake_case fields (`access_token`, `expires_in`, …). Returns `null` if the input has neither an access nor a refresh token.
+- **`tokenResponseToTokenSet(response)`** — convert a raw OAuth 2.0 token-endpoint response into a normalized token set (an alias of `normalizeTokenSet`).
+
+```js
+import { normalizeTokenSet } from '@zeyos/client';
+
+const stored = JSON.parse(localStorage.getItem('zeyos_tokens') ?? 'null');
+const tokenSet = normalizeTokenSet(stored);   // tolerant of snake_case, returns null if empty
+```
+
 ## OAuth 2.0 Flow
 
 For server-side or other trusted applications that can safely hold OAuth client credentials, use the standard OAuth 2.0 authorization code flow:
