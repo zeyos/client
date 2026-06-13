@@ -1,5 +1,5 @@
 import { createZeyosClient } from './runtime/client.js';
-import { ZeyosApiError } from './runtime/error.js';
+import { ZeyosApiError, ZeyosValidationError } from './runtime/error.js';
 import { MemoryTokenStore, normalizeTokenSet, tokenResponseToTokenSet } from './runtime/token-store.js';
 
 /**
@@ -34,4 +34,4 @@ export function normalizeListResult(result) {
   return { data: [] };
 }
 
-export { createZeyosClient, ZeyosApiError, MemoryTokenStore, normalizeTokenSet, tokenResponseToTokenSet };
+export { createZeyosClient, ZeyosApiError, ZeyosValidationError, MemoryTokenStore, normalizeTokenSet, tokenResponseToTokenSet };

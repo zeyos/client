@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createZeyosClient, MemoryTokenStore, ZeyosApiError, normalizeListResult } from '../src/index.js';
+import { createZeyosClient, MemoryTokenStore, ZeyosApiError, ZeyosValidationError, normalizeListResult } from '../src/index.js';
 import { SERVICES } from '../src/generated/operations.js';
 
 function jsonResponse(data, status = 200, headers = {}) {
@@ -710,5 +710,106 @@ test('form-url-encodes bodies with nested object/array/boolean values', async ()
   });
 
   assert.equal(result.ID, 5);
+  assert.equal(fetch.calls(), 1);
+});
+
+test('unknown api operation throws a helpful did-you-mean error', async () => {
+  const client = createZeyosClient({ instance: 'demo', auth: { mode: 'none' }, fetch: async () => jsonResponse([]) });
+  await assert.rejects(
+    () => client.api.listDunning({}),
+    (error) => {
+      assert.ok(error instanceof ZeyosApiError);
+      assert.match(error.message, /Unknown operation 'api\.listDunning'/);
+      assert.match(error.message, /listDunningNotices/);
+      return true;
+    }
+  );
+});
+
+test('low-level request() suggests the closest operation', async () => {
+  const client = createZeyosClient({ instance: 'demo', auth: { mode: 'none' }, fetch: async () => jsonResponse([]) });
+  await assert.rejects(
+    () => client.request({ service: 'api', operationId: 'listActionsteps' }),
+    (error) => {
+      assert.ok(error instanceof ZeyosApiError);
+      assert.match(error.message, /listActionSteps/);
+      return true;
+    }
+  );
+});
+
+test('client.schema exposes resources, fields, enums and operation mapping', () => {
+  const client = createZeyosClient({ instance: 'demo', auth: { mode: 'none' }, fetch: async () => jsonResponse([]) });
+  const accounts = client.schema.describe('accounts');
+  assert.equal(accounts.fields.type.enum['1'], 'CUSTOMER');
+  assert.ok(client.schema.fields('accounts').includes('lastname'));
+  assert.equal(client.schema.resourceForOperation('listDunningNotices'), 'dunning');
+  assert.ok(client.schema.operationIds().includes('listTickets'));
+});
+
+test('client.schema.validate flags unknown fields, filter spelling and bad enums', () => {
+  const client = createZeyosClient({ instance: 'demo', auth: { mode: 'none' }, fetch: async () => jsonResponse([]) });
+
+  const unknownField = client.schema.validate('createAccount', { name: 'Acme' });
+  assert.equal(unknownField.valid, false);
+  assert.equal(unknownField.errors[0].suggestion, 'lastname');
+
+  const filterSpelling = client.schema.validate('listTickets', { filter: { status: 1 } });
+  assert.equal(filterSpelling.valid, false);
+  assert.ok(filterSpelling.errors.some((entry) => entry.suggestion === 'filters'));
+
+  const badEnum = client.schema.validate('updateTicket', { ID: 1, status: 99 });
+  assert.equal(badEnum.valid, false);
+  assert.match(badEnum.errors[0].message, /Valid:/);
+
+  const good = client.schema.validate('createAccount', { lastname: 'Acme', firstname: 'Jane' });
+  assert.equal(good.valid, true);
+});
+
+test('validate: true performs pre-flight validation and throws ZeyosValidationError', async () => {
+  const fetch = createFetchSequence([]);
+  const client = createZeyosClient({ instance: 'demo', auth: { mode: 'session' }, validate: true, fetch });
+  await assert.rejects(
+    () => client.api.createAccount({ name: 'Acme' }),
+    (error) => {
+      assert.ok(error instanceof ZeyosValidationError);
+      assert.equal(error.operationId, 'createAccount');
+      assert.ok(error.errors.length >= 1);
+      return true;
+    }
+  );
+  assert.equal(fetch.calls(), 0);
+});
+
+test('retries 429 responses honoring Retry-After then succeeds', async () => {
+  const fetch = createFetchSequence([
+    () => textResponse('busy', 429, { 'retry-after': '0' }),
+    () => textResponse('busy', 429, { 'retry-after': '0' }),
+    () => jsonResponse([{ ID: 1 }])
+  ]);
+  const client = createZeyosClient({
+    instance: 'demo',
+    auth: { mode: 'session' },
+    retry: { baseDelayMs: 1 },
+    fetch
+  });
+  const result = await client.api.listTickets({ filters: { visibility: 0 } });
+  assert.equal(Array.isArray(result), true);
+  assert.equal(fetch.calls(), 3);
+});
+
+test('retry: false surfaces the first 429 without retrying', async () => {
+  const fetch = createFetchSequence([
+    () => textResponse('busy', 429)
+  ]);
+  const client = createZeyosClient({ instance: 'demo', auth: { mode: 'session' }, retry: false, fetch });
+  await assert.rejects(
+    () => client.api.listTickets({ filters: { visibility: 0 } }),
+    (error) => {
+      assert.ok(error instanceof ZeyosApiError);
+      assert.equal(error.status, 429);
+      return true;
+    }
+  );
   assert.equal(fetch.calls(), 1);
 });

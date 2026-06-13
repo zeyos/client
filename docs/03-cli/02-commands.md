@@ -352,6 +352,49 @@ Shows a table of all CLI-supported resource types and available operations.
 
 ---
 
+## describe
+
+Show a resource's schema — fields, types, foreign keys and enum values — from the generated schema. Runs **offline** (no login required), so an agent can discover the data model before making any call.
+
+```
+# Field/type/enum/foreign-key listing for a resource
+zeyos describe tickets
+
+# Machine-readable schema
+zeyos describe accounts --json
+```
+
+Foreign keys are shown as `→ <table>`, and enum fields list their valid values (e.g. `status` → `0=NOTSTARTED 1=AWAITINGACCEPTANCE …`). The operations available for the resource are listed at the bottom.
+
+---
+
+## skills
+
+Discover and install the bundled ZeyOS agent skill packs into the local project, so a coding agent (Claude, Codex, …) operates against ZeyOS with the right conventions out of the box.
+
+```
+# List the bundled skills
+zeyos skills list
+
+# Print a skill's instructions
+zeyos skills show zeyos-work-management
+
+# Install all skills (or named ones) into the project
+zeyos skills install
+zeyos skills install zeyos-billing-insights --target claude
+```
+
+Options for `install`:
+
+| Option | Description |
+|--------|-------------|
+| `--target claude\|codex` | Where to install (default: auto-detect, fallback `.claude/skills`) |
+| `--force` | Overwrite existing skill folders |
+
+Skills are copied into `<target>/skills/<name>/`, with the shared reference files installed alongside (`<target>/skills/shared/`) so the skills' `../shared/…` links resolve.
+
+---
+
 ## Command Aliases
 
 | Alias | Equivalent |
@@ -361,3 +404,4 @@ Shows a table of all CLI-supported resource types and available operations.
 | `rm` | `delete` |
 | `remove` | `delete` |
 | `resource` | `resources` |
+| `skill` | `skills` |

@@ -1,7 +1,69 @@
 import { GENERATED, SERVICES, SERVICE_KEYS } from '../generated/operations.js';
-import { ZeyosApiError } from './error.js';
+import { SCHEMA } from '../generated/schema.js';
+import { ZeyosApiError, ZeyosValidationError } from './error.js';
 import { buildUrl, httpRequest } from './http.js';
+import { createSchema } from './schema.js';
+import { suggestClosest } from './suggest.js';
 import { MemoryTokenStore, normalizeTokenSet, tokenResponseToTokenSet } from './token-store.js';
+
+const DEFAULT_RETRY = Object.freeze({
+  maxRetries: 2,
+  retryOn: Object.freeze([429, 503]),
+  baseDelayMs: 300,
+  maxDelayMs: 10000
+});
+
+function normalizeRetry(retry) {
+  if (retry === false || retry === null) {
+    return { maxRetries: 0, retryOn: new Set(), baseDelayMs: 0, maxDelayMs: 0 };
+  }
+  const cfg = retry && typeof retry === 'object' ? retry : {};
+  const retryOn = Array.isArray(cfg.retryOn) ? cfg.retryOn : DEFAULT_RETRY.retryOn;
+  return {
+    maxRetries: Number.isInteger(cfg.maxRetries) && cfg.maxRetries >= 0 ? cfg.maxRetries : DEFAULT_RETRY.maxRetries,
+    retryOn: new Set(retryOn),
+    baseDelayMs: Number(cfg.baseDelayMs) > 0 ? Number(cfg.baseDelayMs) : DEFAULT_RETRY.baseDelayMs,
+    maxDelayMs: Number(cfg.maxDelayMs) > 0 ? Number(cfg.maxDelayMs) : DEFAULT_RETRY.maxDelayMs
+  };
+}
+
+function abortableDelay(ms, signal) {
+  if (!(ms > 0)) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(signal.reason ?? new Error('Aborted'));
+      return;
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener?.('abort', onAbort);
+      resolve();
+    }, ms);
+    function onAbort() {
+      clearTimeout(timer);
+      reject(signal.reason ?? new Error('Aborted'));
+    }
+    signal?.addEventListener?.('abort', onAbort, { once: true });
+  });
+}
+
+// Honor a Retry-After header (seconds or HTTP-date), else exponential backoff
+// with jitter, capped at maxDelayMs.
+function computeRetryDelay(response, attempt, retryConfig) {
+  const header = response.headers?.['retry-after'];
+  if (header != null) {
+    const seconds = Number(header);
+    if (Number.isFinite(seconds)) {
+      return Math.min(retryConfig.maxDelayMs, Math.max(0, seconds * 1000));
+    }
+    const dateMs = Date.parse(header);
+    if (Number.isFinite(dateMs)) {
+      return Math.min(retryConfig.maxDelayMs, Math.max(0, dateMs - Date.now()));
+    }
+  }
+  const exp = retryConfig.baseDelayMs * Math.pow(2, attempt);
+  const jitter = Math.random() * retryConfig.baseDelayMs;
+  return Math.min(retryConfig.maxDelayMs, exp + jitter);
+}
 
 const AUTH_SCHEME_MAP = Object.freeze({
   oauth: 'bearer',
@@ -540,6 +602,9 @@ export function createZeyosClient(rawConfig = {}) {
       : new MemoryTokenStore(oauthConfig.token ?? null);
 
   const defaultHeaders = isObject(config.headers) ? config.headers : {};
+  const retryConfig = normalizeRetry(config.retry);
+  const schemaApi = createSchema({ services: SERVICES, schema: SCHEMA });
+  const validateByDefault = config.validate === true;
   const operationLookup = new Map();
 
   for (const [serviceKey, service] of Object.entries(SERVICES)) {
@@ -629,16 +694,26 @@ export function createZeyosClient(rawConfig = {}) {
       prepared.query
     );
 
-    const response = await httpRequest({
-      fetchImpl,
-      url,
-      method: operation.method,
-      headers,
-      body,
-      bodyType,
-      signal: prepared.signal ?? requestOptions?.signal,
-      credentials
-    });
+    const signal = prepared.signal ?? requestOptions?.signal;
+
+    let response;
+    for (let attempt = 0; ; attempt++) {
+      response = await httpRequest({
+        fetchImpl,
+        url,
+        method: operation.method,
+        headers,
+        body,
+        bodyType,
+        signal,
+        credentials
+      });
+
+      if (attempt >= retryConfig.maxRetries || !retryConfig.retryOn.has(response.status)) {
+        break;
+      }
+      await abortableDelay(computeRetryDelay(response, attempt, retryConfig), signal);
+    }
 
     if (!isSuccessfulHttpStatus(response.status)) {
       throw createApiError(response, {
@@ -797,21 +872,47 @@ export function createZeyosClient(rawConfig = {}) {
       return Object.freeze({});
     }
 
-    const client = {};
+    const namespace = {};
+    const operationIds = service.operations.map((operation) => operation.operationId);
 
     for (const operation of service.operations) {
-      client[operation.operationId] = async (input, requestOptions) => {
+      namespace[operation.operationId] = async (input, requestOptions) => {
+        if (validateByDefault || requestOptions?.validate === true) {
+          const result = schemaApi.validate(operation.operationId, input);
+          if (!result.valid) {
+            throw new ZeyosValidationError(
+              `${operation.operationId}: ${result.errors.map((entry) => entry.message).join(' ')}`,
+              { operationId: operation.operationId, errors: result.errors }
+            );
+          }
+        }
         const prepared = prepareOperationInput(operation, input);
-        return executeOperation({
-          serviceKey,
-          operation,
-          prepared,
-          requestOptions
-        });
+        return executeOperation({ serviceKey, operation, prepared, requestOptions });
       };
     }
 
-    return Object.freeze(client);
+    // Return a helpful "did you mean ...?" error when an agent calls an
+    // operation that does not exist (e.g. listDunning vs listDunningNotices),
+    // instead of an opaque "x is not a function" TypeError.
+    return new Proxy(Object.freeze(namespace), {
+      get(target, prop, receiver) {
+        if (typeof prop !== 'string' || prop === 'then' || prop in target) {
+          return Reflect.get(target, prop, receiver);
+        }
+        // Async so an unknown operation rejects like a real operation call
+        // would, rather than throwing synchronously before `.catch()`/`await`.
+        return async () => {
+          const suggestion = suggestClosest(prop, operationIds);
+          throw new ZeyosApiError(
+            `Unknown operation '${serviceKey}.${prop}'.` +
+              (suggestion
+                ? ` Did you mean '${suggestion}'?`
+                : ' Use client.schema.operationIds() to list valid operations.'),
+            { operationId: prop, service: serviceKey }
+          );
+        };
+      }
+    });
   }
 
   async function request(input = {}, requestOptions = {}) {
@@ -827,7 +928,12 @@ export function createZeyosClient(rawConfig = {}) {
     if (input.operationId) {
       const operation = operationLookup.get(`${serviceKey}.${input.operationId}`);
       if (!operation) {
-        throw new Error(`Unknown operation: ${serviceKey}.${input.operationId}`);
+        const candidates = (SERVICES[serviceKey]?.operations ?? []).map((entry) => entry.operationId);
+        const suggestion = suggestClosest(input.operationId, candidates);
+        throw new ZeyosApiError(
+          `Unknown operation: ${serviceKey}.${input.operationId}.` + (suggestion ? ` Did you mean '${suggestion}'?` : ''),
+          { operationId: input.operationId, service: serviceKey }
+        );
       }
 
       const prepared = {
@@ -1082,6 +1188,7 @@ export function createZeyosClient(rawConfig = {}) {
     oauth2,
     legacyAuth,
     request,
+    schema: schemaApi,
     auth: {
       getTokenSet,
       setTokenSet,

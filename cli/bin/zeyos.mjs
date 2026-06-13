@@ -35,6 +35,8 @@ Commands:
   update <resource> <id>  Update an existing record
   delete <resource> <id>  Delete a record
   resources            List all available resource types
+  describe <resource>  Show a resource's fields, types and enums
+  skills <command>     List / show / install ZeyOS agent skills
 
 Global options:
   --json               Output as JSON
@@ -88,6 +90,8 @@ const OPTIONS = {
   'data':       { type: 'string' },
   // delete
   // (--force is already declared above)
+  // skills install
+  'target':     { type: 'string' },
 };
 
 // ── Command registry ──────────────────────────────────────────────────────────
@@ -109,6 +113,9 @@ const COMMANDS = {
   remove:    '../commands/delete.mjs',
   resources: '../commands/resources.mjs',
   resource:  '../commands/resources.mjs',
+  describe:  '../commands/describe.mjs',
+  skills:    '../commands/skills.mjs',
+  skill:     '../commands/skills.mjs',
 };
 
 // ── Main ──────────────────────────────────────────────────────────────────────

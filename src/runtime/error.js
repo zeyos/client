@@ -14,3 +14,16 @@ export class ZeyosApiError extends Error {
     this.cause = details.cause;
   }
 }
+
+/**
+ * Thrown by pre-flight validation (when `validate: true` is enabled) before a
+ * request is sent. Carries structured, self-correcting hints for agents.
+ */
+export class ZeyosValidationError extends Error {
+  constructor(message, details = {}) {
+    super(message);
+    this.name = 'ZeyosValidationError';
+    this.operationId = details.operationId ?? '';
+    this.errors = Array.isArray(details.errors) ? details.errors : [];
+  }
+}

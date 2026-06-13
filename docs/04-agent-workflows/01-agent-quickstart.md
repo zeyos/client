@@ -23,6 +23,17 @@ npm link cli/
 zeyos --help
 ```
 
+## Load the ZeyOS Skills
+
+Before doing real work, install the bundled skill packs so the agent picks up ZeyOS's query conventions (entity model, `filters` usage, safe writes):
+
+```bash
+zeyos skills list                 # see what's available
+zeyos skills install              # install all into .claude/skills (or .codex)
+```
+
+This is the recommended entry point for an agent: the skills encode how to resolve names to IDs, which resource to query first, and how to escalate from the CLI to `@zeyos/client`.
+
 ## Authenticate
 
 Interactive login:
@@ -58,6 +69,12 @@ Discover which curated resources the CLI can operate on directly:
 
 ```bash
 zeyos resources
+```
+
+Inspect a resource's fields, types and enum values before querying (works offline, no login needed):
+
+```bash
+zeyos describe tickets
 ```
 
 ## Read Data
