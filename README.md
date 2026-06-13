@@ -71,6 +71,11 @@ Each sample can be served as static files from the repository root. See the link
 ## Testing
 
 ```bash
-npm test
-node --test cli/test/integration.mjs
+npm test                       # offline unit + schema tests (mocked fetch); add -- --live for OAuth smoke
+npm run test:cli-integration   # live CLI CRUD lifecycle (requires `zeyos login`)
+npm run test:agent-protocol     # agent-driven live protocol; --dry-run to verify wiring first
 ```
+
+The **agent test protocol** drives a coding agent (opencode) against a live instance and
+uses a model-rotation rule to separate real client defects from model flakiness. See
+[`test/agent-protocol/PROTOCOL.md`](./test/agent-protocol/PROTOCOL.md).

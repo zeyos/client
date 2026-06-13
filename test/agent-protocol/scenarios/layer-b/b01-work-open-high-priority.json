@@ -1,0 +1,20 @@
+{
+  "id": "b01-work-open-high-priority",
+  "layer": "b",
+  "title": "Count open, high-priority tickets (work-management skill)",
+  "skill": "zeyos-work-management",
+  "interface": "either",
+  "mutates": false,
+  "tags": ["work-management", "enums", "semantics"],
+  "prompt": "Using the work-management skill, answer: how many open, high-priority tickets are there right now? Treat \"high priority\" as priority HIGH or HIGHEST, and \"open\" as any ticket whose status is not COMPLETED, CANCELLED, or FAILED. Restrict to active records (visibility 0). Output just the number on the RESULT line, e.g. `RESULT: 12`.",
+  "expect": {
+    "kind": "computeCount",
+    "op": "listTickets",
+    "params": { "filters": { "visibility": 0 }, "limit": 10000 },
+    "predicates": [
+      { "field": "priority", "in": [3, 4] },
+      { "field": "status", "notIn": [8, 9, 10] }
+    ],
+    "match": "exact"
+  }
+}

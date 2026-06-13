@@ -1,0 +1,21 @@
+{
+  "id": "a01-ticket-crud-roundtrip",
+  "layer": "a",
+  "title": "Create a ticket, read it back, then delete it",
+  "interface": "either",
+  "mutates": true,
+  "tags": ["crud", "tickets", "create"],
+  "prompt": "Create a new ticket with name exactly \"{recordPrefix}-{runId} smoke\". Use the smallest valid set of fields (check `zeyos describe tickets` for required fields). After creating it, output the new ticket's numeric ID on the RESULT line, e.g. `RESULT: 12345`.",
+  "expect": {
+    "kind": "verifyRecord",
+    "op": "getTicket",
+    "idFrom": "$RESULT",
+    "assert": [
+      { "path": "ID", "exists": true },
+      { "path": "name", "equals": "{recordPrefix}-{runId} smoke" }
+    ]
+  },
+  "cleanup": [
+    { "op": "deleteTicket", "idFrom": "$RESULT" }
+  ]
+}

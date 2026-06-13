@@ -1,0 +1,17 @@
+{
+  "id": "b04-dunning-operationid-trap",
+  "layer": "b",
+  "title": "Count dunning notices — operationId vs DB-noun trap (collections skill)",
+  "skill": "zeyos-collections-and-dunning",
+  "interface": "either",
+  "mutates": false,
+  "tags": ["collections-and-dunning", "operationId-drift", "footgun"],
+  "prompt": "Using the collections-and-dunning skill, answer: how many dunning notices currently exist? Restrict to active records (visibility 0). Output just the number on the RESULT line, e.g. `RESULT: 9`. (Note: the DB noun is `dunning`, but the client/CLI operation is not named `listDunning` — discover the correct operation before calling it.)",
+  "expect": {
+    "kind": "computeCount",
+    "op": "listDunningNotices",
+    "params": { "filters": { "visibility": 0 }, "limit": 10000 },
+    "predicates": [],
+    "match": "exact"
+  }
+}

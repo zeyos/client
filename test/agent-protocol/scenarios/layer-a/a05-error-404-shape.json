@@ -1,0 +1,14 @@
+{
+  "id": "a05-error-404-shape",
+  "layer": "a",
+  "title": "A GET for a non-existent record surfaces a clean not-found error",
+  "interface": "either",
+  "mutates": false,
+  "tags": ["errors", "404", "read-only"],
+  "prompt": "Attempt to fetch the ticket with ID 999999999, which does not exist. Do not treat the failure as fatal — instead report what the API/client returned (status code and/or error message) on the RESULT line, e.g. `RESULT: 404 Not Found`.",
+  "expect": {
+    "kind": "expectText",
+    "mode": "contains",
+    "anyOf": ["404", "not found", "no such", "does not exist", "ZeyosApiError"]
+  }
+}

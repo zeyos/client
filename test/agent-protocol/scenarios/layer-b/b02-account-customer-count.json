@@ -1,0 +1,17 @@
+{
+  "id": "b02-account-customer-count",
+  "layer": "b",
+  "title": "Count accounts of type CUSTOMER (account-intelligence skill)",
+  "skill": "zeyos-account-intelligence",
+  "interface": "either",
+  "mutates": false,
+  "tags": ["account-intelligence", "enums"],
+  "prompt": "Using the account-intelligence skill, answer: how many accounts have the account type CUSTOMER exactly? Restrict to active records (visibility 0). Output just the number on the RESULT line, e.g. `RESULT: 42`.",
+  "expect": {
+    "kind": "computeCount",
+    "op": "listAccounts",
+    "params": { "filters": { "visibility": 0 }, "limit": 10000 },
+    "predicates": [ { "field": "type", "equals": 1 } ],
+    "match": "exact"
+  }
+}

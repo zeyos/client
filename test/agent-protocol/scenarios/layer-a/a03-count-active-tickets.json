@@ -1,0 +1,16 @@
+{
+  "id": "a03-count-active-tickets",
+  "layer": "a",
+  "title": "Count ACTIVE tickets with a filters payload (read-only)",
+  "interface": "either",
+  "mutates": false,
+  "tags": ["list", "filters", "enums", "read-only"],
+  "prompt": "Report how many tickets currently have status ACTIVE and visibility 0. Status is an enum where ACTIVE=4. Output just the number on the RESULT line, e.g. `RESULT: 7`.",
+  "expect": {
+    "kind": "computeCount",
+    "op": "listTickets",
+    "params": { "filters": { "visibility": 0 }, "limit": 10000 },
+    "predicates": [ { "field": "status", "equals": 4 } ],
+    "match": "exact"
+  }
+}

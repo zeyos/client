@@ -1,0 +1,21 @@
+{
+  "id": "a07-task-crud-roundtrip",
+  "layer": "a",
+  "title": "Create a task, read it back, then delete it",
+  "interface": "either",
+  "mutates": true,
+  "tags": ["crud", "tasks", "create"],
+  "prompt": "Create a new task with name exactly \"{recordPrefix}-{runId} task\". Use the smallest valid set of fields (check `zeyos describe tasks` for required fields). After creating it, output the new task's numeric ID on the RESULT line, e.g. `RESULT: 12345`.",
+  "expect": {
+    "kind": "verifyRecord",
+    "op": "getTask",
+    "idFrom": "$RESULT",
+    "assert": [
+      { "path": "ID", "exists": true },
+      { "path": "name", "equals": "{recordPrefix}-{runId} task" }
+    ]
+  },
+  "cleanup": [
+    { "op": "deleteTask", "idFrom": "$RESULT" }
+  ]
+}

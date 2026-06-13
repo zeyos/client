@@ -1,0 +1,21 @@
+{
+  "id": "a04-filters-fk-gin-roundtrip",
+  "layer": "a",
+  "title": "filters (plural) on a GIN-indexed FK field returns the linked record",
+  "interface": "either",
+  "mutates": true,
+  "tags": ["filters", "foreign-key", "gin", "footgun"],
+  "prompt": "Do the following in order: (1) create an account with lastname \"{recordPrefix}-{runId}\" and firstname \"FK\" of type CUSTOMER (type enum: CUSTOMER=1); (2) create a ticket named \"{recordPrefix}-{runId} fk\" that is linked to that account via the ticket's `account` field; (3) confirm you can find that ticket again by listing tickets filtered on the `account` foreign key. Output a JSON object on the RESULT line with both IDs, e.g. `RESULT: {\"accountId\": 111, \"ticketId\": 222}`.",
+  "expect": {
+    "kind": "computeMembership",
+    "listOp": "listTickets",
+    "listParams": { "filters": { "account": "$RESULT.accountId", "visibility": 0 }, "limit": 10000 },
+    "idFrom": "$RESULT.ticketId",
+    "idField": "ID",
+    "expectPresent": true
+  },
+  "cleanup": [
+    { "op": "deleteTicket", "idFrom": "$RESULT.ticketId" },
+    { "op": "deleteAccount", "idFrom": "$RESULT.accountId" }
+  ]
+}

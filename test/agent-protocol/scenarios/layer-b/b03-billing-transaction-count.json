@@ -1,0 +1,17 @@
+{
+  "id": "b03-billing-transaction-count",
+  "layer": "b",
+  "title": "Count transactions (billing-insights skill)",
+  "skill": "zeyos-billing-insights",
+  "interface": "either",
+  "mutates": false,
+  "tags": ["billing-insights", "resource-discovery"],
+  "prompt": "Using the billing-insights skill, answer: how many transactions exist in total? Restrict to active records (visibility 0). Output just the number on the RESULT line, e.g. `RESULT: 318`.",
+  "expect": {
+    "kind": "computeCount",
+    "op": "listTransactions",
+    "params": { "filters": { "visibility": 0 }, "limit": 10000 },
+    "predicates": [],
+    "match": "exact"
+  }
+}

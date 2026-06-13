@@ -1,0 +1,21 @@
+{
+  "id": "a02-ticket-update-spread-form",
+  "layer": "a",
+  "title": "Update a ticket with the spread form { ID, ...fields }",
+  "interface": "either",
+  "mutates": true,
+  "tags": ["crud", "tickets", "update", "body-inference"],
+  "prompt": "Create a ticket named \"{recordPrefix}-{runId} update\" with priority LOW. Then update that same ticket to priority HIGHEST. Output the ticket's numeric ID on the RESULT line, e.g. `RESULT: 12345`. (Priority is an enum: LOWEST=0, LOW=1, MEDIUM=2, HIGH=3, HIGHEST=4.)",
+  "expect": {
+    "kind": "verifyRecord",
+    "op": "getTicket",
+    "idFrom": "$RESULT",
+    "assert": [
+      { "path": "name", "equals": "{recordPrefix}-{runId} update" },
+      { "path": "priority", "equals": 4 }
+    ]
+  },
+  "cleanup": [
+    { "op": "deleteTicket", "idFrom": "$RESULT" }
+  ]
+}

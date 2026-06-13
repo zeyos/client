@@ -1,4 +1,6 @@
 {
+  "_comment": "Copy this into the repository-root config.test.json (already gitignored). The agent protocol harness reads config.test.json from the repo root and reuses the same `live` OAuth block consumed by `npm test -- --live`. Only the `agentProtocol` block below is protocol-specific; see test/agent-protocol/README.md for field docs.",
+
   "live": {
     "url": "https://cloud.zeyos.com/demo",
     "instance": "demo",
@@ -12,21 +14,25 @@
       "obtainedAt": null
     }
   },
+
   "agentProtocol": {
     "allowInstances": ["demo"],
     "recordPrefix": "AGENTTEST",
+
     "models": [
       "openrouter/anthropic/claude-sonnet-4.6",
       "openrouter/openai/gpt-5",
       "ollama/llama3.1:8b"
     ],
     "judgeModel": "openrouter/anthropic/claude-opus-4.8",
+
     "runner": {
       "command": "opencode",
       "args": ["run", "--model", "{model}", "{prompt}"],
       "cwd": "test/agent-protocol/opencode",
       "timeoutMs": 240000
     },
+
     "scenarios": { "include": ["layer-a/*", "layer-b/*"], "exclude": [] },
     "rotation": { "transientRetries": 1, "canaryIds": [] }
   }
