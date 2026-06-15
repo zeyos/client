@@ -27,7 +27,7 @@
     "runner": {
       "command": "opencode",
       "args": ["run", "--model", "{model}", "{prompt}"],
-      "cwd": "test/agent-protocol/opencode",
+      "cwd": ".",
       "timeoutMs": 240000
     },
     "scenarios": { "include": ["layer-a/*", "layer-b/*"], "exclude": [] },

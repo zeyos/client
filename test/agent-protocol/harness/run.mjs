@@ -25,6 +25,7 @@
  */
 
 import { readdir, readFile, mkdir, writeFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -43,6 +44,15 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '../../..');
 const PROTOCOL_DIR = path.resolve(__dirname, '..');
 const SCENARIO_DIR = path.join(PROTOCOL_DIR, 'scenarios');
+
+// The agent contract is inlined into every prompt so it does not depend on the
+// runner auto-discovering AGENTS.md (opencode scopes file access to its cwd).
+let AGENTS_CONTRACT = '';
+try {
+  AGENTS_CONTRACT = readFileSync(path.join(PROTOCOL_DIR, 'opencode', 'AGENTS.md'), 'utf8');
+} catch {
+  /* prompt still functions without it */
+}
 
 // ── args ────────────────────────────────────────────────────────────────────
 
@@ -141,7 +151,7 @@ async function main() {
   const ap = config.agentProtocol || {};
   const recordPrefix = ap.recordPrefix || 'AGENTTEST';
   const models = opts.models || ap.models || [];
-  const runner = ap.runner || { command: 'opencode', args: ['run', '--model', '{model}', '{prompt}'], cwd: 'test/agent-protocol/opencode', timeoutMs: 240000 };
+  const runner = ap.runner || { command: 'opencode', args: ['run', '--model', '{model}', '{prompt}'], cwd: '.', timeoutMs: 240000 };
   const transientRetries = ap.rotation?.transientRetries ?? 1;
   const canarySet = new Set(ap.rotation?.canaryIds || []);
 
@@ -278,9 +288,15 @@ async function runScenario(c) {
 
 function buildPrompt(scenario, ctx) {
   const lines = [];
+  if (AGENTS_CONTRACT) lines.push(AGENTS_CONTRACT, '', '--- TASK ---', '');
   if (scenario.skill) {
-    lines.push(`Applicable skill: ${scenario.skill}. Read $ZEYOS_REPO_ROOT/agents/${scenario.skill}/SKILL.md and its references/workflows.md before acting.`);
-    lines.push('');
+    // Referenced by repo-relative path (the runner runs at the repo root) and worded
+    // to avoid colliding with opencode's own "skill" loader.
+    lines.push(
+      `Before acting, read the domain guide files under the repository root: ` +
+        `agents/${scenario.skill}/SKILL.md and agents/${scenario.skill}/references/workflows.md.`,
+      ''
+    );
   }
   lines.push(
     scenario.prompt
@@ -289,8 +305,7 @@ function buildPrompt(scenario, ctx) {
   );
   if (scenario.interface === 'cli') lines.push('', 'Use the `zeyos` CLI for this task.');
   else if (scenario.interface === 'client') lines.push('', 'Use the `@zeyos/client` JavaScript client for this task.');
-  lines.push('');
-  lines.push('Remember: obey AGENTS.md. End with exactly one `RESULT:` line.');
+  lines.push('', 'End your reply with exactly one line: `RESULT: <value>`.');
   return lines.join('\n');
 }
 

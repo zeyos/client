@@ -6,11 +6,11 @@
   "interface": "either",
   "mutates": false,
   "tags": ["billing-insights", "resource-discovery"],
-  "prompt": "Using the billing-insights skill, answer: how many transactions exist in total? Restrict to active records (visibility 0). Output just the number on the RESULT line, e.g. `RESULT: 318`.",
+  "prompt": "Using the billing-insights skill, answer: how many transactions exist in total? Note: the transactions resource has no `visibility` field, so do not filter on it. Output just the number on the RESULT line, e.g. `RESULT: 318`.",
   "expect": {
     "kind": "computeCount",
     "op": "listTransactions",
-    "params": { "filters": { "visibility": 0 }, "limit": 10000 },
+    "params": { "limit": 10000 },
     "predicates": [],
     "match": "exact"
   }
