@@ -7,6 +7,7 @@
  */
 
 import { createZeyosClient } from '@zeyos/client';
+import { resolveResource } from '../lib/resources.mjs';
 import { colors as c, outputMode, printJson, printYaml, printTable, error } from '../lib/output.mjs';
 
 export const USAGE = `\
@@ -28,6 +29,25 @@ function schema() {
   return cachedSchema;
 }
 
+/**
+ * Resolve a user-supplied resource name to the canonical schema key, honoring the
+ * same singular/plural/alias rules the other commands use (`create`, `update`,
+ * `list` go through resolveResource). Without this, `describe` was the lone command
+ * that rejected singular/alias names — `describe ticket` failed while `create
+ * ticket` worked. Order: exact schema match → CLI registry → bridge an operationId
+ * back to its schema resource.
+ */
+function schemaKeyFor(s, input) {
+  if (s.describe(input)) return input;
+  const def = resolveResource(input);
+  if (def) {
+    const op = def.list || def.get || def.create || def.update || def.delete;
+    const key = op ? s.resourceForOperation(op) : null;
+    if (key && s.describe(key)) return key;
+  }
+  return null;
+}
+
 export function run(values, positional = []) {
   const resource = positional[0];
   const s = schema();
@@ -37,11 +57,12 @@ export function run(values, positional = []) {
     process.exit(1);
   }
 
-  const def = s.describe(resource);
-  if (!def) {
+  const key = schemaKeyFor(s, resource);
+  if (!key) {
     error(`Unknown resource "${resource}". Run "zeyos resources" for common resources.`);
     process.exit(1);
   }
+  const def = s.describe(key);
 
   const mode = outputMode(values);
   if (mode === 'json') {
@@ -63,7 +84,7 @@ export function run(values, positional = []) {
     return { field: name, type: field.type, notes: notes.join('  ') };
   });
 
-  const operations = s.operations(resource);
+  const operations = s.operations(key);
 
   process.stdout.write(`\n  ${c.bold(def.name)} ${c.dim(`(${def.type}, ${rows.length} fields)`)}\n`);
   printTable(rows, ['field', 'type', 'notes']);

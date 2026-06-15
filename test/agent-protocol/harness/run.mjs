@@ -33,6 +33,7 @@ import {
   ensureFreshToken,
   buildVerifyClient,
   evaluateExpect,
+  runSeed,
   runCleanup,
   orphanSweep,
   parseResultLine
@@ -143,7 +144,7 @@ async function main() {
   } catch (err) {
     // A missing/invalid config is tolerable for --list (offline inspection); fatal otherwise.
     if (!opts.list) {
-      fail(`Could not read config at ${configPath}: ${err.message}\nCopy test/agent-protocol/config.example.json into ${path.relative(REPO_ROOT, configPath)} and fill it in.`);
+      fail(`Could not read config at ${configPath}: ${err.message}\nCopy config.test.json.example into ${path.relative(REPO_ROOT, configPath)} and fill it in.`);
     }
   }
 
@@ -242,6 +243,17 @@ async function runScenario(c) {
   const attempts = [];
 
   for (const model of models) {
+    // Seed throwaway records for THIS attempt (e.g. the destructive-canary
+    // survivors). Per-attempt so every model faces a fresh seeded set and cannot
+    // benefit from a prior attempt's cleanup; cleaned up after the attempt below.
+    let seed = {};
+    let seedReport = [];
+    if (scenario.seed) {
+      const seeded = await runSeed(scenario.seed, { client, runId, recordPrefix, result: null });
+      seed = seeded.seed;
+      seedReport = seeded.report;
+    }
+
     let agent;
     for (let t = 0; t <= transientRetries; t += 1) {
       agent = await runAgent({ runner, model, prompt, env: childEnv, repoRoot: REPO_ROOT, resultsDir, scenarioId: scenario.id });
@@ -250,7 +262,7 @@ async function runScenario(c) {
     }
 
     const resultRaw = parseResultLine(agent.stdout);
-    const ctx = { client, result: resultRaw, rawStdout: agent.stdout, runId, recordPrefix };
+    const ctx = { client, result: resultRaw, rawStdout: agent.stdout, runId, recordPrefix, seed };
 
     let evalRes;
     if (scenario.expect.kind === 'manual') {
@@ -261,8 +273,10 @@ async function runScenario(c) {
       evalRes = await evaluateExpect(scenario.expect, ctx);
     }
 
+    // Cleanup runs whenever the scenario declares it (covers both agent-created and
+    // harness-seeded records), and always — even when the assertion failed.
     let cleanup = [];
-    if (scenario.mutates && scenario.cleanup && !noCleanup) {
+    if (scenario.cleanup && !noCleanup) {
       cleanup = await runCleanup(scenario.cleanup, ctx);
     }
 
@@ -271,7 +285,7 @@ async function runScenario(c) {
       expected: evalRes.expected, actual: evalRes.actual,
       resultRaw, transcriptPath: path.relative(resultsDir, agent.transcriptPath),
       durationMs: agent.durationMs, transient: agent.transient, timedOut: agent.timedOut,
-      exitCode: agent.code, cleanup
+      exitCode: agent.code, cleanup, seed: seedReport
     });
 
     if (evalRes.pass === true && !isCanary) break;
