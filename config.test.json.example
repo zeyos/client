@@ -1,4 +1,6 @@
 {
+  "_comment": "Template for config.test.json (gitignored). Used by BOTH the live OAuth smoke test (`npm test -- --live`) and the agent test protocol (`npm run test:agent-protocol`). Auth for the protocol: set live.username + live.password (with clientId + clientSecret) and the harness logs in headlessly via the OAuth2 password grant — no browser; the token is cached in live.token. Or run `npm test -- --instance <id> --port 8080` once for the browser flow. live.otp is an optional one-time 2FA code. See test/agent-protocol/PROTOCOL.md §4.",
+
   "live": {
     "url": "https://cloud.zeyos.com/demo",
     "instance": "demo",

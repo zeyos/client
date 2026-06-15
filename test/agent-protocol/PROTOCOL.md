@@ -87,7 +87,7 @@ when there is at least one `CLIENT_DEFECT`, so CI fails on real bugs but tolerat
    username/password). The `zeyos` CLI login is browser/authorization-code only, so a
    headless agent cannot log in through the CLI — password-grant login belongs to the
    harness (or a dedicated client-side login scenario).
-3. **`agentProtocol` config block** in `config.test.json` (see `config.example.json`).
+3. **`agentProtocol` config block** in `config.test.json` (see the repo-root `config.test.json.example`).
 4. **A runner** on `PATH` — opencode by default — and **model access**:
    - OpenRouter: set `OPENROUTER_API_KEY`.
    - Ollama (local): run `ollama serve` and `ollama pull <model>`.

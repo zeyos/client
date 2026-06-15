@@ -9,10 +9,9 @@ the operational quickstart.
 
 ```
 PROTOCOL.md            the protocol (methodology, scenario format, safety, scorecard)
-config.example.json    template for the config.test.json `agentProtocol` block
 opencode/
-  opencode.json.example  provider config (openrouter + ollama) — copy to opencode.json
-  AGENTS.md              instructions the agent reads (auth, skills, safety, RESULT)
+  opencode.json.example  optional opencode provider config (openrouter + ollama)
+  AGENTS.md              agent contract (auth, safety, RESULT) — inlined into each prompt by the harness
 scenarios/
   layer-a/*.json         deterministic conformance scenarios
   layer-b/*.json         agent-experience scenarios
@@ -27,25 +26,26 @@ results/<runId>/         gitignored: scorecard.json, scorecard.md, transcripts/
 
 ## Setup (once)
 
-1. **Config + auth.** Copy [`config.example.json`](./config.example.json) into the
-   repo-root `config.test.json` (gitignored) and fill in `live`. Two auth options:
+1. **Config + auth.** Copy the repo-root [`config.test.json.example`](../../config.test.json.example)
+   to `config.test.json` (gitignored) and fill in `live`. Two auth options:
    - **Password grant (headless):** set `live.username` + `live.password` (+ `live.otp`
      if 2FA). The harness logs in automatically and caches the token in `live.token`.
    - **Browser OAuth:** run `npm test -- --instance demo --port 8080` once.
 
    The harness reads this repo-root `config.test.json` (same file the live OAuth test
-   uses) and adds the `agentProtocol` block.
-3. **Runner + models.**
+   uses); add the `agentProtocol` block (already present in the example).
+2. **Runner + models.**
    ```bash
    npm i -g opencode-ai                         # or your preferred runner
-   cp opencode/opencode.json.example opencode/opencode.json
    export OPENROUTER_API_KEY=sk-or-...           # for openrouter/* models
    ollama serve && ollama pull llama3.1:8b       # for ollama/* models (optional)
    ```
-   `opencode.json` declares two providers: `openrouter` (cloud; uses `OPENROUTER_API_KEY`
-   and OpenRouter model slugs like `anthropic/claude-sonnet-4.6`) and `ollama` (local;
-   add an entry under `models` for each tag you pull). The model strings in
-   `config.test.json` → `agentProtocol.models` select which provider/model runs.
+   The harness runs the runner with `cwd` at the repo root and **inlines the AGENTS
+   contract into each prompt**, so opencode only needs working provider access — its
+   global config (`opencode auth`) or `OPENROUTER_API_KEY` is enough. For per-project
+   provider setup (e.g. to register local `ollama` models, which need explicit entries),
+   copy `opencode/opencode.json.example` to a project `opencode.json`. The model strings
+   in `config.test.json` → `agentProtocol.models` select which provider/model runs.
 
 ## Run
 
