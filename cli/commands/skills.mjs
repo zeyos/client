@@ -9,7 +9,7 @@
 import { readdirSync, readFileSync, existsSync, cpSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { colors as c, outputMode, printJson, printYaml, printTable, success, error, info, warn } from '../lib/output.mjs';
+import { outputMode, printJson, printYaml, printTable, success, error, info, warn } from '../lib/output.mjs';
 
 const require = createRequire(import.meta.url);
 
@@ -121,7 +121,6 @@ function runShow(skills, name) {
     process.exit(1);
   }
   process.stdout.write(readFileSync(path.join(skill.dir, 'SKILL.md'), 'utf8'));
-  if (!process.stdout.write('')) { /* noop */ }
 }
 
 function runInstall(agentsDir, skills, names, values) {

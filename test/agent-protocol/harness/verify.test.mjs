@@ -12,7 +12,8 @@ import {
   parseResultLine,
   coerceResult,
   evaluateExpect,
-  orphanSweep
+  orphanSweep,
+  passwordLogin
 } from './verify.mjs';
 import { runAgent } from './opencode-adapter.mjs';
 import { classify, globToRe } from './run.mjs';
@@ -146,6 +147,48 @@ test('globToRe: ** crosses path separators, * stays within a segment', () => {
   assert.equal(globToRe('**').test('layer-a/a01'), true);
   assert.equal(globToRe('layer-a/*').test('layer-a/a01'), true);
   assert.equal(globToRe('layer-a/*').test('layer-b/b01'), false);
+});
+
+test('passwordLogin posts the OAuth2 password grant with Basic auth and normalizes the token', async () => {
+  const calls = [];
+  const orig = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    calls.push({ url: String(url), init });
+    return new Response(
+      JSON.stringify({ token_type: 'Bearer', access_token: 'AT', refresh_token: 'RT', expires_in: 3600 }),
+      { headers: { 'content-type': 'application/json' } }
+    );
+  };
+  try {
+    const ts = await passwordLogin({
+      url: 'https://cloud.zeyos.com/demo', clientId: 'cid', clientSecret: 'sec', username: 'u', password: 'p'
+    });
+    assert.equal(ts.accessToken, 'AT');
+    assert.equal(ts.refreshToken, 'RT');
+
+    const { url, init } = calls[0];
+    assert.match(url, /\/demo\/oauth2\/v1\/token$/);
+    assert.match(init.headers.authorization, /^Basic /);
+    const body = new URLSearchParams(init.body.toString());
+    assert.equal(body.get('grant_type'), 'password');
+    assert.equal(body.get('username'), 'u');
+    assert.equal(body.get('password'), 'p');
+  } finally {
+    globalThis.fetch = orig;
+  }
+});
+
+test('passwordLogin throws a helpful error on a non-2xx token response', async () => {
+  const orig = globalThis.fetch;
+  globalThis.fetch = async () => new Response('bad creds', { status: 401, statusText: 'Unauthorized' });
+  try {
+    await assert.rejects(
+      () => passwordLogin({ url: 'https://cloud.zeyos.com/demo', clientId: 'c', clientSecret: 's', username: 'u', password: 'x' }),
+      /Password login failed \(401/
+    );
+  } finally {
+    globalThis.fetch = orig;
+  }
 });
 
 test('runAgent resolves (does not hang) when the runner binary is missing', async () => {

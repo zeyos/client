@@ -86,7 +86,7 @@ function section(title) {
  * Run a CLI command and return { code, stdout, stderr }.
  *
  * @param {string[]} args - e.g. ['list', 'tickets', '--json']
- * @param {object}   [opts]
+ * @param {{ timeout?: number }} [opts]
  * @param {number}   [opts.timeout=30000]
  * @returns {Promise<{ code: number, stdout: string, stderr: string }>}
  */

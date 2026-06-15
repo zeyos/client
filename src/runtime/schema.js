@@ -1,4 +1,5 @@
 import { suggestClosest } from './suggest.js';
+import { VALIDATION_CONTROL_KEYS } from './request-shape.js';
 
 // Top-level body keys on list/count queries are query directives, not resource
 // fields. Resource field names appear *inside* `filters`/`filter`/`fields`.
@@ -8,9 +9,7 @@ const QUERY_DIRECTIVES = new Set([
 ]);
 
 // Request-level control keys consumed by the client, never resource fields.
-const CONTROL_KEYS = new Set([
-  'path', 'query', 'headers', 'body', 'data', 'auth', 'bodyType', 'signal', 'raw', 'baseUrl', 'validate'
-]);
+const CONTROL_KEYS = new Set(VALIDATION_CONTROL_KEYS);
 
 function resourceFromPath(path) {
   if (typeof path !== 'string') return null;
@@ -112,7 +111,7 @@ export function createSchema({ services, schema }) {
 
   /**
    * Validate an operation call without sending it. Never throws.
-   * @returns {{ valid: boolean, errors: Array<{ field?: string, message: string, suggestion?: string }> }}
+   * @returns {{ valid: boolean, errors: { field?: string, message: string, suggestion?: string }[] }}
    */
   function validate(operationId, input) {
     const errors = [];

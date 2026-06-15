@@ -253,10 +253,10 @@ List endpoints are not uniform across the full surface area. Depending on the en
 - an object wrapper with `data`
 - count metadata alongside the payload when `count: true` is used
 
-The `normalizeListResult` helper is useful whenever the response still contains list data and you want a consistent `{ data, count? }` shape:
+The normalization helpers are useful when you want call sites to share one response-shape contract:
 
 ```js
-import { normalizeListResult } from '@zeyos/client';
+import { normalizeCountResult, normalizeListResult } from '@zeyos/client';
 
 // Without count -- result is a plain array
 const raw = await client.api.listTickets({ filters: { visibility: 0 } });
@@ -267,14 +267,10 @@ const { data } = normalizeListResult(raw);
 const raw2 = await client.api.listTickets({ filters: { visibility: 0 }, count: true });
 const { data: tickets, count } = normalizeListResult(raw2);
 // tickets: array, count: number
-```
 
-For count-only workflows, inspect the raw response shape for the specific endpoint you call and normalize it inside your own helper.
-
-If you prefer not to import the helper, the manual pattern for list-like responses is:
-
-```js
-const tickets = Array.isArray(result) ? result : (result?.data ?? []);
+// Count-only request -- result may be a number or an object with count metadata
+const countOnly = await client.api.listTickets({ filters: { visibility: 0 }, count: true });
+const total = normalizeCountResult(countOnly);
 ```
 
 ## Extended Data
@@ -447,6 +443,8 @@ try {
 
 The `ZeyosApiError` properties:
 
+`JsonValue` means a parsed JSON scalar, array, or plain JSON object. Non-JSON error responses are returned as strings.
+
 | Property | Type | Description |
 |----------|------|-------------|
 | `status` | `number` | HTTP status code (e.g. `404`, `401`, `500`) |
@@ -455,8 +453,8 @@ The `ZeyosApiError` properties:
 | `service` | `string` | The service key (e.g. `'api'`, `'oauth2'`) |
 | `method` | `string` | HTTP method used (e.g. `'GET'`, `'POST'`) |
 | `url` | `string` | The full request URL |
-| `body` | `any` | The parsed error response body |
-| `headers` | `object` | Response headers as a plain object |
+| `body` | `JsonValue` | The parsed JSON response body, plain-text error body, or `null` |
+| `headers` | `Record<string,string>` | Response headers as a plain object |
 
 ### Unknown Operations
 
@@ -525,9 +523,9 @@ All generated methods and `client.request()` accept an optional second argument 
 |--------|------|-------------|
 | `signal` | `AbortSignal` | An `AbortController` signal to cancel the request |
 | `raw` | `boolean` | Return the full response envelope instead of just the data |
-| `auth` | `object \| string` | Override the authentication mode for this request |
+| `auth` | `string \| { mode?: string, accessToken?: string, access_token?: string, refreshToken?: string, refresh_token?: string, clientId?: string, client_id?: string, clientSecret?: string, client_secret?: string }` | Override the authentication mode or credentials for this request |
 | `baseUrl` | `string` | Override the base URL for this request |
-| `bodyType` | `string` | Force a body encoding: `'json'` or `'form'` |
+| `bodyType` | `'json' \| 'form'` | Force a body encoding |
 
 Example with an abort controller:
 

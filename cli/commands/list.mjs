@@ -15,11 +15,19 @@
  *   --yaml                 Output as YAML
  */
 
-import { buildClient, syncTokens }        from '../lib/client.mjs';
+import { normalizeListResult }            from '@zeyos/client';
 import { loadConfig }                    from '../lib/config.mjs';
-import { resolveResource, canonicalName } from '../lib/resources.mjs';
+import { canonicalName }                 from '../lib/resources.mjs';
 import { getListFields }                 from '../lib/resource-config.mjs';
-import { outputMode, printJson, printYaml, printTable, buildDateFormatters, error, warn, info } from '../lib/output.mjs';
+import { outputMode, printJson, printYaml, printTable, buildDateFormatters, warn, info } from '../lib/output.mjs';
+import {
+  buildCliClient,
+  callApi,
+  fail,
+  parseJsonOption,
+  requireApiMethod,
+  requireResource
+} from '../lib/command.mjs';
 
 export const USAGE = `\
 Usage: zeyos list <resource> [options]
@@ -57,26 +65,10 @@ Examples:
 
 export async function run(values, positional) {
   const resourceName = positional[0];
-  if (!resourceName) {
-    error('Missing resource name.  Usage: zeyos list <resource>');
-    process.exit(1);
-  }
-
-  const res = resolveResource(resourceName);
-  if (!res) {
-    error(`Unknown resource: "${resourceName}".  Run 'zeyos resources' to see available types.`);
-    process.exit(1);
-  }
+  const res = requireResource(resourceName, 'zeyos list <resource>');
 
   const resName = canonicalName(resourceName);
-
-  let client, tokenStore, configSource;
-  try {
-    ({ client, tokenStore, configSource } = buildClient());
-  } catch (err) {
-    error(err.message);
-    process.exit(1);
-  }
+  const clientState = buildCliClient();
 
   // ── Resolve field config ──────────────────────────────────────────────────
   const { apiFields, displayColumns } = getListFields(res, resName, values.fields);
@@ -88,19 +80,14 @@ export async function run(values, positional) {
   if (apiFields) body.fields = apiFields;
 
   if (values.filter) {
-    try {
-      body.filters = JSON.parse(values.filter);
-    } catch {
-      error(`--filter must be valid JSON.  Got: ${values.filter}`);
-      process.exit(1);
-    }
+    body.filters = parseJsonOption(values.filter, 'filter');
   }
 
   if (values.sort) body.sort = values.sort.split(',').map(s => s.trim()).filter(Boolean);
 
   if (values.limit != null) {
     const n = parseInt(values.limit, 10);
-    if (isNaN(n)) { error('--limit must be a number.'); process.exit(1); }
+    if (isNaN(n)) fail('--limit must be a number.');
     body.limit = n;
   } else {
     body.limit = 50;
@@ -108,7 +95,7 @@ export async function run(values, positional) {
 
   if (values.offset != null) {
     const n = parseInt(values.offset, 10);
-    if (isNaN(n)) { error('--offset must be a number.'); process.exit(1); }
+    if (isNaN(n)) fail('--offset must be a number.');
     body.offset = n;
   }
 
@@ -123,22 +110,10 @@ export async function run(values, positional) {
   }
 
   // ── Call API ───────────────────────────────────────────────────────────────
-  const fn = client.api[res.list];
-  if (typeof fn !== 'function') {
-    error(`Operation "${res.list}" is not available on this client.`);
-    process.exit(1);
-  }
+  const fn = requireApiMethod(clientState, res.list);
+  let records = await callApi(clientState, res.list, body);
 
-  let records;
-  try {
-    records = await fn(body);
-    await syncTokens(tokenStore, configSource);
-  } catch (err) {
-    error(`API error: ${err.message}`);
-    process.exit(1);
-  }
-
-  if (!Array.isArray(records)) records = records ? [records] : [];
+  records = normalizeListResult(records).data;
 
   // ── Output ─────────────────────────────────────────────────────────────────
   const mode = outputMode(values);

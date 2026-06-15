@@ -27,13 +27,14 @@ results/<runId>/         gitignored: scorecard.json, scorecard.md, transcripts/
 
 ## Setup (once)
 
-1. **Tokens.** From the repo root, obtain OAuth tokens for the demo instance:
-   ```bash
-   npm test -- --live          # interactive browser OAuth; writes config.test.json
-   ```
-2. **Config.** Ensure `config.test.json` has an `agentProtocol` block — copy it from
-   [`config.example.json`](./config.example.json). The harness reads the repo-root
-   `config.test.json` (same file the live OAuth test uses).
+1. **Config + auth.** Copy [`config.example.json`](./config.example.json) into the
+   repo-root `config.test.json` (gitignored) and fill in `live`. Two auth options:
+   - **Password grant (headless):** set `live.username` + `live.password` (+ `live.otp`
+     if 2FA). The harness logs in automatically and caches the token in `live.token`.
+   - **Browser OAuth:** run `npm test -- --instance demo --port 8080` once.
+
+   The harness reads this repo-root `config.test.json` (same file the live OAuth test
+   uses) and adds the `agentProtocol` block.
 3. **Runner + models.**
    ```bash
    npm i -g opencode-ai                         # or your preferred runner

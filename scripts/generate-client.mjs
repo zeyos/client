@@ -203,6 +203,17 @@ async function readSpecFile(relativePath) {
   return JSON.parse(raw);
 }
 
+async function readOptionalSpecFile(relativePath) {
+  try {
+    return await readSpecFile(relativePath);
+  } catch (error) {
+    if (error?.code === 'ENOENT') {
+      return null;
+    }
+    throw error;
+  }
+}
+
 function buildServices(specEntries) {
   const services = {};
 
@@ -315,7 +326,7 @@ async function main() {
   await mkdir(path.dirname(outputFile), { recursive: true });
   await writeFile(outputFile, renderModule(generated), 'utf8');
 
-  const dbref = await readSpecFile('openapi/dbref.json').catch(() => null);
+  const dbref = await readOptionalSpecFile('openapi/dbref.json');
   const schema = buildSchema(dbref);
   await writeFile(path.join(ROOT, 'src/generated/schema.js'), renderSchemaModule(schema), 'utf8');
 

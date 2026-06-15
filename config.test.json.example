@@ -5,6 +5,9 @@
     "port": 8080,
     "clientId": "your.client.id",
     "clientSecret": "your-client-secret",
+    "username": null,
+    "password": null,
+    "otp": null,
     "token": {
       "accessToken": null,
       "refreshToken": null,

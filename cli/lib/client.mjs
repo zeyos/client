@@ -5,12 +5,14 @@
 import { createZeyosClient, MemoryTokenStore } from '@zeyos/client';
 import { loadConfigWithSource, saveConfig, requireConfig } from './config.mjs';
 
+/** @typedef {import('./types.mjs').CliConfig} CliConfig */
+
 /**
  * Build a ready-to-use ZeyOS API client.
  * Throws a friendly error if required config keys are missing.
  *
- * @param {Record<string,any>} [overrides]  Extra config values (e.g. from CLI flags)
- * @returns {{ client: ReturnType<typeof createZeyosClient>, config: Record<string,any>, tokenStore: MemoryTokenStore, configSource: 'local'|'global'|null }}
+ * @param {CliConfig} [overrides]  Extra config values (e.g. from CLI flags)
+ * @returns {{ client: ReturnType<typeof createZeyosClient>, config: CliConfig, tokenStore: MemoryTokenStore, configSource: 'local'|'global'|null }}
  */
 export function buildClient(overrides = {}) {
   const loaded = loadConfigWithSource();

@@ -11,7 +11,7 @@
  * Exposes a global ZeyOS console API for debugging / configuration.
  */
 import { initTokenClient, initSessionClient, fetchTickets, fetchProjects, updateTicket, deleteTicket } from './api.js';
-import { isAuthenticated, trySessionAuth, logout } from './auth.js';
+import { trySessionAuth, logout } from './auth.js';
 import { runtime, resolveConfig, saveUrl, saveTokens, clearTokens, clearUrl, saveContext } from './state.js';
 import { renderBoard, updateColumn }               from './kanban.js';
 import { openTicketDetail, openCreateTicket }      from './modals.js';

@@ -15,7 +15,7 @@ import {
   initTokenClient, initSessionClient,
   fetchAccounts, getAccount, createAccount, updateAccount, deleteAccount,
 } from './api.js';
-import { isAuthenticated, trySessionAuth, logout } from './auth.js';
+import { trySessionAuth, logout } from './auth.js';
 import { runtime, resolveConfig, saveUrl, saveTokens, clearTokens, clearUrl } from './state.js';
 import { showToast, showLoading, hideLoading } from './ui.js';
 
@@ -175,7 +175,6 @@ function _renderTable() {
 
   if (!tbody) return;
 
-  // Toggle empty state
   if (accounts.length === 0) {
     tbody.innerHTML = '';
     empty?.classList.remove('hidden');
@@ -184,10 +183,8 @@ function _renderTable() {
     tbody.innerHTML = accounts.map(a => _accountRow(a)).join('');
   }
 
-  // Update sort indicators on column headers
   _updateSortIndicators();
 
-  // Update pagination controls
   _updatePagination();
 }
 
@@ -247,7 +244,6 @@ function _updatePagination() {
     pageEl.textContent = `Page ${runtime.page}`;
   }
 
-  // Previous is disabled on page 1
   if (prevBtn) prevBtn.disabled = (runtime.page <= 1);
 
   if (nextBtn) nextBtn.disabled = !runtime.hasNextPage;
@@ -363,7 +359,6 @@ async function _openModal(mode, id) {
   if (!dialog) return;
 
   if (mode === 'create') {
-    // -- Create mode: empty form, hide contact info & delete --
     title.textContent = 'New Account';
     formId.value      = '';
     firstname.value   = '';
@@ -376,7 +371,6 @@ async function _openModal(mode, id) {
 
     dialog.showModal();
   } else {
-    // -- Edit mode: load account data, show contact info & delete --
     title.textContent = 'Edit Account';
     deleteBtn?.classList.remove('hidden');
     contactSection?.classList.remove('hidden');
@@ -433,11 +427,9 @@ async function _handleFormSubmit(e) {
   showLoading();
   try {
     if (id) {
-      // Update existing account
       await updateAccount(id, data);
       showToast('Account updated.', 'success');
     } else {
-      // Create new account
       await createAccount(data);
       showToast('Account created.', 'success');
     }

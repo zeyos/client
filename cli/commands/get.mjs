@@ -14,11 +14,17 @@
  *   --yaml             Output as YAML
  */
 
-import { buildClient, syncTokens }        from '../lib/client.mjs';
 import { loadConfig }                    from '../lib/config.mjs';
-import { resolveResource, canonicalName } from '../lib/resources.mjs';
+import { canonicalName }                 from '../lib/resources.mjs';
 import { getGetFields, getGetParams }    from '../lib/resource-config.mjs';
-import { outputMode, printJson, printYaml, printRecord, buildDateFormatters, error } from '../lib/output.mjs';
+import { outputMode, printJson, printYaml, printRecord, buildDateFormatters } from '../lib/output.mjs';
+import {
+  buildCliClient,
+  callApi,
+  fail,
+  requireRecordId,
+  requireResource
+} from '../lib/command.mjs';
 
 export const USAGE = `\
 Usage: zeyos get <resource> <id> [options]
@@ -56,34 +62,11 @@ export async function run(values, positional) {
   const resourceName = positional[0];
   const id           = positional[1];
 
-  if (!resourceName) {
-    error('Missing resource name.  Usage: zeyos get <resource> <id>');
-    process.exit(1);
-  }
-  if (!id) {
-    error('Missing record ID.  Usage: zeyos get <resource> <id>');
-    process.exit(1);
-  }
-
-  const res = resolveResource(resourceName);
-  if (!res) {
-    error(`Unknown resource: "${resourceName}".  Run 'zeyos resources' to see available types.`);
-    process.exit(1);
-  }
-  if (!res.get) {
-    error(`Resource "${resourceName}" does not support single-record fetch.`);
-    process.exit(1);
-  }
+  const res = requireResource(resourceName, 'zeyos get <resource> <id>', 'get', 'single-record fetch');
+  requireRecordId(id, 'zeyos get <resource> <id>');
 
   const resName = canonicalName(resourceName);
-
-  let client, tokenStore, configSource;
-  try {
-    ({ client, tokenStore, configSource } = buildClient());
-  } catch (err) {
-    error(err.message);
-    process.exit(1);
-  }
+  const clientState = buildCliClient();
 
   // ── Build params ───────────────────────────────────────────────────────────
   // GET endpoints use query parameters like ?extdata=1&tags=1 to include
@@ -115,27 +98,12 @@ export async function run(values, positional) {
   }
 
   // ── Call API ───────────────────────────────────────────────────────────────
-  let record;
-  try {
-    const fn = client.api[res.get];
-    if (typeof fn !== 'function') {
-      error(`Operation "${res.get}" is not available on this client.`);
-      process.exit(1);
-    }
-    record = await fn(params);
-    await syncTokens(tokenStore, configSource);
-  } catch (err) {
-    if (err.status === 404) {
-      error(`${resourceName} #${id} not found.`);
-    } else {
-      error(`API error: ${err.message}`);
-    }
-    process.exit(1);
-  }
+  const record = await callApi(clientState, res.get, params, {
+    notFoundMessage: `${resourceName} #${id} not found.`
+  });
 
   if (!record) {
-    error(`${resourceName} #${id} not found.`);
-    process.exit(1);
+    fail(`${resourceName} #${id} not found.`);
   }
 
   // ── Determine display fields ───────────────────────────────────────────────

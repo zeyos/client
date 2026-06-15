@@ -14,6 +14,7 @@
         "baseURL": "http://localhost:11434/v1"
       },
       "models": {
+        "gemma4:12b": { "name": "Gemma 12B" },
         "llama3.1:8b": { "name": "Llama 3.1 8B" },
         "qwen2.5-coder:7b": { "name": "Qwen2.5 Coder 7B" }
       }

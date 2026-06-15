@@ -1,5 +1,7 @@
 import { execFile } from 'node:child_process';
-import { dirname, resolve } from 'node:path';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -7,9 +9,21 @@ import assert from 'node:assert/strict';
 const __dir = dirname(fileURLToPath(import.meta.url));
 const CLI_BIN = resolve(__dir, '..', 'bin', 'zeyos.mjs');
 
-function cli(args) {
+const ZEYOS_ENV_KEYS = [
+  'ZEYOS_BASE_URL',
+  'ZEYOS_INSTANCE',
+  'ZEYOS_CLIENT_ID',
+  'ZEYOS_CLIENT_SECRET',
+  'ZEYOS_TOKEN',
+  'ZEYOS_REFRESH_TOKEN'
+];
+
+function cli(args, options = {}) {
   return new Promise((resolveResult) => {
-    execFile(process.execPath, [CLI_BIN, ...args], { env: { ...process.env, NO_COLOR: '1' } }, (err, stdout, stderr) => {
+    execFile(process.execPath, [CLI_BIN, ...args], {
+      cwd: options.cwd,
+      env: { ...process.env, NO_COLOR: '1', ...options.env }
+    }, (err, stdout, stderr) => {
       resolveResult({
         code: err?.code ?? 0,
         stdout: stdout ?? '',
@@ -17,6 +31,32 @@ function cli(args) {
       });
     });
   });
+}
+
+function isolatedEnv(home, overrides = {}) {
+  const env = {
+    ...process.env,
+    NO_COLOR: '1',
+    HOME: home,
+    USERPROFILE: home,
+    ...overrides
+  };
+
+  for (const key of ZEYOS_ENV_KEYS) {
+    if (!(key in overrides)) {
+      delete env[key];
+    }
+  }
+
+  return env;
+}
+
+async function tempDir(t) {
+  const dir = await mkdtemp(join(tmpdir(), 'zeyos-cli-offline-'));
+  t.after(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+  return dir;
 }
 
 test('global help is available without credentials', async () => {
@@ -67,4 +107,37 @@ test('describe rejects an unknown resource', async () => {
   const result = await cli(['describe', 'nonexistent-resource']);
   assert.equal(result.code, 1);
   assert.match(result.stderr, /Unknown resource/);
+});
+
+test('invalid local credential config fails loudly', async (t) => {
+  const cwd = await tempDir(t);
+  await mkdir(join(cwd, '.zeyos'), { recursive: true });
+  await writeFile(join(cwd, '.zeyos', 'auth.json'), '{not json', 'utf8');
+
+  const result = await cli(['whoami'], {
+    cwd,
+    env: isolatedEnv(cwd)
+  });
+
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /Failed to read .*\.zeyos[/\\]auth\.json/);
+});
+
+test('invalid local resource config fails loudly', async (t) => {
+  const cwd = await tempDir(t);
+  await mkdir(join(cwd, '.zeyos', 'api'), { recursive: true });
+  await writeFile(join(cwd, '.zeyos', 'api', 'ticket.json'), '{not json', 'utf8');
+
+  const result = await cli(['list', 'tickets'], {
+    cwd,
+    env: isolatedEnv(cwd, {
+      ZEYOS_BASE_URL: 'https://cloud.zeyos.com/demo',
+      ZEYOS_CLIENT_ID: 'client-id',
+      ZEYOS_CLIENT_SECRET: 'client-secret',
+      ZEYOS_TOKEN: 'access-token'
+    })
+  });
+
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /Failed to read resource config .*\.zeyos[/\\]api[/\\]ticket\.json/);
 });

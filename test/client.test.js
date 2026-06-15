@@ -1,7 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createZeyosClient, MemoryTokenStore, ZeyosApiError, ZeyosValidationError, normalizeListResult } from '../src/index.js';
+import {
+  createZeyosClient,
+  MemoryTokenStore,
+  ZeyosApiError,
+  ZeyosValidationError,
+  normalizeCountResult,
+  normalizeListResult
+} from '../src/index.js';
 import { SERVICES } from '../src/generated/operations.js';
 
 function jsonResponse(data, status = 200, headers = {}) {
@@ -669,6 +676,16 @@ test('normalizeListResult normalises arrays, wrappers, and invalid input', () =>
   assert.deepEqual(normalizeListResult(null), { data: [] });
   assert.deepEqual(normalizeListResult('nope'), { data: [] });
   assert.deepEqual(normalizeListResult({ data: 'not-an-array' }), { data: [] });
+});
+
+test('normalizeCountResult normalises direct counts, wrappers, and list fallbacks', () => {
+  assert.equal(normalizeCountResult(17), 17);
+  assert.equal(normalizeCountResult('12'), 12);
+  assert.equal(normalizeCountResult({ count: '9' }), 9);
+  assert.equal(normalizeCountResult([{ ID: 1 }, { ID: 2 }]), 2);
+  assert.equal(normalizeCountResult({ data: [{ ID: 3 }] }), 1);
+  assert.equal(normalizeCountResult({ count: 'not-a-number' }), 0);
+  assert.equal(normalizeCountResult(null), 0);
 });
 
 test('form-url-encodes bodies with nested object/array/boolean values', async () => {

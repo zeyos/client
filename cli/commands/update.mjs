@@ -9,10 +9,14 @@
  *   --yaml           Output updated record as YAML
  */
 
-import { buildClient, syncTokens }        from '../lib/client.mjs';
-import { resolveResource }                from '../lib/resources.mjs';
-import { collectFieldFlags }              from '../lib/flags.mjs';
-import { outputMode, printJson, printYaml, printRecord, success, error } from '../lib/output.mjs';
+import {
+  buildCliClient,
+  buildRecordPayload,
+  callApi,
+  requireRecordId,
+  requireResource
+} from '../lib/command.mjs';
+import { outputMode, printJson, printYaml, printRecord, success } from '../lib/output.mjs';
 
 export const USAGE = `\
 Usage: zeyos update <resource> <id> [options]
@@ -39,70 +43,17 @@ export async function run(values, positional) {
   const resourceName = positional[0];
   const id           = positional[1];
 
-  if (!resourceName) {
-    error('Missing resource name.  Usage: zeyos update <resource> <id>');
-    process.exit(1);
-  }
-  if (!id) {
-    error('Missing record ID.  Usage: zeyos update <resource> <id>');
-    process.exit(1);
-  }
-
-  const res = resolveResource(resourceName);
-  if (!res) {
-    error(`Unknown resource: "${resourceName}".  Run 'zeyos resources' to see available types.`);
-    process.exit(1);
-  }
-  if (!res.update) {
-    error(`Resource "${resourceName}" does not support updates.`);
-    process.exit(1);
-  }
-
-  let client, tokenStore, configSource;
-  try {
-    ({ client, tokenStore, configSource } = buildClient());
-  } catch (err) {
-    error(err.message);
-    process.exit(1);
-  }
+  const res = requireResource(resourceName, 'zeyos update <resource> <id>', 'update', 'updates');
+  requireRecordId(id, 'zeyos update <resource> <id>');
+  const clientState = buildCliClient();
 
   // ── Build data payload ─────────────────────────────────────────────────────
-  let data = {};
-
-  if (values.data) {
-    try {
-      data = JSON.parse(values.data);
-    } catch {
-      error(`--data must be valid JSON.  Got: ${values.data}`);
-      process.exit(1);
-    }
-  }
-
-  Object.assign(data, collectFieldFlags(values));
-
-  if (Object.keys(data).length === 0) {
-    error('No fields provided.  Use --data or individual --<field> flags.');
-    process.exit(1);
-  }
+  const data = buildRecordPayload(values);
 
   // ── Call API ───────────────────────────────────────────────────────────────
-  let record;
-  try {
-    const fn = client.api[res.update];
-    if (typeof fn !== 'function') {
-      error(`Operation "${res.update}" is not available on this client.`);
-      process.exit(1);
-    }
-    record = await fn({ ID: id, body: data });
-    await syncTokens(tokenStore, configSource);
-  } catch (err) {
-    if (err.status === 404) {
-      error(`${resourceName} #${id} not found.`);
-    } else {
-      error(`API error: ${err.message}`);
-    }
-    process.exit(1);
-  }
+  const record = await callApi(clientState, res.update, { ID: id, body: data }, {
+    notFoundMessage: `${resourceName} #${id} not found.`
+  });
 
   const mode = outputMode(values);
 

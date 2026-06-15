@@ -82,14 +82,16 @@ if (projectId) filter.project = projectId;
 
 ## Normalising List Responses
 
-List operations are not perfectly uniform across the whole surface area. Always normalise defensively:
+List operations are not perfectly uniform across the whole surface area. Use the shared helper so every call site follows the same response-shape handling:
 
 ```js
+import { normalizeListResult } from '@zeyos/client';
+
 const result = await client.api.listTickets({ filters: { visibility: 0 } });
-const tickets = Array.isArray(result) ? result : (result?.data ?? []);
+const { data: tickets } = normalizeListResult(result);
 ```
 
-If you request count metadata, inspect that shape separately instead of assuming the same wrapper on every endpoint.
+Use `normalizeCountResult()` for count-only requests.
 
 ## Date and Timestamp Handling
 

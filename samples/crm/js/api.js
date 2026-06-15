@@ -14,10 +14,20 @@
  * IMPORTANT implementation notes (from project memory):
  *  - Use `filters` (plural) NOT `filter` for list queries
  *  - Always include `visibility: 0` in filters
- *  - Normalise list responses: Array.isArray(result) ? result : (result?.data ?? [])
+ *  - Normalise list responses via normalizeListResult()
  */
-import { createZeyosClient, MemoryTokenStore } from '../../../src/index.js';
+import { createZeyosClient, MemoryTokenStore, normalizeListResult } from '../../../src/index.js';
 import { loadTokens, saveTokens } from './state.js';
+
+/**
+ * @typedef {null|boolean|number|string|JsonValue[]|Record<string, JsonValue>} JsonValue
+ * @typedef {Record<string, JsonValue>} ZeyosRecord
+ * @typedef {'AccountNum'|'Name'|'Email'|'Phone'|'City'|'AssignedUser'|'Type'|'LastModified'} AccountSortField
+ * @typedef {'asc'|'desc'} SortDirection
+ * @typedef {{ search?: string, sortField?: AccountSortField, sortDir?: SortDirection, limit?: number, offset?: number }} AccountListOptions
+ * @typedef {{ Id?: number|string, AccountNum?: string|number, Name?: string, FirstName?: string|null, Email?: string|null, Phone?: string|null, City?: string|null, AssignedUser?: string|null, Type?: number|string, LastModified?: number|string|null }} AccountListRow
+ * @typedef {{ firstname?: string|null, lastname?: string, type?: number, description?: string|null }} AccountWriteFields
+ */
 
 export let client = null;
 export let tokenStore = null;
@@ -106,13 +116,13 @@ const SORT_MAP = {
 /**
  * Fetch a page of accounts with dot-notation joins and optional search.
  *
- * @param {Object}  opts
+ * @param {AccountListOptions} [opts]
  * @param {string}  [opts.search]  - Full-text search query
- * @param {string}  [opts.sortField]  - Aliased field name (e.g. 'Name', 'Email')
- * @param {string}  [opts.sortDir]    - 'asc' or 'desc'
+ * @param {AccountSortField} [opts.sortField]  - Aliased field name (e.g. 'Name', 'Email')
+ * @param {SortDirection} [opts.sortDir]    - Sort direction
  * @param {number}  [opts.limit=25]   - Records per page
  * @param {number}  [opts.offset=0]   - Offset for pagination
- * @returns {Promise<Array>} Array of account records with joined fields
+ * @returns {Promise<AccountListRow[]>} Account records with joined fields
  */
 export async function fetchAccounts({ search, sortField, sortDir, limit = 25, offset = 0 } = {}) {
   // Build the sort parameter.
@@ -151,13 +161,13 @@ export async function fetchAccounts({ search, sortField, sortDir, limit = 25, of
   const result = await client.api.listAccounts(params);
   await syncTokens();
 
-  // Normalise: the API may return an array directly or { data: [...] }
-  return Array.isArray(result) ? result : (result?.data ?? []);
+  return normalizeListResult(result).data;
 }
 
 /**
  * Fetch a single account by ID with extended data.
  * @param {number|string} id - Account ID
+ * @returns {Promise<ZeyosRecord>}
  */
 export async function getAccount(id) {
   const result = await client.api.getAccount({ ID: id, extdata: 1 });
@@ -167,7 +177,8 @@ export async function getAccount(id) {
 
 /**
  * Create a new account.
- * @param {Object} data - Account fields (lastname, firstname, type, description, etc.)
+ * @param {AccountWriteFields} data - Account fields (lastname, firstname, type, description, etc.)
+ * @returns {Promise<ZeyosRecord>}
  */
 export async function createAccount(data) {
   const result = await client.api.createAccount(data);
@@ -178,7 +189,8 @@ export async function createAccount(data) {
 /**
  * Update an existing account.
  * @param {number|string} id   - Account ID
- * @param {Object}        data - Fields to update
+ * @param {AccountWriteFields} data - Fields to update
+ * @returns {Promise<ZeyosRecord>}
  */
 export async function updateAccount(id, data) {
   const result = await client.api.updateAccount({ ID: id, body: data });

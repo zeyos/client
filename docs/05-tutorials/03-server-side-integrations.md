@@ -73,6 +73,8 @@ With `autoRefresh: true`, the client refreshes expired access tokens before retr
 ## 3. Write Small Sync Functions
 
 ```js
+import { normalizeListResult } from '@zeyos/client';
+
 export async function fetchActiveTickets(limit = 100) {
   const result = await client.api.listTickets({
     fields: ['ID', 'ticketnum', 'name', 'status', 'priority', 'lastmodified'],
@@ -81,7 +83,7 @@ export async function fetchActiveTickets(limit = 100) {
     limit,
   });
 
-  return Array.isArray(result) ? result : (result?.data ?? []);
+  return normalizeListResult(result).data;
 }
 ```
 

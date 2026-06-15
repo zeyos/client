@@ -6,7 +6,7 @@ import { STATUSES, STATUS_MAP, PRIORITIES, PRIORITY_MAP } from './constants.js';
 import { runtime } from './state.js';
 import {
   getTicket, createTicket, updateTicket, deleteTicket,
-  fetchTasksForTicket, createTask, updateTask, deleteTask,
+  fetchTasksForTicket, createTask, deleteTask,
 } from './api.js';
 import { showToast } from './ui.js';
 
@@ -44,7 +44,6 @@ function _renderDetailView(dlg, ticket, tasks) {
   dlg.innerHTML = `
     <div class="flex flex-col max-h-[90vh] w-full">
 
-      <!-- Header -->
       <div class="flex items-start justify-between p-5 border-b gap-3 flex-shrink-0">
         <div class="flex-1 min-w-0">
           <div class="flex items-center gap-2 mb-1">
@@ -60,10 +59,8 @@ function _renderDetailView(dlg, ticket, tasks) {
         </div>
       </div>
 
-      <!-- Scrollable body -->
       <div class="overflow-y-auto flex-1 p-5 space-y-5">
 
-        <!-- Core fields -->
         <div class="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
           ${_detailRow('Due Date',     ticket.duedate    ? _formatDate(ticket.duedate)       : '—')}
           ${_detailRow('Assigned',     ticket.assigneduser ?? '—')}
@@ -73,7 +70,6 @@ function _renderDetailView(dlg, ticket, tasks) {
           ${_detailRow('Modified',     ticket.lastmodified ? _formatDate(ticket.lastmodified)  : '—')}
         </div>
 
-        <!-- Description -->
         ${ticket.description ? `
           <div>
             <h3 class="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Description</h3>
@@ -81,7 +77,6 @@ function _renderDetailView(dlg, ticket, tasks) {
           </div>
         ` : ''}
 
-        <!-- Tasks -->
         <div>
           <div class="flex items-center justify-between mb-2">
             <h3 class="text-xs font-semibold uppercase tracking-wide text-slate-500">Tasks (${tasks.length})</h3>
@@ -94,7 +89,6 @@ function _renderDetailView(dlg, ticket, tasks) {
 
       </div>
 
-      <!-- Footer -->
       <div class="flex items-center justify-between p-4 border-t flex-shrink-0">
         <button id="detail-btn-delete" class="text-sm text-red-500 hover:text-red-700 hover:underline">Delete Ticket</button>
         <button id="detail-btn-close2" class="px-4 py-1.5 text-sm rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700">Close</button>
@@ -223,23 +217,19 @@ function _renderEditForm(dlg, ticket, tasks, isInDetailDlg, isCreate = false) {
   usedDlg.innerHTML = `
     <form id="ticket-form" class="flex flex-col max-h-[90vh] w-full" novalidate>
 
-      <!-- Header -->
       <div class="flex items-center justify-between p-5 border-b flex-shrink-0">
         <h2 class="font-semibold text-slate-800">${isCreate ? 'New Ticket' : 'Edit Ticket'}</h2>
         <button type="button" id="form-btn-close" class="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 text-lg leading-none">✕</button>
       </div>
 
-      <!-- Body -->
       <div class="overflow-y-auto flex-1 p-5 space-y-4">
 
-        <!-- Name -->
         <div>
           <label class="block text-xs font-medium text-slate-600 mb-1">Name <span class="text-red-400">*</span></label>
           <input id="f-name" type="text" value="${_esc(ticket.name ?? '')}"
             class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" required>
         </div>
 
-        <!-- Status + Priority row -->
         <div class="grid grid-cols-2 gap-4">
           <div>
             <label class="block text-xs font-medium text-slate-600 mb-1">Status</label>
@@ -255,21 +245,18 @@ function _renderEditForm(dlg, ticket, tasks, isInDetailDlg, isCreate = false) {
           </div>
         </div>
 
-        <!-- Due date -->
         <div>
           <label class="block text-xs font-medium text-slate-600 mb-1">Due Date</label>
           <input id="f-duedate" type="date" value="${ticket.duedate ? _toDateInput(ticket.duedate) : ''}"
             class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
         </div>
 
-        <!-- Description -->
         <div>
           <label class="block text-xs font-medium text-slate-600 mb-1">Description</label>
           <textarea id="f-description" rows="4"
             class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y">${_esc(ticket.description ?? '')}</textarea>
         </div>
 
-        <!-- Extended data section -->
         <div>
           <div class="flex items-center justify-between mb-2">
             <label class="text-xs font-medium text-slate-600">Extended Data</label>
@@ -282,7 +269,6 @@ function _renderEditForm(dlg, ticket, tasks, isInDetailDlg, isCreate = false) {
 
       </div>
 
-      <!-- Footer -->
       <div class="flex items-center justify-between p-4 border-t flex-shrink-0">
         ${isCreate ? '<span></span>' : `<button type="button" id="form-btn-delete" class="text-sm text-red-500 hover:underline">Delete</button>`}
         <div class="flex gap-3">
@@ -460,7 +446,6 @@ function _readExtdata(container) {
     const val = row.querySelector('.extdata-val')?.value ?? '';
     if (key) result[key] = val;
   });
-  // Wire up remove buttons dynamically
   return Object.keys(result).length ? result : undefined;
 }
 

@@ -4,8 +4,22 @@
  *  - Token mode: uses pre-obtained browser tokens via MemoryTokenStore
  *  - Session mode: uses browser session cookies
  */
-import { createZeyosClient, MemoryTokenStore } from '../../../src/index.js';
+import {
+  createZeyosClient,
+  MemoryTokenStore,
+  normalizeCountResult,
+  normalizeListResult
+} from '../../../src/index.js';
 import { loadTokens, saveTokens } from './state.js';
+
+/**
+ * @typedef {null|boolean|number|string|JsonValue[]|Record<string, JsonValue>} JsonValue
+ * @typedef {Record<string, JsonValue>} ZeyosRecord
+ * @typedef {Record<string, JsonValue>} TicketFilters
+ * @typedef {{ ID?: number|string, ticketnum?: string|number, name?: string, status?: number, priority?: number, duedate?: number|string|null, lastmodified?: number|string|null }} DashboardTicket
+ * @typedef {{ ID?: number|string, lastname?: string, firstname?: string|null, type?: number|string, contact?: ZeyosRecord, assigneduser?: ZeyosRecord, lastmodified?: number|string|null }} DashboardAccount
+ * @typedef {{ status: number, label: string, count: number, color: string }} StatusCount
+ */
 
 export let client = null;
 export let tokenStore = null;
@@ -100,18 +114,12 @@ export async function syncTokens() {
   }
 }
 
-// -- Normalise list response --------------------------------------------------
-
-function normalise(result) {
-  return Array.isArray(result) ? result : (result?.data ?? []);
-}
-
 // -- Tickets ------------------------------------------------------------------
 
 /**
  * Count tickets matching optional filters.
  * Uses count:true to get total without fetching records.
- * @param {object} [extraFilters] - additional filter conditions
+ * @param {TicketFilters} [extraFilters] - additional filter conditions
  * @returns {Promise<number>}
  */
 export async function countTickets(extraFilters = {}) {
@@ -120,17 +128,13 @@ export async function countTickets(extraFilters = {}) {
     count:   true,
   });
   await syncTokens();
-  // count:true returns the count as a number directly, or { count: N }
-  if (typeof result === 'number') return result;
-  if (result?.count != null) return Number(result.count);
-  // Fallback: if it returns an array, use its length
-  return Array.isArray(result) ? result.length : 0;
+  return normalizeCountResult(result);
 }
 
 /**
  * Fetch the most recently modified tickets.
  * @param {number} [limit=10]
- * @returns {Promise<object[]>}
+ * @returns {Promise<DashboardTicket[]>}
  */
 export async function fetchRecentTickets(limit = 10) {
   const result = await client.api.listTickets({
@@ -140,13 +144,13 @@ export async function fetchRecentTickets(limit = 10) {
     limit,
   });
   await syncTokens();
-  return normalise(result);
+  return normalizeListResult(result).data;
 }
 
 /**
  * Get ticket counts grouped by status.
  * Queries each status value (0-11) with count:true.
- * @returns {Promise<Array<{status: number, label: string, count: number, color: string}>>}
+ * @returns {Promise<StatusCount[]>}
  */
 export async function fetchTicketsByStatus() {
   const promises = STATUS_LABELS.map((label, status) =>
@@ -173,15 +177,13 @@ export async function countAccounts() {
     count:   true,
   });
   await syncTokens();
-  if (typeof result === 'number') return result;
-  if (result?.count != null) return Number(result.count);
-  return Array.isArray(result) ? result.length : 0;
+  return normalizeCountResult(result);
 }
 
 /**
  * Fetch the most recently modified accounts with dot-notation joins.
  * @param {number} [limit=10]
- * @returns {Promise<object[]>}
+ * @returns {Promise<DashboardAccount[]>}
  */
 export async function fetchRecentAccounts(limit = 10) {
   const result = await client.api.listAccounts({
@@ -191,5 +193,5 @@ export async function fetchRecentAccounts(limit = 10) {
     limit,
   });
   await syncTokens();
-  return normalise(result);
+  return normalizeListResult(result).data;
 }

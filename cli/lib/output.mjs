@@ -5,6 +5,10 @@
  * All public functions write to stdout; errors write to stderr.
  */
 
+/** @typedef {import('./types.mjs').JsonValue} JsonValue */
+/** @typedef {import('./types.mjs').JsonObject} JsonObject */
+/** @typedef {import('./types.mjs').ValueFormatter} ValueFormatter */
+
 // ── Colors ────────────────────────────────────────────────────────────────────
 
 const USE_COLOR = process.stdout.isTTY && !process.argv.includes('--no-color') && !process.env.NO_COLOR;
@@ -91,10 +95,10 @@ function toYaml(value, indent = 0) {
 /**
  * Print a list of objects as a plain-text table.
  *
- * @param {object[]} rows
+ * @param {JsonObject[]} rows
  * @param {string[]} columns  - ordered list of keys to display
  * @param {Record<string,string>} [labels] - optional column header overrides
- * @param {Record<string,(v:any,row:object)=>string>} [formatters] - optional per-key formatters
+ * @param {Record<string,ValueFormatter>} [formatters] - optional per-key formatters
  */
 export function printTable(rows, columns, labels = {}, formatters = {}) {
   if (rows.length === 0) {
@@ -102,10 +106,8 @@ export function printTable(rows, columns, labels = {}, formatters = {}) {
     return;
   }
 
-  // Build header labels
   const headers = columns.map(k => labels[k] ?? k.toUpperCase());
 
-  // Stringify all cell values
   const stringify = (key, val, row) => {
     if (formatters[key]) return String(formatters[key](val, row));
     if (val === null || val === undefined) return '';
@@ -115,12 +117,10 @@ export function printTable(rows, columns, labels = {}, formatters = {}) {
 
   const data = rows.map(row => columns.map(k => stringify(k, row[k], row)));
 
-  // Compute column widths
   const widths = columns.map((_, i) =>
     Math.max(headers[i].length, ...data.map(row => _visibleLength(row[i])))
   );
 
-  // Header line
   const headerRow = headers.map((h, i) => _pad(c.bold(h), widths[i])).join('  ');
   const separator = widths.map(w => '─'.repeat(w)).join('  ');
 
@@ -136,10 +136,10 @@ export function printTable(rows, columns, labels = {}, formatters = {}) {
 /**
  * Print a single record as a vertical key-value list.
  *
- * @param {object} record
+ * @param {JsonObject} record
  * @param {string[]} [keys]  - subset of keys to show (default: all)
  * @param {Record<string,string>} [labels]
- * @param {Record<string,(v:any)=>string>} [formatters]
+ * @param {Record<string,ValueFormatter>} [formatters]
  */
 export function printRecord(record, keys, labels = {}, formatters = {}) {
   const keyList = keys ?? Object.keys(record);
@@ -204,7 +204,7 @@ export function info(msg) {
  * Supports tokens: YYYY, MM, DD, HH, mm, ss.
  * Returns '' for null/undefined/0 values.
  *
- * @param {number} timestamp - Unix timestamp in seconds
+ * @param {number|string|null|undefined} timestamp - Unix timestamp in seconds
  * @param {string} format - e.g. 'YYYY-MM-DD' or 'YYYY-MM-DD HH:mm'
  * @returns {string}
  */
@@ -247,7 +247,7 @@ export function isDateField(name) {
  * @param {string[]} columns - display column keys
  * @param {string}   dateFormat - format string (default 'YYYY-MM-DD')
  * @param {Record<string,string>} [aliasToPath] - alias → API field path
- * @returns {Record<string, (v:any)=>string>}
+ * @returns {Record<string, ValueFormatter>}
  */
 export function buildDateFormatters(columns, dateFormat = 'YYYY-MM-DD', aliasToPath) {
   const formatters = {};

@@ -15,6 +15,12 @@ import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { error } from './output.mjs';
 
+/** @typedef {import('./types.mjs').ResourceDef} ResourceDef */
+/** @typedef {import('./types.mjs').ResourceFieldConfig} ResourceFieldConfig */
+/** @typedef {import('./types.mjs').ListFieldSelection} ListFieldSelection */
+/** @typedef {import('./types.mjs').GetFieldSelection} GetFieldSelection */
+/** @typedef {import('./types.mjs').JsonValue} JsonValue */
+
 // ── Paths ────────────────────────────────────────────────────────────────────
 
 const __dir       = dirname(fileURLToPath(import.meta.url));
@@ -34,7 +40,7 @@ const _cache = new Map();
  * Returns the parsed JSON object, or null if no config exists.
  *
  * @param {string} name - canonical resource name (e.g. "ticket")
- * @returns {object|null}
+ * @returns {ResourceFieldConfig|null}
  */
 export function loadResourceConfig(name) {
   if (_cache.has(name)) return _cache.get(name);
@@ -59,10 +65,10 @@ export function loadResourceConfig(name) {
  *   - JSON object:      '{"Id":"ID","Name":"name"}'  → aliased object
  *   - JSON array:       '["ID","name","status"]'     → self-aliased object
  *
- * @param {object}   res       - ResourceDef from registry
+ * @param {ResourceDef} res - ResourceDef from registry
  * @param {string}   name      - canonical resource name
  * @param {string}   [override] - raw --fields flag value
- * @returns {{ apiFields: Record<string,string>|object, displayColumns: string[] }}
+ * @returns {ListFieldSelection}
  */
 export function getListFields(res, name, override) {
   // 1. CLI override
@@ -73,7 +79,7 @@ export function getListFields(res, name, override) {
   // 2. Config file
   const config = loadResourceConfig(name);
   if (config?.list?.fields && typeof config.list.fields === 'object') {
-    const apiFields = config.list.fields;
+    const apiFields = _toFieldAliasMap(config.list.fields);
     const displayColumns = Object.keys(apiFields);
     return { apiFields, displayColumns };
   }
@@ -105,7 +111,7 @@ export function getListFields(res, name, override) {
  *
  * @param {string}   name       - canonical resource name
  * @param {string}   [override] - raw --fields flag value
- * @returns {{ keys: string[], labels: Record<string,string> } | undefined}
+ * @returns {GetFieldSelection | undefined}
  */
 export function getGetFields(name, override) {
   if (override) {
@@ -159,7 +165,7 @@ export function getGetFields(name, override) {
  * query parameters; explicit CLI flags override them on the caller's side.
  *
  * @param {string} name - canonical resource name
- * @returns {Record<string, number|string>} query parameters for the GET request
+ * @returns {Record<string, number|string|boolean>} query parameters for the GET request
  */
 export function getGetParams(name) {
   const config = loadResourceConfig(name);
@@ -183,7 +189,8 @@ function _parseFieldsOverride(raw) {
     try {
       const obj = JSON.parse(trimmed);
       if (typeof obj === 'object' && obj !== null && !Array.isArray(obj)) {
-        return { apiFields: obj, displayColumns: Object.keys(obj) };
+        const apiFields = _toFieldAliasMap(obj);
+        return { apiFields, displayColumns: Object.keys(apiFields) };
       }
     } catch (e) {
       error(`--fields JSON is invalid: ${e.message}\n  Got: ${trimmed}\n  Expected format: '{"Alias": "field.path", ...}'`);
@@ -214,11 +221,27 @@ function _parseFieldsOverride(raw) {
   return { apiFields, displayColumns: paths };
 }
 
+/**
+ * Normalize an alias-to-field-path object into the documented string map shape.
+ *
+ * @param {Record<string, JsonValue>} value
+ * @returns {Record<string,string>}
+ */
+function _toFieldAliasMap(value) {
+  const fields = {};
+  for (const [alias, field] of Object.entries(value)) {
+    fields[String(alias)] = String(field);
+  }
+  return fields;
+}
+
 // ── Internals ────────────────────────────────────────────────────────────────
 
 /**
  * Walk the config cascade for a resource name.
  * Returns the first matching config object, or null.
+ *
+ * @returns {ResourceFieldConfig|null}
  */
 function _resolveConfig(name) {
   const filename = `${name}.json`;
@@ -257,7 +280,10 @@ function _findLocalConfig(filename) {
 function _readJson(path) {
   try {
     return JSON.parse(readFileSync(path, 'utf8'));
-  } catch {
-    return null;
+  } catch (err) {
+    if (err?.code === 'ENOENT') {
+      return null;
+    }
+    throw new Error(`Failed to read resource config ${path}: ${err.message || err}`);
   }
 }

@@ -74,7 +74,7 @@ Create `app.js` and set up the ZeyOS client. You have two authentication options
 Use this when you already have an OAuth access token. This is most useful for development and controlled demos:
 
 ```js
-import { createZeyosClient, MemoryTokenStore } from './zeyos-client/index.js';
+import { createZeyosClient, MemoryTokenStore, normalizeListResult } from './zeyos-client/index.js';
 
 const client = createZeyosClient({
   platform: 'https://cloud.zeyos.com/demo/',
@@ -96,7 +96,7 @@ Use session mode or a backend token broker for long-lived browser apps. Do not e
 Use this when you are already logged into ZeyOS in the same browser:
 
 ```js
-import { createZeyosClient } from './zeyos-client/index.js';
+import { createZeyosClient, normalizeListResult } from './zeyos-client/index.js';
 
 const client = createZeyosClient({
   platform: 'https://cloud.zeyos.com/demo/',
@@ -126,8 +126,7 @@ async function loadTickets() {
     limit: 50,
   });
 
-  // Normalise response: list APIs return either an array or { data: [...] }
-  const tickets = Array.isArray(result) ? result : (result?.data ?? []);
+  const { data: tickets } = normalizeListResult(result);
   return tickets;
 }
 ```
@@ -138,7 +137,7 @@ Key things to note:
 - **Always include `visibility: 0`** to exclude archived/deleted records.
 - **Use `filters` (plural)** for best compatibility across all field types. This handles both simple equality filters and GIN-indexed foreign key fields.
 - **Always specify `fields`** to keep payloads small. Without it, every field on every record is returned.
-- **Normalise the response.** Count-enabled list responses are not uniform across every endpoint or client layer. Treat list calls as either an array or an object wrapper, and inspect count metadata separately when you request it.
+- **Normalise the response.** Use `normalizeListResult()` so list calls share one array/object-wrapper handling path. Use `normalizeCountResult()` for count-only requests.
 
 Now render it:
 
@@ -230,7 +229,7 @@ async function loadProjects() {
       sort: ['+name'],
       limit: 500,
     });
-    return Array.isArray(result) ? result : (result?.data ?? []);
+    return normalizeListResult(result).data;
   } catch {
     return [];
   }
@@ -269,7 +268,7 @@ async function boot() {
       sort: ['-lastmodified'],
       limit: 50,
     });
-    const tickets = Array.isArray(result) ? result : (result?.data ?? []);
+    const { data: tickets } = normalizeListResult(result);
     document.getElementById('tickets').innerHTML = renderTickets(tickets);
   };
 
@@ -393,7 +392,7 @@ async function loadTasks(ticketId) {
     sort: ['+name'],
     limit: 200,
   });
-  return Array.isArray(result) ? result : (result?.data ?? []);
+  return normalizeListResult(result).data;
 }
 ```
 

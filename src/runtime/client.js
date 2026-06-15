@@ -2,6 +2,10 @@ import { GENERATED, SERVICES, SERVICE_KEYS } from '../generated/operations.js';
 import { SCHEMA } from '../generated/schema.js';
 import { ZeyosApiError, ZeyosValidationError } from './error.js';
 import { buildUrl, httpRequest } from './http.js';
+import {
+  OBJECT_CONTROL_KEYS as OBJECT_CONTROL_KEY_LIST,
+  REQUEST_CONTROL_KEYS
+} from './request-shape.js';
 import { createSchema } from './schema.js';
 import { suggestClosest } from './suggest.js';
 import { MemoryTokenStore, normalizeTokenSet, tokenResponseToTokenSet } from './token-store.js';
@@ -76,24 +80,13 @@ const PLATFORM_PRESETS = Object.freeze({
 });
 
 const VALID_AUTH_MODES = new Set(['auto', 'oauth', 'session', 'none']);
-const RESERVED_INPUT_KEYS = new Set([
-  'path',
-  'query',
-  'headers',
-  'body',
-  'data',
-  'auth',
-  'bodyType',
-  'signal',
-  'raw',
-  'baseUrl'
-]);
+const RESERVED_INPUT_KEYS = new Set(REQUEST_CONTROL_KEYS);
 
 // Reserved keys that act as control *containers* and are only meaningful when
 // object-valued. A scalar value for one of these (most commonly `query: 'term'`
 // for ZeyOS full-text search) is a payload field, not a control directive, so it
 // must not disable body inference or be excluded from the inferred body.
-const OBJECT_CONTROL_KEYS = new Set(['path', 'query', 'headers']);
+const OBJECT_CONTROL_KEYS = new Set(OBJECT_CONTROL_KEY_LIST);
 
 function isObject(value) {
   return value != null && typeof value === 'object' && !Array.isArray(value);

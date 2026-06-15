@@ -1,3 +1,35 @@
+/**
+ * @typedef {{
+ *   accessToken: string|null,
+ *   refreshToken: string|null,
+ *   tokenType: string,
+ *   expiresIn: number|null,
+ *   refreshTokenExpiresIn: number|null,
+ *   obtainedAt: number,
+ *   expiresAt: number|null,
+ *   refreshTokenExpiresAt: number|null
+ * }} TokenSet
+ *
+ * @typedef {{
+ *   accessToken?: string|null,
+ *   access_token?: string|null,
+ *   refreshToken?: string|null,
+ *   refresh_token?: string|null,
+ *   tokenType?: string|null,
+ *   token_type?: string|null,
+ *   expiresIn?: number|string|null,
+ *   expires_in?: number|string|null,
+ *   refreshTokenExpiresIn?: number|string|null,
+ *   refresh_token_expires_in?: number|string|null,
+ *   obtainedAt?: number|string|null,
+ *   obtained_at?: number|string|null,
+ *   expiresAt?: number|string|null,
+ *   expires_at?: number|string|null,
+ *   refreshTokenExpiresAt?: number|string|null,
+ *   refresh_token_expires_at?: number|string|null
+ * }} TokenSetInput
+ */
+
 function toNumber(value) {
   if (value == null || value === '') {
     return null;
@@ -6,6 +38,10 @@ function toNumber(value) {
   return Number.isFinite(number) ? number : null;
 }
 
+/**
+ * @param {TokenSetInput|null|undefined} input
+ * @returns {TokenSet|null}
+ */
 export function normalizeTokenSet(input) {
   if (!input || typeof input !== 'object') {
     return null;
@@ -43,19 +79,26 @@ export function normalizeTokenSet(input) {
   };
 }
 
+/**
+ * @param {TokenSetInput|null|undefined} tokenResponse
+ * @returns {TokenSet|null}
+ */
 export function tokenResponseToTokenSet(tokenResponse) {
   return normalizeTokenSet(tokenResponse);
 }
 
 export class MemoryTokenStore {
+  /** @param {TokenSetInput|null} [initialToken] */
   constructor(initialToken = null) {
     this.token = normalizeTokenSet(initialToken);
   }
 
+  /** @returns {Promise<TokenSet|null>} */
   async get() {
     return this.token;
   }
 
+  /** @param {TokenSetInput|null} token */
   async set(token) {
     this.token = normalizeTokenSet(token);
   }

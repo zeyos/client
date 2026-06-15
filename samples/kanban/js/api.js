@@ -4,7 +4,7 @@
  *  - Token mode: uses pre-obtained browser tokens via MemoryTokenStore
  *  - Session mode: uses browser session cookies
  */
-import { createZeyosClient, MemoryTokenStore } from '../../../src/index.js';
+import { createZeyosClient, MemoryTokenStore, normalizeListResult } from '../../../src/index.js';
 import { loadTokens, saveTokens } from './state.js';
 
 export let client = null;
@@ -85,7 +85,7 @@ export async function fetchTickets({ context } = {}) {
     limit:    500,
   });
   await syncTokens();
-  return Array.isArray(result) ? result : (result?.data ?? []);
+  return normalizeListResult(result).data;
 }
 
 export async function getTicket(id) {
@@ -120,7 +120,7 @@ export async function fetchTasksForTicket(ticketId) {
     sort:    ['+name'],
     limit:   200,
   });
-  return Array.isArray(result) ? result : (result?.data ?? []);
+  return normalizeListResult(result).data;
 }
 
 export async function createTask(data) {
@@ -145,7 +145,7 @@ export async function fetchProjects() {
       sort:   ['+name'],
       limit:  500,
     });
-    return Array.isArray(result) ? result : (result?.data ?? []);
+    return normalizeListResult(result).data;
   } catch {
     return [];
   }

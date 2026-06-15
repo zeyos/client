@@ -10,16 +10,7 @@
 
 // ── Registry ─────────────────────────────────────────────────────────────────
 
-/**
- * @typedef {Object} ResourceDef
- * @property {string}   list      - operationId for list/query
- * @property {string}   get       - operationId for single-record fetch
- * @property {string}   [create]  - operationId for create
- * @property {string}   [update]  - operationId for update
- * @property {string}   [delete]  - operationId for delete
- * @property {string[]} fields    - default display fields (table view)
- * @property {string}   [idField] - primary key field name (default: 'ID')
- */
+/** @typedef {import('./types.mjs').ResourceDef} ResourceDef */
 
 /** @type {Record<string, ResourceDef>} */
 const REGISTRY = {

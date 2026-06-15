@@ -11,7 +11,8 @@ import { readFile, writeFile } from 'node:fs/promises';
 import {
   createZeyosClient,
   normalizeListResult,
-  normalizeTokenSet
+  normalizeTokenSet,
+  tokenResponseToTokenSet
 } from '../../../src/index.js';
 
 // ── Token / client ────────────────────────────────────────────────────────────
@@ -26,36 +27,97 @@ function tokenIsStale(token) {
 }
 
 /**
- * Ensure a usable access token, refreshing via the OAuth refresh grant when the
- * stored one is stale. Persists a refreshed token back to config.test.json so the
- * next run can reuse it. Returns a normalized token set.
+ * Ensure a usable access token. Resolution order when the stored token is stale:
+ *   1. refresh grant      (stored refreshToken + clientId/clientSecret)
+ *   2. password grant      (live.username + live.password + clientId/clientSecret)
+ *   3. stored access token (best effort)
+ * The refreshed/obtained token is persisted back to config.test.json for reuse.
  */
 export async function ensureFreshToken(liveCfg, { configPath } = {}) {
   const stored = normalizeTokenSet(liveCfg.token) || {};
-
   if (!tokenIsStale(stored)) return stored;
 
-  if (!stored.refreshToken || !liveCfg.clientId || !liveCfg.clientSecret) {
-    if (stored.accessToken) return stored; // best effort: use what we have
-    throw new Error(
-      'No usable access token and cannot refresh (need live.token.refreshToken + clientId + clientSecret). ' +
-        'Run `npm test -- --live` once to obtain tokens.'
-    );
+  const haveClient = liveCfg.clientId && liveCfg.clientSecret;
+
+  // 1) refresh grant
+  if (stored.refreshToken && haveClient) {
+    try {
+      const refreshed = await refreshViaGrant(liveCfg, stored.refreshToken);
+      return persistToken(configPath, refreshed);
+    } catch (err) {
+      // A stale/invalid refresh token must not block a password login.
+      if (!(liveCfg.username && liveCfg.password)) throw err;
+    }
   }
 
+  // 2) password grant (Resource Owner Password Credentials)
+  if (liveCfg.username && liveCfg.password && haveClient) {
+    const obtained = await passwordLogin(liveCfg);
+    return persistToken(configPath, obtained);
+  }
+
+  // 3) best effort: a still-present (if expired) access token
+  if (stored.accessToken) return stored;
+
+  throw new Error(
+    'No usable access token. Supply live.username + live.password (with clientId + clientSecret) for a ' +
+      'password-grant login, or a refreshable token. See test/agent-protocol/PROTOCOL.md §4.'
+  );
+}
+
+/** Refresh-token grant via the client helper. */
+async function refreshViaGrant(liveCfg, refreshToken) {
   const client = createZeyosClient({
     platform: { origin: liveCfg.origin || originFromUrl(liveCfg.url), instance: liveCfg.instance },
     auth: { mode: 'oauth', oauth: { clientId: liveCfg.clientId, clientSecret: liveCfg.clientSecret } }
   });
-
   const refreshed = await client.oauth2.refreshToken({
-    refreshToken: stored.refreshToken,
+    refreshToken,
     clientId: liveCfg.clientId,
     clientSecret: liveCfg.clientSecret
   });
+  return normalizeTokenSet(refreshed) || refreshed;
+}
 
-  const normalized = normalizeTokenSet(refreshed) || refreshed;
+/**
+ * OAuth2 Resource Owner Password Credentials grant. Posts username/password +
+ * Basic client auth to the token endpoint and normalizes the response. Headless —
+ * no browser. Supports an optional one-time `live.otp` for 2FA.
+ */
+export async function passwordLogin(liveCfg) {
+  const baseUrl = (liveCfg.url || `${liveCfg.origin}/${liveCfg.instance}`).replace(/\/+$/, '');
+  const tokenUrl = `${baseUrl}/oauth2/v1/token`;
+  const basic = Buffer.from(`${liveCfg.clientId}:${liveCfg.clientSecret}`).toString('base64');
 
+  const body = new URLSearchParams({
+    grant_type: 'password',
+    username: liveCfg.username,
+    password: liveCfg.password
+  });
+  if (liveCfg.otp) body.set('otp', String(liveCfg.otp));
+
+  const res = await fetch(tokenUrl, {
+    method: 'POST',
+    headers: {
+      authorization: `Basic ${basic}`,
+      'content-type': 'application/x-www-form-urlencoded',
+      accept: 'application/json'
+    },
+    body
+  });
+
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(`Password login failed (${res.status} ${res.statusText}) at ${tokenUrl}: ${detail.slice(0, 300)}`);
+  }
+
+  const tokenSet = tokenResponseToTokenSet(await res.json());
+  if (!tokenSet?.accessToken) throw new Error('Password login succeeded but the response contained no access_token.');
+  return tokenSet;
+}
+
+/** Persist a normalized token set back into config.test.json (best effort). */
+async function persistToken(configPath, normalized) {
   if (configPath) {
     try {
       const raw = JSON.parse(await readFile(configPath, 'utf8'));
@@ -70,7 +132,6 @@ export async function ensureFreshToken(liveCfg, { configPath } = {}) {
       /* non-fatal: token still returned in-memory */
     }
   }
-
   return normalized;
 }
 

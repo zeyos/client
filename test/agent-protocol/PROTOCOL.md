@@ -73,9 +73,20 @@ when there is at least one `CLIENT_DEFECT`, so CI fails on real bugs but tolerat
 1. **A live, non-production instance.** Default and only allowlisted target is
    `cloud.zeyos.com/demo`. The harness refuses any instance not in
    `agentProtocol.allowInstances`.
-2. **OAuth credentials + a token.** Reuses the repo-root `config.test.json` `live`
-   block. Obtain a token once with `npm test -- --live` (interactive browser OAuth);
-   the harness refreshes it automatically thereafter.
+2. **OAuth credentials + a way to authenticate.** Reuses the repo-root
+   `config.test.json` `live` block (`clientId` + `clientSecret`). For the token itself,
+   either:
+   - **Password grant (headless, recommended):** set `live.username` + `live.password`
+     (and `live.otp` if 2FA is enforced). The harness logs in via the OAuth2 password
+     grant on first use and caches the token in `live.token`, refreshing thereafter.
+   - **Browser OAuth:** run `npm test -- --instance demo --port 8080` once to populate
+     `live.token` interactively.
+
+   The harness authenticates *itself* this way for independent verification; it then
+   hands a fresh bearer token to the agent via `ZEYOS_TOKEN` (the agent does not see the
+   username/password). The `zeyos` CLI login is browser/authorization-code only, so a
+   headless agent cannot log in through the CLI — password-grant login belongs to the
+   harness (or a dedicated client-side login scenario).
 3. **`agentProtocol` config block** in `config.test.json` (see `config.example.json`).
 4. **A runner** on `PATH` — opencode by default — and **model access**:
    - OpenRouter: set `OPENROUTER_API_KEY`.

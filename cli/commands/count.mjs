@@ -9,9 +9,9 @@
  *   --yaml            Output as YAML
  */
 
-import { buildClient, syncTokens } from '../lib/client.mjs';
-import { resolveResource }         from '../lib/resources.mjs';
-import { outputMode, printJson, printYaml, error } from '../lib/output.mjs';
+import { normalizeCountResult }    from '@zeyos/client';
+import { buildCliClient, callApi, parseJsonOption, requireResource } from '../lib/command.mjs';
+import { outputMode, printJson, printYaml } from '../lib/output.mjs';
 
 export const USAGE = `\
 Usage: zeyos count <resource> [options]
@@ -35,55 +35,20 @@ Examples:
 
 export async function run(values, positional) {
   const resourceName = positional[0];
-  if (!resourceName) {
-    error('Missing resource name.  Usage: zeyos count <resource>');
-    process.exit(1);
-  }
-
-  const res = resolveResource(resourceName);
-  if (!res) {
-    error(`Unknown resource: "${resourceName}".  Run 'zeyos resources' to see available types.`);
-    process.exit(1);
-  }
-
-  let client, tokenStore, configSource;
-  try {
-    ({ client, tokenStore, configSource } = buildClient());
-  } catch (err) {
-    error(err.message);
-    process.exit(1);
-  }
+  const res = requireResource(resourceName, 'zeyos count <resource>');
+  const clientState = buildCliClient();
 
   // ── Build request body ─────────────────────────────────────────────────────
   const body = { count: true };
 
   if (values.filter) {
-    try {
-      body.filters = JSON.parse(values.filter);
-    } catch {
-      error(`--filter must be valid JSON.  Got: ${values.filter}`);
-      process.exit(1);
-    }
+    body.filters = parseJsonOption(values.filter, 'filter');
   }
 
   // ── Call API ───────────────────────────────────────────────────────────────
-  let result;
-  try {
-    const fn = client.api[res.list];
-    if (typeof fn !== 'function') {
-      error(`Operation "${res.list}" is not available on this client.`);
-      process.exit(1);
-    }
-    result = await fn(body);
-    await syncTokens(tokenStore, configSource);
-  } catch (err) {
-    error(`API error: ${err.message}`);
-    process.exit(1);
-  }
+  const result = await callApi(clientState, res.list, body);
 
-  const count = (typeof result === 'object' && result !== null && 'count' in result)
-    ? result.count
-    : result;
+  const count = normalizeCountResult(result);
 
   // ── Output ─────────────────────────────────────────────────────────────────
   const mode = outputMode(values);

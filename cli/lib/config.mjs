@@ -11,6 +11,8 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { homedir } from 'node:os';
 
+/** @typedef {import('./types.mjs').CliConfig} CliConfig */
+
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const LOCAL_DIR   = '.zeyos';
@@ -48,7 +50,7 @@ export function loadConfigWithSource() {
 /**
  * Require specific keys to be present; throws a human-friendly error if not.
  * @param {string[]} keys
- * @param {Record<string,any>} config
+ * @param {CliConfig} config
  */
 export function requireConfig(keys, config) {
   const missing = keys.filter(k => config[k] == null || config[k] === '');
@@ -72,7 +74,7 @@ export function requireConfig(keys, config) {
  * walking up, or create one in the current directory.  Falls back to the
  * global file when `scope === 'global'`.
  *
- * @param {Record<string,any>} updates
+ * @param {CliConfig} updates
  * @param {'local'|'global'} scope
  */
 export function saveConfig(updates, scope = 'local') {
@@ -148,8 +150,11 @@ function _writeGlobal(data) {
 function _readJson(path) {
   try {
     return JSON.parse(readFileSync(path, 'utf8'));
-  } catch {
-    return {};
+  } catch (err) {
+    if (err?.code === 'ENOENT') {
+      return {};
+    }
+    throw new Error(`Failed to read ${path}: ${err.message || err}`);
   }
 }
 

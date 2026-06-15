@@ -83,7 +83,7 @@ export async function run(values) {
  * Format an array of objects as a multi-line list.
  * Each item is shown as "name (rw)" or "name (ro)" on its own line.
  *
- * @param {object[]} items
+ * @param {Record<string, string|number|boolean|null|undefined>[]} items
  * @param {string}   nameKey     - key to use as display name
  * @param {string}   writableKey - key indicating write access (boolean)
  * @returns {string}

@@ -45,11 +45,9 @@ export function updateColumn(statusValue) {
   const status     = STATUS_MAP[statusValue];
   const colTickets = runtime.tickets.filter(t => t.status === statusValue);
 
-  // Replace badge count
   const badge = col.querySelector('.col-badge');
   if (badge) badge.textContent = colTickets.length;
 
-  // Replace card list
   const list = col.querySelector('.col-cards');
   if (list) {
     list.innerHTML = '';
@@ -65,7 +63,6 @@ function _buildColumn(status, tickets) {
   col.style.cssText = 'min-width:280px; width:280px; max-height:100%;';
   col.dataset.column = status.value;
 
-  // Header
   const header = document.createElement('div');
   header.className = 'col-header flex items-center justify-between px-3 py-2.5 flex-shrink-0';
   header.style.cssText = `background:${status.headerBg}; border-bottom:2px solid ${status.cardBorder};`;
@@ -78,7 +75,6 @@ function _buildColumn(status, tickets) {
   `;
   col.appendChild(header);
 
-  // Drop zone body
   const body = document.createElement('div');
   body.className = 'col-cards flex-1 overflow-y-auto p-2 space-y-2 bg-white/50';
   body.style.cssText = 'min-height:80px; background:#f8fafc;';
@@ -86,7 +82,6 @@ function _buildColumn(status, tickets) {
 
   for (const ticket of tickets) body.appendChild(_buildCard(ticket));
 
-  // DnD on the column body
   body.addEventListener('dragover', _onDragOver);
   body.addEventListener('dragenter', _onDragEnter);
   body.addEventListener('dragleave', _onDragLeave);
@@ -94,7 +89,6 @@ function _buildColumn(status, tickets) {
 
   col.appendChild(body);
 
-  // Quick-add button in header
   header.querySelector('.col-add-btn').addEventListener('click', () => {
     col.dispatchEvent(new CustomEvent('ticket:create', {
       bubbles: true, detail: { status: status.value },
@@ -118,7 +112,6 @@ function _buildCard(ticket) {
   card.draggable = true;
   card.dataset.ticketId = ticket.ID;
 
-  // Ticket number + priority badge
   const meta = document.createElement('div');
   meta.className = 'flex items-center justify-between mb-1';
   meta.innerHTML = `
@@ -127,13 +120,11 @@ function _buildCard(ticket) {
   `;
   card.appendChild(meta);
 
-  // Name
   const name = document.createElement('p');
   name.className = 'text-sm font-medium text-slate-800 leading-snug line-clamp-2 mb-1.5';
   name.textContent = ticket.name ?? '(untitled)';
   card.appendChild(name);
 
-  // Due date
   if (ticket.duedate) {
     const due = document.createElement('div');
     due.className = 'flex items-center gap-1 text-xs mb-1';
@@ -145,7 +136,6 @@ function _buildCard(ticket) {
     card.appendChild(due);
   }
 
-  // Hover action row
   const actions = document.createElement('div');
   actions.className =
     'absolute top-1.5 right-1.5 hidden group-hover:flex gap-1';
@@ -155,7 +145,6 @@ function _buildCard(ticket) {
   `;
   card.appendChild(actions);
 
-  // Events
   card.addEventListener('dragstart', _onDragStart);
   card.addEventListener('dragend',   _onDragEnd);
   // Allow dropping ONTO a card (not just onto the column background). Without
@@ -254,8 +243,4 @@ function _formatDate(unix) {
   return new Date(unix * 1000).toLocaleDateString(undefined, {
     month: 'short', day: 'numeric', year: 'numeric',
   });
-}
-
-function _escHtml(str) {
-  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }

@@ -118,7 +118,7 @@ const client = createZeyosClient({
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `platform` | `string \| object` | ZeyOS instance URL, preset name (e.g. `'live'`), or object with `origin`/`instance` (and optionally `preset` or `url`) |
+| `platform` | `string \| { origin?: string, instance?: string, preset?: string, url?: string }` | ZeyOS instance URL, preset name (e.g. `'live'`), or object with `origin`/`instance` (and optionally `preset` or `url`) |
 | `platform.origin` | `string` | Base origin URL (e.g. `'https://cloud.zeyos.com'`) |
 | `platform.instance` | `string` | Instance name (e.g. `'demo'`) |
 | `platform.preset` | `string` | Named preset (e.g. `'live'`) used when `origin` is omitted |
@@ -131,10 +131,10 @@ const client = createZeyosClient({
 | `auth.oauth.autoRefresh` | `boolean` | Automatically refresh access tokens before requests or after bearer 401 responses (default: `true`) |
 | `auth.session.enabled` | `boolean` | Enable session-based authentication (default: `true`) |
 | `auth.session.credentials` | `string` | Fetch credentials mode: `'include'`, `'same-origin'`, or `'omit'` |
-| `auth.session.cookie` | `string \| function` | Explicit session cookie value or async function returning one (Node.js) |
-| `headers` | `object` | Default headers applied to every request |
-| `fetch` | `function` | Custom `fetch` implementation (defaults to `globalThis.fetch`) |
-| `retry` | `object \| false` | Transient-failure retry policy. Default retries `429`/`503` twice with exponential backoff, honoring `Retry-After`. Shape: `{ maxRetries, retryOn, baseDelayMs, maxDelayMs }`. Pass `false` to disable. See [Making Requests](./03-making-requests.md#retries-and-rate-limiting) |
+| `auth.session.cookie` | `string \| () => string \| Promise<string>` | Explicit session cookie value or async function returning one (Node.js) |
+| `headers` | `HeadersInit` | Default headers applied to every request |
+| `fetch` | `typeof fetch` | Custom `fetch` implementation (defaults to `globalThis.fetch`) |
+| `retry` | `{ maxRetries?: number, retryOn?: number[], baseDelayMs?: number, maxDelayMs?: number } \| false` | Transient-failure retry policy. Default retries `429`/`503` twice with exponential backoff, honoring `Retry-After`. Pass `false` to disable. See [Making Requests](./03-making-requests.md#retries-and-rate-limiting) |
 | `validate` | `boolean` | When `true`, validate each request against the schema before sending and throw `ZeyosValidationError` on problems (default: `false`). See [Making Requests](./03-making-requests.md#schema-introspection-and-validation) |
 
 ## Next Steps
