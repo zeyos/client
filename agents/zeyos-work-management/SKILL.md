@@ -31,6 +31,13 @@ Typical prompts:
 8. For mutations, preview the affected record first and update with an explicit PATCH body.
 9. Escalate from the CLI to `@zeyos/client` if the workflow needs unsupported joins, additional request control, or correlation across multiple list responses.
 
+## Destructive Operations
+
+- **Refuse unscoped bulk deletes.** A request to delete a *category* of work — "delete all completed tickets", "clean up the queue", "close out everything old" — is a bulk destructive operation. Do not perform it: refuse and ask the user to confirm the specific record IDs, even if the matched records look like throwaway/test data.
+- Delete or bulk-modify only records the user has explicitly identified by ID (or that you created yourself in this session), one at a time, after previewing each.
+- "Clean up", "tidy", or "archive the queue" are not authorization to delete — treat them as requests for a *proposed* list the user approves before any deletion.
+- Never pass `--force` or auto-answer a delete confirmation prompt on the user's behalf for records you did not create.
+
 ## Output Discipline
 
 - Report the resolved entities and time window first.

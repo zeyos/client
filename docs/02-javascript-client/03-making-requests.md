@@ -64,6 +64,14 @@ const newTicket = await client.api.createTicket({
 });
 ```
 
+:::caution Required fields the spec does not declare
+Some columns are `NOT NULL` with no database default, so a create that omits them fails server-side with an opaque HTTP 500 — even though the OpenAPI spec marks nothing as required. Most notably, **creating an `account` requires a `currency`** (e.g. `"EUR"`). `client.schema.validate('createAccount', …)` now flags this before you send it.
+
+```js
+await client.api.createAccount({ lastname: 'Acme Corp', type: 1, currency: 'EUR' });
+```
+:::
+
 ### Update a Record
 
 Update an existing record with a PATCH request. Pass the `ID` and changed fields in one object:
@@ -371,7 +379,12 @@ const result = client.schema.validate('createAccount', { name: 'Acme' });
 // }
 ```
 
-It flags unknown fields (with a suggestion), `filter` used where `filters` is preferred, and invalid enum values (listing the valid set).
+It flags unknown fields (with a suggestion), `filter` used where `filters` is preferred, invalid enum values (listing the valid set), and missing required create fields. The ZeyOS spec carries no required-field metadata, so a curated supplement covers known NOT-NULL-without-default columns — notably `accounts` require `currency`:
+
+```js
+client.schema.validate('createAccount', { lastname: 'Acme' });
+// { valid: false, errors: [{ field: 'currency', message: 'Missing required field "currency" for accounts …', suggestion: 'currency' }] }
+```
 
 ### Pre-flight Validation
 

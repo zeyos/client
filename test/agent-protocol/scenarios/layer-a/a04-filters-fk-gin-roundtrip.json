@@ -5,7 +5,7 @@
   "interface": "either",
   "mutates": true,
   "tags": ["filters", "foreign-key", "gin", "footgun"],
-  "prompt": "Do the following in order: (1) create an account with lastname \"{recordPrefix}-{runId}\" and firstname \"FK\" of type CUSTOMER (type enum: CUSTOMER=1); (2) create a ticket named \"{recordPrefix}-{runId} fk\" that is linked to that account via the ticket's `account` field; (3) confirm you can find that ticket again by listing tickets filtered on the `account` foreign key. Output a JSON object on the RESULT line with both IDs, e.g. `RESULT: {\"accountId\": 111, \"ticketId\": 222}`.",
+  "prompt": "Do the following in order: (1) create an account with lastname \"{recordPrefix}-{runId}\" and firstname \"FK\" of type CUSTOMER (type enum: CUSTOMER=1) and currency \"EUR\" (accounts require a currency — the column is NOT NULL with no default); (2) create a ticket named \"{recordPrefix}-{runId} fk\" that is linked to that account via the ticket's `account` field; (3) confirm you can find that ticket again by listing tickets filtered on the `account` foreign key. Output a JSON object on the RESULT line with both IDs, e.g. `RESULT: {\"accountId\": 111, \"ticketId\": 222}`.",
   "expect": {
     "kind": "computeMembership",
     "listOp": "listTickets",

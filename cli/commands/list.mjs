@@ -124,37 +124,39 @@ export async function run(values, positional) {
     printJson(records);
   } else if (mode === 'yaml') {
     printYaml(records);
+  } else if (records.length === 0) {
+    warn(`No ${resourceName} found.`);
+    return;
   } else {
-    if (records.length === 0) {
-      warn(`No ${resourceName} found.`);
-      return;
-    }
-
     const cfg = loadConfig();
     const dateFormat = cfg.dateFormat ?? 'YYYY-MM-DD';
     const formatters = buildDateFormatters(displayColumns, dateFormat, apiFields);
     printTable(records, displayColumns, {}, formatters);
+  }
 
-    // ── Pagination info ───────────────────────────────────────────────────
-    const from = offset + 1;
-    const to   = offset + records.length;
+  // ── Pagination / truncation hint ──────────────────────────────────────────
+  // Emitted to stderr in EVERY output mode (including --json), so an agent that
+  // pipes `list … --json` into a counter gets a signal that the default
+  // --limit truncated the result, instead of a silently-wrong total. For a
+  // "how many?" question, `zeyos count <resource>` returns the true total.
+  const from = offset + 1;
+  const to   = offset + records.length;
 
-    if (records.length >= limit) {
-      // Might have more — fetch total count
-      try {
-        const countBody = {};
-        countBody.count = true;
-        if (body.filters) countBody.filters = body.filters;
-        const countResult = await fn(countBody);
-        const total = countResult?.count ?? null;
-        if (total !== null) {
-          info(`Showing ${from}–${to} of ${total}  (--offset ${to} for next page)`);
-        }
-      } catch {
-        // Non-critical — skip pagination info
+  if (records.length >= limit) {
+    try {
+      const countBody = { count: true };
+      if (body.filters) countBody.filters = body.filters;
+      const countResult = await fn(countBody);
+      const total = countResult?.count ?? null;
+      if (total !== null && total > records.length) {
+        info(`Showing ${from}–${to} of ${total}  (default --limit ${limit} truncated this — pass --limit, --offset ${to} for the next page, or use \`zeyos count ${resourceName}\` for the total).`);
+      } else if (total !== null) {
+        info(`Showing ${from}–${to} of ${total}  (--offset ${to} for next page)`);
       }
-    } else if (offset > 0) {
-      info(`Showing ${from}–${to} of ${to}`);
+    } catch {
+      // Non-critical — skip pagination info
     }
+  } else if (offset > 0) {
+    info(`Showing ${from}–${to} of ${to}`);
   }
 }

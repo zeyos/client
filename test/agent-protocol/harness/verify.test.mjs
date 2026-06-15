@@ -30,6 +30,9 @@ test('parseResultLine takes the last RESULT marker and trims it', () => {
   assert.equal(parseResultLine('no result here'), null);
   // tolerates a reasoning-tag prefix on the same line (observed with some models)
   assert.equal(parseResultLine('thinking… </think> RESULT: 2623'), '2623');
+  // strips markdown code-span backticks models wrap the value (or whole line) in
+  assert.equal(parseResultLine('`RESULT: {"accountId": 4513, "ticketId": 2264}`'), '{"accountId": 4513, "ticketId": 2264}');
+  assert.equal(parseResultLine('RESULT: `2623`'), '2623');
 });
 
 test('coerceResult parses numbers, JSON, and falls back to string', () => {

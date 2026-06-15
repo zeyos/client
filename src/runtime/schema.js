@@ -11,6 +11,17 @@ const QUERY_DIRECTIVES = new Set([
 // Request-level control keys consumed by the client, never resource fields.
 const CONTROL_KEYS = new Set(VALIDATION_CONTROL_KEYS);
 
+// The ZeyOS OpenAPI spec carries NO required-field metadata — every schema's
+// `required` array is empty — yet some columns are NOT NULL with no DB default, so
+// a create that omits them fails server-side with an opaque HTTP 500 (a raw pg
+// constraint error). This curated map supplements the spec with confirmed-required
+// create fields so validate() can surface a clean, self-correcting hint instead.
+// Keyed by schema resource name; extend as other NOT-NULL-without-default columns
+// are confirmed.
+const REQUIRED_CREATE_FIELDS = {
+  accounts: ['currency']
+};
+
 function resourceFromPath(path) {
   if (typeof path !== 'string') return null;
   for (const segment of path.split('/')) {
@@ -162,6 +173,20 @@ export function createSchema({ services, schema }) {
         if (entry.operation.parameterNames?.query?.includes(key)) continue;
         if (entry.operation.parameterNames?.header?.includes(key)) continue;
         checkField(resourceFields, fieldDefs, key, value, errors);
+      }
+      // Create-only required-field check. The spec marks nothing required, so this
+      // uses the curated REQUIRED_CREATE_FIELDS supplement. Updates are partial by
+      // nature, so the check applies to `create*` operations only.
+      if (/^create/i.test(operationId)) {
+        for (const field of REQUIRED_CREATE_FIELDS[entry.resource] || []) {
+          if (!Object.prototype.hasOwnProperty.call(data, field) || data[field] == null) {
+            errors.push({
+              field,
+              message: `Missing required field "${field}" for ${entry.resource} — it is NOT NULL with no default, so the API rejects a create without it.`,
+              suggestion: field
+            });
+          }
+        }
       }
     }
 

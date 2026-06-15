@@ -1,18 +1,19 @@
 {
   "id": "a06-account-crud-roundtrip",
   "layer": "a",
-  "title": "Create an account (lastname/firstname/type) and read it back",
+  "title": "Create an account (lastname/firstname/type/currency) and read it back",
   "interface": "either",
   "mutates": true,
-  "tags": ["crud", "accounts", "create", "enums"],
-  "prompt": "Create a new account. Accounts have NO `name` field — they use `lastname` and `firstname`. Set lastname to \"{recordPrefix}-{runId}\", firstname to \"Acct\", and type to CUSTOMER (type enum: PROSPECT=0, CUSTOMER=1, SUPPLIER=2). Output the new account's numeric ID on the RESULT line, e.g. `RESULT: 5678`.",
+  "tags": ["crud", "accounts", "create", "enums", "required-fields"],
+  "prompt": "Create a new account. Accounts have NO `name` field — they use `lastname` and `firstname`. Set lastname to \"{recordPrefix}-{runId}\", firstname to \"Acct\", and type to CUSTOMER (type enum: PROSPECT=0, CUSTOMER=1, SUPPLIER=2). Accounts also require a `currency` code (the column is NOT NULL with no default) — use \"EUR\". Output the new account's numeric ID on the RESULT line, e.g. `RESULT: 5678`.",
   "expect": {
     "kind": "verifyRecord",
     "op": "getAccount",
     "idFrom": "$RESULT",
     "assert": [
       { "path": "lastname", "equals": "{recordPrefix}-{runId}" },
-      { "path": "type", "equals": 1 }
+      { "path": "type", "equals": 1 },
+      { "path": "currency", "equals": "EUR" }
     ]
   },
   "cleanup": [

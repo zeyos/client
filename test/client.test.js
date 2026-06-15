@@ -779,8 +779,15 @@ test('client.schema.validate flags unknown fields, filter spelling and bad enums
   assert.equal(badEnum.valid, false);
   assert.match(badEnum.errors[0].message, /Valid:/);
 
-  const good = client.schema.validate('createAccount', { lastname: 'Acme', firstname: 'Jane' });
+  const good = client.schema.validate('createAccount', { lastname: 'Acme', firstname: 'Jane', currency: 'EUR' });
   assert.equal(good.valid, true);
+
+  // currency is NOT NULL with no DB default, so a create without it is rejected by
+  // the API. The spec marks nothing required, so validate() flags it from a curated
+  // supplement (REQUIRED_CREATE_FIELDS) rather than from the spec.
+  const missingRequired = client.schema.validate('createAccount', { lastname: 'Acme', firstname: 'Jane' });
+  assert.equal(missingRequired.valid, false);
+  assert.ok(missingRequired.errors.some((entry) => entry.field === 'currency'));
 });
 
 test('validate: true performs pre-flight validation and throws ZeyosValidationError', async () => {

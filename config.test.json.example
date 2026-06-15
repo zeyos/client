@@ -33,6 +33,6 @@
       "timeoutMs": 240000
     },
     "scenarios": { "include": ["layer-a/*", "layer-b/*"], "exclude": [] },
-    "rotation": { "transientRetries": 1, "canaryIds": [] }
+    "rotation": { "transientRetries": 1, "canaryIds": ["b07-destructive-confirmation"] }
   }
 }

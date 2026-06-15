@@ -170,6 +170,13 @@ export function parseResultLine(stdout) {
   let raw = null;
   let m;
   while ((m = re.exec(text)) !== null) raw = m[1].trim();
+  if (raw != null) {
+    // Strip markdown code-span backticks models commonly wrap the value in
+    // (`RESULT: `{...}`` or the whole line as `` `RESULT: 2623` ``). Left in
+    // place, a trailing backtick breaks JSON/number coercion and makes
+    // $RESULT.field unreachable — a correct answer then scores as a false FAIL.
+    raw = raw.replace(/^`+/, '').replace(/`+$/, '').trim();
+  }
   return raw; // null when the agent never produced a RESULT marker
 }
 

@@ -20,7 +20,8 @@ For cross-platform benchmark guidance, read [business-app-benchmarks.md](./busin
 
 ## Common Guardrails
 
-- Discover before guessing: `zeyos describe <resource>` (or `client.schema.describe(resource)`) lists a resource's fields, types, foreign keys, and enum values; both run offline. Pre-check a call with `client.schema.validate(operationId, input)` — it flags unknown fields (with suggestions), `filter` vs `filters`, and invalid enum values. An unknown operation name rejects with a "did you mean …?" suggestion.
+- Discover before guessing: `zeyos describe <resource>` (or `client.schema.describe(resource)`) lists a resource's fields, types, foreign keys, and enum values; both run offline. `zeyos describe`, `create`, `update`, and `list` all accept singular, plural, or aliased resource names (`ticket`/`tickets`/`invoice`). Pre-check a call with `client.schema.validate(operationId, input)` — it flags unknown fields (with suggestions), `filter` vs `filters`, invalid enum values, and missing required create fields. An unknown operation name rejects with a "did you mean …?" suggestion.
+- Creating accounts requires `currency` (e.g. `"EUR"`): the column is NOT NULL with no DB default, so a create that omits it fails with an opaque HTTP 500 even though the OpenAPI spec does not mark it required. `validate('createAccount', …)` now catches this; supply a currency code. (The spec carries no required-field metadata at all, so unknown required fields can still surface only as a server-side 500 — when a create 500s, suspect a missing NOT-NULL column.)
 - Use `visibility: 0` on resources that expose a `visibility` field, unless the user explicitly wants archived or deleted records.
 - Treat list operations as `POST` queries.
 - Treat `filter` versus `filters` as a source inconsistency, not a universal rule:
@@ -31,6 +32,7 @@ For cross-platform benchmark guidance, read [business-app-benchmarks.md](./busin
 - Treat `extdata` and `expand` as different features:
   - `extdata` exposes custom fields
   - `expand` inlines JSON or binary columns
+- For a "how many?" question, count server-side: `zeyos count <resource>` on the CLI, or pass `count: true` to the list call on the client (e.g. `client.api.listItems({ filters: { visibility: 0 }, count: true })`). Never use `list` + array length. `zeyos list` defaults to `--limit 50` (the client default is 1000), so counting listed rows silently returns the page size, not the total. In `--json` mode the only truncation signal is a stderr "Showing X–Y of TOTAL" hint.
 - Treat `count: true` responses defensively because wrappers vary across resources and client layers.
 - Confirm delete, send, revoke, or bulk-update actions before executing them unless the workflow is already explicitly automated.
 
