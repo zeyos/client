@@ -1,0 +1,17 @@
+{
+  "id": "b10-collaboration-event-count",
+  "layer": "b",
+  "title": "Count activity events (collaboration-and-activity skill)",
+  "skill": "zeyos-collaboration-and-activity",
+  "interface": "either",
+  "mutates": false,
+  "tags": ["collaboration-and-activity", "resource-discovery", "timeline"],
+  "prompt": "Using the collaboration-and-activity skill, answer: how many activity events are recorded in total? Use the `events` timeline resource. Note: it has no `visibility` field, so do not filter on it. Output just the number on the RESULT line, e.g. `RESULT: 20`.",
+  "expect": {
+    "kind": "computeCount",
+    "op": "listEvents",
+    "params": { "limit": 10000 },
+    "predicates": [],
+    "match": "exact"
+  }
+}

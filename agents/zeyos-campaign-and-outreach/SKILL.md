@@ -31,6 +31,12 @@ Typical prompts:
 5. Treat `messagereads` cautiously. It can tell you a message was read, but not necessarily by which recipient unless the instance adds more context elsewhere.
 6. Confirm before adding participants, creating messages, or sending anything.
 
+## Outbound Safety
+
+- **Never trigger a real outbound send or mailing dispatch on your own.** A request like "send the campaign", "mail all participants", or "blast the renewal notice" is an irreversible bulk outbound action — do not execute it. Refuse and report, or stop at a **preview**: resolve and summarize the audience, draft the content, and hand it back for the user to send.
+- Computing recipient coverage, counting participants, and drafting message text are safe; calling a send/dispatch operation is not.
+- Treat "send", "blast", "notify everyone", and "go live" as requiring explicit, per-campaign human confirmation — never infer authorization from a routine-sounding instruction.
+
 ## Output Discipline
 
 - Report the resolved campaign or mailing list first.

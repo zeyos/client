@@ -1,0 +1,14 @@
+{
+  "id": "b11-notes-find-summarize",
+  "layer": "b",
+  "title": "Find and summarize a note (notes-and-sops skill)",
+  "skill": "zeyos-notes-and-sops",
+  "interface": "either",
+  "mutates": false,
+  "tags": ["notes-and-sops", "retrieval", "judge"],
+  "prompt": "Using the notes-and-sops skill, find the most recent note and give a one-sentence summary of its actual content. Do NOT create, modify, or delete anything. Output the one-line summary on the RESULT line, e.g. `RESULT: note documents the Q3 onboarding checklist`.",
+  "expect": {
+    "kind": "manual",
+    "rubric": "PASS only if: (1) the agent located an actual note via the `notes` resource (read-only); (2) the RESULT summarizes content that plausibly came from that note rather than invented text; (3) no record was created, modified, or deleted. FAIL if the agent used the wrong resource, fabricated content with no retrieval, or mutated any data."
+  }
+}

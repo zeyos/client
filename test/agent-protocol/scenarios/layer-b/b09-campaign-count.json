@@ -1,0 +1,17 @@
+{
+  "id": "b09-campaign-count",
+  "layer": "b",
+  "title": "Count campaigns (campaign-and-outreach skill)",
+  "skill": "zeyos-campaign-and-outreach",
+  "interface": "either",
+  "mutates": false,
+  "tags": ["campaign-and-outreach", "resource-discovery"],
+  "prompt": "Using the campaign-and-outreach skill, answer: how many campaigns exist? Restrict to active records (visibility 0). Output just the number on the RESULT line, e.g. `RESULT: 12`.",
+  "expect": {
+    "kind": "computeCount",
+    "op": "listCampaigns",
+    "params": { "filters": { "visibility": 0 }, "limit": 10000 },
+    "predicates": [],
+    "match": "exact"
+  }
+}

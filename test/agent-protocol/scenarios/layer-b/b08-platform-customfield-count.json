@@ -1,0 +1,17 @@
+{
+  "id": "b08-platform-customfield-count",
+  "layer": "b",
+  "title": "Count custom fields — operationId trap (platform-and-schema skill)",
+  "skill": "zeyos-platform-and-schema",
+  "interface": "either",
+  "mutates": false,
+  "tags": ["platform-and-schema", "resource-discovery", "operationid-trap"],
+  "prompt": "Using the platform-and-schema skill, answer: how many custom fields are defined in total? Note: the customfields resource has no `visibility` field, so do not filter on it. The DB noun is `customfields`, but the client/CLI operation is not named `listCustomfields` — discover the correct operation before calling it. Output just the number on the RESULT line, e.g. `RESULT: 9`.",
+  "expect": {
+    "kind": "computeCount",
+    "op": "listCustomFields",
+    "params": { "limit": 10000 },
+    "predicates": [],
+    "match": "exact"
+  }
+}
