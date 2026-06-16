@@ -123,6 +123,60 @@ test('invalid local credential config fails loudly', async (t) => {
   assert.match(result.stderr, /Failed to read .*\.zeyos[/\\]auth\.json/);
 });
 
+// Blank out every ZEYOS_* var so no ambient credentials (env or global
+// ~/.config file, via the temp HOME) can let create/update reach the network.
+const NO_CREDENTIALS = Object.fromEntries(ZEYOS_ENV_KEYS.map((key) => [key, '']));
+
+test('create adopts a JSON object passed positionally as --data', async (t) => {
+  const cwd = await tempDir(t);
+  const result = await cli(['create', 'tickets', '{"name":"Positional ticket","status":0}'], {
+    cwd,
+    env: isolatedEnv(cwd, NO_CREDENTIALS)
+  });
+
+  // No credentials are configured, so the command still exits non-zero — but it
+  // must get *past* payload parsing: adopt the body and never say "No fields".
+  assert.match(result.stderr, /Treating positional JSON argument as --data/);
+  assert.doesNotMatch(result.stderr, /No fields provided/);
+  assert.match(result.stderr, /Missing required configuration/);
+});
+
+test('update adopts a JSON object passed positionally as --data', async (t) => {
+  const cwd = await tempDir(t);
+  const result = await cli(['update', 'tickets', '42', '{"status":2}'], {
+    cwd,
+    env: isolatedEnv(cwd, NO_CREDENTIALS)
+  });
+
+  assert.match(result.stderr, /Treating positional JSON argument as --data/);
+  assert.doesNotMatch(result.stderr, /No fields provided/);
+  assert.match(result.stderr, /Missing required configuration/);
+});
+
+test('create guides toward --data when a positional JSON body is malformed', async (t) => {
+  const cwd = await tempDir(t);
+  const result = await cli(['create', 'tickets', '{not valid json'], {
+    cwd,
+    env: isolatedEnv(cwd, NO_CREDENTIALS)
+  });
+
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /malformed JSON object positionally/);
+  assert.match(result.stderr, /--data/);
+  assert.doesNotMatch(result.stderr, /No fields provided/);
+});
+
+test('create still reports "No fields provided" when nothing usable is passed', async (t) => {
+  const cwd = await tempDir(t);
+  const result = await cli(['create', 'tickets'], {
+    cwd,
+    env: isolatedEnv(cwd, NO_CREDENTIALS)
+  });
+
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /No fields provided/);
+});
+
 test('invalid local resource config fails loudly', async (t) => {
   const cwd = await tempDir(t);
   await mkdir(join(cwd, '.zeyos', 'api'), { recursive: true });

@@ -45,10 +45,13 @@ export async function run(values, positional) {
 
   const res = requireResource(resourceName, 'zeyos update <resource> <id>', 'update', 'updates');
   requireRecordId(id, 'zeyos update <resource> <id>');
-  const clientState = buildCliClient();
 
   // ── Build data payload ─────────────────────────────────────────────────────
-  const data = buildRecordPayload(values);
+  // Validate input before requiring credentials.  positional[2] is the
+  // (optional) JSON body some callers pass positionally instead of via --data.
+  const data = buildRecordPayload(values, positional[2]);
+
+  const clientState = buildCliClient();
 
   // ── Call API ───────────────────────────────────────────────────────────────
   const record = await callApi(clientState, res.update, { ID: id, body: data }, {

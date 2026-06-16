@@ -37,10 +37,13 @@ Examples:
 export async function run(values, positional) {
   const resourceName = positional[0];
   const res = requireResource(resourceName, 'zeyos create <resource>', 'create', 'creation');
-  const clientState = buildCliClient();
 
   // ── Build data payload ─────────────────────────────────────────────────────
-  const data = buildRecordPayload(values);
+  // Validate input before requiring credentials.  positional[1] is the
+  // (optional) JSON body some callers pass positionally instead of via --data.
+  const data = buildRecordPayload(values, positional[1]);
+
+  const clientState = buildCliClient();
 
   // ── Call API ───────────────────────────────────────────────────────────────
   const record = await callApi(clientState, res.create, data);

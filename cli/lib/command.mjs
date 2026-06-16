@@ -1,7 +1,7 @@
 import { buildClient, syncTokens } from './client.mjs';
 import { collectFieldFlags } from './flags.mjs';
 import { resolveResource } from './resources.mjs';
-import { error } from './output.mjs';
+import { error, info, warn } from './output.mjs';
 
 export function fail(message) {
   error(message);
@@ -49,7 +49,47 @@ export function parseJsonOption(value, flagName) {
   }
 }
 
-export function buildRecordPayload(values) {
+/** Cheap structural check: does this string look like an intended JSON object? */
+function looksLikeJsonObject(value) {
+  return typeof value === 'string' && value.trim().startsWith('{');
+}
+
+/**
+ * Parse a string as a JSON object.
+ *
+ * @param {string} [value]
+ * @returns {Record<string, unknown> | undefined} the object, or `undefined` if
+ *   the value is absent, malformed, or not a plain (non-array) object.
+ */
+function tryParseJsonObject(value) {
+  if (!looksLikeJsonObject(value)) return undefined;
+  try {
+    const parsed = JSON.parse(value);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed;
+    }
+  } catch {
+    // not valid JSON — fall through
+  }
+  return undefined;
+}
+
+/**
+ * Build a record payload for `create`/`update` from `--data`, individual
+ * `--<field>` flags, or — as a fallback — a JSON object passed positionally.
+ *
+ * Coding agents frequently run `zeyos create tickets '{"name":"x"}'`, passing
+ * the body positionally (often alongside the `--json` output flag). When no
+ * `--data`/`--<field>` values were given and that positional argument parses as
+ * a JSON object, adopt it as the payload instead of failing. If it only *looks*
+ * like JSON (e.g. malformed), point the caller at `--data` explicitly rather
+ * than emitting the generic "No fields provided" error.
+ *
+ * @param {Record<string, string|boolean>} values - parsed CLI flag values
+ * @param {string} [positionalData] - candidate positional JSON body
+ * @returns {Record<string, unknown>}
+ */
+export function buildRecordPayload(values, positionalData) {
   const parsed = parseJsonOption(values.data, 'data');
   const data = parsed === undefined ? {} : parsed;
 
@@ -59,11 +99,30 @@ export function buildRecordPayload(values) {
 
   Object.assign(data, collectFieldFlags(values));
 
-  if (Object.keys(data).length === 0) {
-    fail('No fields provided.  Use --data or individual --<field> flags.');
+  if (Object.keys(data).length > 0) {
+    // Explicit --data / --<field> values win; surface an ignored positional
+    // JSON body so it isn't silently dropped.
+    if (looksLikeJsonObject(positionalData)) {
+      warn('Ignoring positional JSON argument; using --data / --<field> values instead.');
+    }
+    return data;
   }
 
-  return data;
+  // No --data and no --<field> flags. A JSON object passed positionally is a
+  // common agent mistake — adopt it rather than rejecting the command.
+  if (looksLikeJsonObject(positionalData)) {
+    const positionalObject = tryParseJsonObject(positionalData);
+    if (positionalObject && Object.keys(positionalObject).length > 0) {
+      info("Treating positional JSON argument as --data.  Tip: pass it as --data '<json>'.");
+      return positionalObject;
+    }
+    if (!positionalObject) {
+      fail("It looks like you passed a malformed JSON object positionally; use --data '<json>' with valid JSON.");
+    }
+    // Parsed to an empty object — genuinely no fields.
+  }
+
+  fail('No fields provided.  Use --data or individual --<field> flags.');
 }
 
 export function requireApiMethod(clientState, operationId) {
