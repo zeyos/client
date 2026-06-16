@@ -55,6 +55,6 @@ Browser token mode is intentionally limited. Use it for pre-obtained access toke
 
 ## Recommended Reading Order
 
-1. [Browser UI Playbook](./01-build-your-own-zeyos-frontend.md) for user-facing frontends
+1. [Browser UI Playbook](./02-build-your-own-zeyos-frontend.md) for user-facing frontends
 2. [Server-Side Integrations](./03-server-side-integrations.md) for services, workers, and scheduled jobs
 3. [Making Requests](../02-javascript-client/03-making-requests.md) for the full request model

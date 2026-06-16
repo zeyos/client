@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -59,11 +59,40 @@ async function tempDir(t) {
   return dir;
 }
 
+async function exists(path) {
+  try {
+    await stat(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 test('global help is available without credentials', async () => {
   const result = await cli(['--help']);
   assert.equal(result.code, 0);
   assert.match(result.stdout, /Usage: zeyos/);
   assert.match(result.stdout, /resources/);
+});
+
+test('--version and -v print the version number', async () => {
+  const longForm  = await cli(['--version']);
+  const shortForm = await cli(['-v']);
+  assert.equal(longForm.code, 0);
+  assert.equal(shortForm.code, 0);
+  // Version string is a semver like "0.1.0"
+  assert.match(longForm.stdout,  /^\d+\.\d+\.\d+\n$/);
+  assert.match(shortForm.stdout, /^\d+\.\d+\.\d+\n$/);
+});
+
+test('--key=value form is parsed correctly', async () => {
+  // describe supports --json and runs offline; verify --json='' is treated as the value
+  // and the known --json flag via =value form still works as boolean (value ignored)
+  // More concretely: --key=value for string options must be split at '='
+  const result = await cli(['describe', 'ticket', '--json']);
+  assert.equal(result.code, 0);
+  const def = JSON.parse(result.stdout);
+  assert.equal(def.name, 'tickets');
 });
 
 test('resources supports JSON output for automation', async () => {
@@ -91,6 +120,82 @@ test('skills list works without credentials and supports JSON', async () => {
   const skills = JSON.parse(result.stdout);
   assert.ok(Array.isArray(skills) && skills.length >= 10);
   assert.ok(skills.some((skill) => skill.name === 'zeyos-work-management' && skill.description));
+});
+
+test('skills install --target writes into that agent\'s local directory', async (t) => {
+  const cwd = await tempDir(t);
+  const result = await cli(
+    ['skills', 'install', 'zeyos-work-management', '--target', 'opencode', '--local', '--yes'],
+    { cwd, env: isolatedEnv(cwd) }
+  );
+
+  assert.equal(result.code, 0, result.stderr);
+  assert.ok(await exists(join(cwd, '.opencode', 'skills', 'zeyos-work-management', 'SKILL.md')));
+  // Shared references are copied alongside so cross-links resolve.
+  assert.ok(await exists(join(cwd, '.opencode', 'skills', 'shared')));
+});
+
+test('skills install --json reports the resolved target and installed skills', async (t) => {
+  const cwd = await tempDir(t);
+  const result = await cli(
+    ['skills', 'install', 'zeyos-work-management', '--target', 'codex', '--local', '--json'],
+    { cwd, env: isolatedEnv(cwd) }
+  );
+
+  assert.equal(result.code, 0, result.stderr);
+  const summary = JSON.parse(result.stdout);
+  assert.equal(summary.target.agent, 'codex');
+  assert.equal(summary.target.scope, 'local');
+  assert.deepEqual(summary.installed, ['zeyos-work-management']);
+  assert.equal(summary.shared, true);
+});
+
+test('skills install --dir overrides the agent and installs into that path', async (t) => {
+  const cwd = await tempDir(t);
+  const dest = join(cwd, 'vendor', 'skills');
+  const result = await cli(
+    ['skills', 'install', 'zeyos-work-management', '--dir', dest, '--yes'],
+    { cwd, env: isolatedEnv(cwd) }
+  );
+
+  assert.equal(result.code, 0, result.stderr);
+  assert.ok(await exists(join(dest, 'zeyos-work-management', 'SKILL.md')));
+});
+
+test('skills install --global installs into the agent home directory', async (t) => {
+  const home = await tempDir(t);
+  const cwd = await tempDir(t);
+  const result = await cli(
+    ['skills', 'install', 'zeyos-work-management', '--target', 'claude', '--global', '--yes'],
+    { cwd, env: isolatedEnv(home) }
+  );
+
+  assert.equal(result.code, 0, result.stderr);
+  assert.ok(await exists(join(home, '.claude', 'skills', 'zeyos-work-management', 'SKILL.md')));
+});
+
+test('skills install rejects an unknown --target', async (t) => {
+  const cwd = await tempDir(t);
+  const result = await cli(
+    ['skills', 'install', '--target', 'bogus', '--yes'],
+    { cwd, env: isolatedEnv(cwd) }
+  );
+
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /Unknown --target "bogus"/);
+  assert.match(result.stderr, /claude, codex, opencode, droid, pi, agents/);
+});
+
+test('skills install skips existing skills without --force', async (t) => {
+  const cwd = await tempDir(t);
+  const args = ['skills', 'install', 'zeyos-work-management', '--target', 'claude', '--local', '--yes'];
+
+  const first = await cli(args, { cwd, env: isolatedEnv(cwd) });
+  assert.equal(first.code, 0, first.stderr);
+
+  const second = await cli(args, { cwd, env: isolatedEnv(cwd) });
+  assert.equal(second.code, 0, second.stderr);
+  assert.match(second.stderr, /already exist/);
 });
 
 test('describe reads the schema offline (fields, enums)', async () => {

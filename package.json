@@ -1,6 +1,6 @@
 {
   "name": "@zeyos/client",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Dependency-light JavaScript client for ZeyOS OpenAPI services",
   "type": "module",
   "license": "MIT",

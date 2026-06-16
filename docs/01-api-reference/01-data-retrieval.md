@@ -77,7 +77,7 @@ Use dot notation to access fields on related records without a separate request.
 | `contact.postalcode` | Postal code from the linked contact |
 | `contact.country` | Country from the linked contact |
 | `assigneduser.name` | Name of the assigned user |
-| `account.name` | Name of the linked account |
+| `account.lastname` | Last name (or company name) of the linked account |
 | `project.name` | Name of the linked project |
 
 ### Extended Data Fields via Dot-Notation

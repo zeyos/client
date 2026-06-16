@@ -272,8 +272,8 @@ zeyos create ticket --data '{"name":"Fix login bug","status":0,"priority":3}'
 # Using individual field flags
 zeyos create ticket --name "Fix login bug" --status 0 --priority 3
 
-# Create an account
-zeyos create account --name "ACME Corp" --visibility 0
+# Create an account (accounts use --lastname, not --name)
+zeyos create account --lastname "ACME Corp" --currency EUR --visibility 0
 
 # JSON output (returns the created record)
 zeyos create ticket --name "New feature" --json
@@ -304,8 +304,8 @@ zeyos update ticket 42 --data '{"status":4}'
 # Using field flags
 zeyos update ticket 42 --status 4 --priority 2
 
-# Update account name
-zeyos update account 15 --name "ACME Corporation"
+# Update account name (accounts use --lastname, not --name)
+zeyos update account 15 --lastname "ACME Corporation"
 ```
 
 ---
@@ -370,7 +370,7 @@ Foreign keys are shown as `→ <table>`, and enum fields list their valid values
 
 ## skills
 
-Discover and install the bundled ZeyOS agent skill packs into the local project, so a coding agent (Claude, Codex, …) operates against ZeyOS with the right conventions out of the box.
+Discover and install the bundled ZeyOS agent skill packs into any coding agent, so the agent (Claude Code, Codex, opencode, Factory Droid, pi, …) operates against ZeyOS with the right conventions out of the box.
 
 ```
 # List the bundled skills
@@ -379,19 +379,43 @@ zeyos skills list
 # Print a skill's instructions
 zeyos skills show zeyos-work-management
 
-# Install all skills (or named ones) into the project
+# Install — interactive: pick a coding agent, then local vs. global
 zeyos skills install
-zeyos skills install zeyos-billing-insights --target claude
+
+# Install non-interactively with flags
+zeyos skills install --target claude --global       # all projects
+zeyos skills install --target opencode --local      # this project only
+zeyos skills install zeyos-billing-insights -y      # one skill, defaults
+zeyos skills install --dir ./vendor/skills          # any directory
 ```
+
+Run bare, `install` prints the ZeyOS banner and prompts for **(a)** which coding agent to target and **(b)** whether to install for this project or globally for every project. Pass `--target` and/or `--global`/`--local` to skip the matching prompt; pass `-y`/`--yes` (or pipe non-interactively) to skip all prompts and use flags plus sensible defaults.
 
 Options for `install`:
 
 | Option | Description |
 |--------|-------------|
-| `--target claude\|codex` | Where to install (default: auto-detect, fallback `.claude/skills`) |
+| `--target <agent>` | Coding agent: `claude`, `codex`, `opencode`, `droid`, `pi`, `agents` (prompted when omitted; otherwise auto-detected) |
+| `--global` | Install into the agent's home directory (all projects) |
+| `--local` | Install into the current project (default) |
+| `--dir <path>` | Install into an explicit directory (overrides `--target`) |
 | `--force` | Overwrite existing skill folders |
+| `-y`, `--yes` | Skip prompts and use flags / sensible defaults |
+| `--no-logo` | Don't print the ZeyOS banner |
+| `--json` / `--yaml` | Print a machine-readable install summary (also silences the banner) |
 
-Skills are copied into `<target>/skills/<name>/`, with the shared reference files installed alongside (`<target>/skills/shared/`) so the skills' `../shared/…` links resolve.
+Per-agent skill directories:
+
+| Agent | `--local` | `--global` |
+|-------|-----------|------------|
+| `claude` | `.claude/skills/` | `~/.claude/skills/` |
+| `codex` | `.codex/skills/` | `~/.codex/skills/` |
+| `opencode` | `.opencode/skills/` | `~/.config/opencode/skills/` |
+| `droid` | `.factory/skills/` | `~/.factory/skills/` |
+| `pi` | `.pi/skills/` | `~/.pi/agent/skills/` |
+| `agents` | `.agents/skills/` | `~/.agents/skills/` |
+
+Skills are copied into `<dir>/<name>/`, with the shared reference files installed alongside (`<dir>/shared/`) so the skills' `../shared/…` links resolve.
 
 ---
 

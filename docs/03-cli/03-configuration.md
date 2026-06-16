@@ -161,7 +161,7 @@ mkdir -p .zeyos/api
     "fields": {
       "ID": "ID",
       "Title": "name",
-      "Client": "account.name",
+      "Client": "account.lastname",
       "Sprint": "extdata.sprint",
       "Due": "duedate"
     }

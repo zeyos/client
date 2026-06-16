@@ -32,6 +32,12 @@ function normalizeRetry(retry) {
 }
 
 function abortableDelay(ms, signal) {
+  // Respect an already-aborted signal even when there is no delay to wait on,
+  // so a zero-delay retry (e.g. `Retry-After: 0`) does not fire another request
+  // after the caller has aborted.
+  if (signal?.aborted) {
+    return Promise.reject(signal.reason ?? new Error('Aborted'));
+  }
   if (!(ms > 0)) return Promise.resolve();
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
@@ -54,12 +60,16 @@ function abortableDelay(ms, signal) {
 // with jitter, capped at maxDelayMs.
 function computeRetryDelay(response, attempt, retryConfig) {
   const header = response.headers?.['retry-after'];
-  if (header != null) {
-    const seconds = Number(header);
+  // An empty or whitespace-only header carries no delay directive — `Number('')`
+  // is 0, which would otherwise short-circuit to a zero delay instead of the
+  // exponential backoff below.
+  const trimmedHeader = typeof header === 'string' ? header.trim() : header;
+  if (trimmedHeader != null && trimmedHeader !== '') {
+    const seconds = Number(trimmedHeader);
     if (Number.isFinite(seconds)) {
       return Math.min(retryConfig.maxDelayMs, Math.max(0, seconds * 1000));
     }
-    const dateMs = Date.parse(header);
+    const dateMs = Date.parse(trimmedHeader);
     if (Number.isFinite(dateMs)) {
       return Math.min(retryConfig.maxDelayMs, Math.max(0, dateMs - Date.now()));
     }
@@ -995,6 +1005,7 @@ export function createZeyosClient(rawConfig = {}) {
       client_id: clientId,
       redirect_uri: redirectUri,
       response_type: 'code',
+      scope: options.scope ?? options.options?.scope,
       response_mode: options.responseMode ?? options.response_mode,
       code_challenge: options.codeChallenge ?? options.code_challenge,
       code_challenge_method: options.codeChallengeMethod ?? options.code_challenge_method,

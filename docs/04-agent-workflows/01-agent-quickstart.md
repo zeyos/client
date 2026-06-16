@@ -29,7 +29,8 @@ Before doing real work, install the bundled skill packs so the agent picks up Ze
 
 ```bash
 zeyos skills list                 # see what's available
-zeyos skills install              # install all into .claude/skills (or .codex)
+zeyos skills install              # interactive: pick an agent (claude, codex, opencode, droid, pi…), then local/global
+zeyos skills install --target claude --global -y   # or non-interactively with flags
 ```
 
 This is the recommended entry point for an agent: the skills encode how to resolve names to IDs, which resource to query first, and how to escalate from the CLI to `@zeyos/client`.

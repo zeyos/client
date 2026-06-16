@@ -8,9 +8,14 @@ import { listResources, resolveResource } from '../lib/resources.mjs';
 import { colors as c, outputMode, printJson, printYaml } from '../lib/output.mjs';
 
 export const USAGE = `\
-Usage: zeyos resources
+Usage: zeyos resources [options]
 
 List all resource types available for use with list/get/create/update/delete.
+
+Options:
+  --json              Output as JSON
+  --yaml              Output as YAML
+  -h, --help          Show this help
 `;
 
 export function run(values) {

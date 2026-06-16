@@ -42,7 +42,7 @@ For long-lived browser sessions, prefer session mode or move OAuth refresh to a 
 
 - **Auth boot sequence**: URL resolution, token detection, session probe, then app boot
 - **Optimistic UI update**: move the card first, then confirm with `updateTicket`, then revert on failure
-- **Explicit update body**: all ticket updates use `{ ID, body }`
+- **Explicit update body**: all ticket updates in this sample use `{ ID, body }` for clarity (the flat spread form `{ ID, status }` also works)
 - **Context filtering**: a single filter object drives board views such as “all tickets” or “project tickets”
 - **Persistent UI settings**: board columns and runtime config live in `localStorage`
 
@@ -84,6 +84,6 @@ http://localhost:8080/samples/kanban/
 
 ## What to Read Next
 
-- [Browser UI Playbook](../05-tutorials/01-build-your-own-zeyos-frontend.md)
+- [Browser UI Playbook](../05-tutorials/02-build-your-own-zeyos-frontend.md)
 - [Practical Guide](../02-javascript-client/04-practical-guide.md)
 - [Kanban sample README](../../samples/kanban/README.md)

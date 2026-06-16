@@ -65,6 +65,21 @@ The returned `client` object exposes:
 - **`client.auth`** -- Token management (`getTokenSet`, `setTokenSet`, `clearTokenSet`)
 - **`client.metadata`** -- Read-only info about the generated client (`generatedAt` timestamp, `services` array)
 
+Alongside the `createZeyosClient` factory, the package exports a few named helpers and error types you can import directly:
+
+```js
+import {
+  createZeyosClient,
+  MemoryTokenStore,        // in-memory token store (or implement get()/set() yourself)
+  ZeyosApiError,           // thrown on non-2xx responses
+  ZeyosValidationError,    // thrown by pre-flight validation (validate: true)
+  normalizeListResult,     // normalise a list response to { data, count? }
+  normalizeCountResult,    // normalise a count response to a number
+  normalizeTokenSet,       // normalise a raw token object to a TokenSet
+  tokenResponseToTokenSet, // map an OAuth token response to a TokenSet
+} from '@zeyos/client';
+```
+
 ## Platform Configuration
 
 The `platform` option tells the client where your ZeyOS instance lives. There are three ways to specify it:

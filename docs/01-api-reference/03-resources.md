@@ -107,8 +107,10 @@ const newTicket = await client.api.createTicket({
   status: 0,
 });
 
-// Update a ticket (must use explicit body key)
-await client.api.updateTicket({ ID: 12345, body: { status: 4, priority: 4 } });
+// Update a ticket — flat spread form or explicit body key both work
+await client.api.updateTicket({ ID: 12345, status: 4, priority: 4 });
+// Equivalent using explicit body key:
+// await client.api.updateTicket({ ID: 12345, body: { status: 4, priority: 4 } });
 ```
 
 ### Accounts
@@ -134,7 +136,7 @@ const contacts = await client.api.listContacts({
     Id: 'ID',
     Name: 'lastname',
     Email: 'email',
-    Company: 'account.name',
+    Company: 'account.lastname',
   },
   filters: { visibility: 0 },
   sort: ['+lastname'],
@@ -236,8 +238,8 @@ const ticket = await client.api.getTicket({ ID: 123 });
 // Create operations accept a request body
 const created = await client.api.createTicket({ name: 'New ticket' });
 
-// Update operations require an ID and accept update fields in a body key
-await client.api.updateTicket({ ID: 123, body: { status: 4 } });
+// Update operations require an ID and changed fields (flat spread or explicit body key)
+await client.api.updateTicket({ ID: 123, status: 4 });
 
 // Delete operations require an ID
 await client.api.deleteTicket({ ID: 123 });

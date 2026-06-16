@@ -118,11 +118,12 @@ zeyos describe accounts --json
 
 ## Install Agent Skills
 
-If you are driving the CLI from a coding agent (Claude, Codex, …), install the bundled ZeyOS skill packs into your project so the agent picks up the right query conventions:
+If you are driving the CLI from a coding agent (Claude Code, Codex, opencode, Factory Droid, pi, …), install the bundled ZeyOS skill packs so the agent picks up the right query conventions:
 
 ```bash
 zeyos skills list                 # see the available skills
-zeyos skills install              # copy them into .claude/skills (or .codex)
+zeyos skills install              # interactive: pick an agent, then local vs. global
+zeyos skills install --target claude --global   # or skip the prompts with flags
 ```
 
 See the [Commands Reference](./02-commands.md#skills) for details.

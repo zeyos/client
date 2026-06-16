@@ -47,6 +47,7 @@ Options:
 export async function run(values) {
   const scope = values.global ? 'global' : 'local';
   const port  = values.port ? Number(values.port) : DEFAULT_CALLBACK_PORT;
+  const redirectUri = callbackUri(port);
 
   // ── Resolve connection params ──────────────────────────────────────────────
   const existing = values.clean ? {} : loadConfig();
@@ -58,6 +59,17 @@ export async function run(values) {
 
   // Prompt interactively for any missing values
   if (!baseUrl)      baseUrl      = await _prompt('ZeyOS platform URL');
+
+  // Before asking for the application ID/secret, show the callback URL so the
+  // user can register it as the redirect URI of their ZeyOS OAuth application
+  // (the ID/secret only exist once that app has been created).
+  if (!clientId || !clientSecret) {
+    console.error('');
+    info('Add this callback URL as the redirect URI of your ZeyOS OAuth app:');
+    console.error(`    ${redirectUri}`);
+    console.error('');
+  }
+
   if (!clientId)     clientId     = await _prompt('Application ID');
   if (!clientSecret) clientSecret = await _promptSecret('Application secret');
 
@@ -84,8 +96,6 @@ export async function run(values) {
       oauth: { clientId, clientSecret, tokenStore, autoRefresh: false },
     },
   });
-
-  const redirectUri = callbackUri(port);
 
   // Generate random state for CSRF protection
   const state = _randomHex(32);

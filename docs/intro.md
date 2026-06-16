@@ -88,7 +88,7 @@ Across the CLI, JavaScript client, and sample applications, the same operational
 
 - Prefer `filters` in JavaScript client code for compatibility across scalar and foreign-key fields.
 - Include `visibility: 0` unless you intentionally want archived or deleted records.
-- Use an explicit `body` object for updates that also pass a path parameter such as `ID`.
+- For updates, pass changed fields alongside the `ID` directly (`{ ID, status }`) or wrap them in an explicit `body` object (`{ ID, body: { status } }`) — both work; the explicit `body` is only needed to disambiguate a payload field that collides with a reserved control key.
 - Treat `extdata` and `expand` as separate features:
   - `extdata` includes custom fields
   - `expand` inlines JSON or binary columns
@@ -194,4 +194,4 @@ You can also use **session authentication** when running inside a browser where 
 - **[Making Requests](./02-javascript-client/03-making-requests.md)** -- CRUD operations, filtering, sorting, pagination, and error handling
 - **[Practical Guide](./02-javascript-client/04-practical-guide.md)** -- Patterns and gotchas from real-world implementations
 - **[Schema Reference](./01-api-reference/04-schema.md)** -- Field definitions and enum values for all major resources
-- **[Browser UI Playbook](./05-tutorials/01-build-your-own-zeyos-frontend.md)** -- Step-by-step browser integration guide
+- **[Browser UI Playbook](./05-tutorials/02-build-your-own-zeyos-frontend.md)** -- Step-by-step browser integration guide

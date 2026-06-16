@@ -18,6 +18,14 @@
  *   resources            List available resource types
  */
 
+// ── Version ───────────────────────────────────────────────────────────────────
+
+import { createRequire as _createRequire } from 'node:module';
+import { dirname as _dirname } from 'node:path';
+import { fileURLToPath as _fileURLToPath } from 'node:url';
+const _require = _createRequire(import.meta.url);
+const _VERSION = _require('../package.json').version;
+
 // ── Global help ───────────────────────────────────────────────────────────────
 
 const HELP = `\
@@ -43,6 +51,7 @@ Global options:
   --yaml               Output as YAML
   --no-color           Disable ANSI colors
   -h, --help           Show help for a command
+  -v, --version        Print the CLI version and exit
 
 Examples:
   zeyos login --base-url https://cloud.zeyos.com/demo --client-id myapp --secret "$ZEYOS_CLIENT_SECRET"
@@ -60,6 +69,7 @@ Examples:
 const OPTIONS = {
   // Global
   'help':       { type: 'boolean', short: 'h' },
+  'version':    { type: 'boolean', short: 'v' },
   'json':       { type: 'boolean' },
   'yaml':       { type: 'boolean' },
   'no-color':   { type: 'boolean' },
@@ -70,9 +80,11 @@ const OPTIONS = {
   'scope':      { type: 'string' },
   'port':       { type: 'string' },
   'global':     { type: 'boolean' },
+  'local':      { type: 'boolean' },
   'force':      { type: 'boolean' },
   'clean':      { type: 'boolean' },
   'manual':     { type: 'boolean' },
+  'yes':        { type: 'boolean', short: 'y' },
   // list
   'fields':     { type: 'string' },
   'filter':     { type: 'string' },
@@ -92,6 +104,8 @@ const OPTIONS = {
   // (--force is already declared above)
   // skills install
   'target':     { type: 'string' },
+  'dir':        { type: 'string' },
+  'no-logo':    { type: 'boolean' },
 };
 
 // ── Command registry ──────────────────────────────────────────────────────────
@@ -129,6 +143,11 @@ async function main() {
     process.exit(0);
   }
 
+  if (argv[0] === '--version' || argv[0] === '-v') {
+    process.stdout.write(_VERSION + '\n');
+    process.exit(0);
+  }
+
   const command = argv[0];
   const rest    = argv.slice(1);
 
@@ -157,6 +176,8 @@ async function main() {
 /**
  * Parse argv with known options; capture unknown --key value pairs too.
  * This lets create/update accept arbitrary --fieldName value flags.
+ *
+ * Supports both `--key value` and `--key=value` forms.
  */
 function _parsePermissive(argv, options) {
   const values     = {};
@@ -173,32 +194,45 @@ function _parsePermissive(argv, options) {
     }
 
     if (arg.startsWith('--')) {
-      const key = arg.slice(2);
-      const opt = options[key];
+      // Split --key=value form into key + inline value
+      const eqIdx     = arg.indexOf('=');
+      const key        = eqIdx === -1 ? arg.slice(2) : arg.slice(2, eqIdx);
+      const inlineVal  = eqIdx === -1 ? undefined : arg.slice(eqIdx + 1);
+      const opt        = options[key];
 
       if (opt?.type === 'boolean') {
+        // --key=value is unusual for booleans; treat as true and ignore =value
         values[key] = true;
         i++;
         continue;
       }
 
       if (opt?.type === 'string') {
-        const next = argv[i + 1];
-        // Don't consume the next token as the value if it looks like a flag
-        // (starts with '--'), unless it's a negative number like -3 or -3.5.
-        if (next !== undefined && next.startsWith('--')) {
-          values[key] = '';
+        if (inlineVal !== undefined) {
+          // --key=value form
+          values[key] = inlineVal;
           i++;
         } else {
-          values[key] = next ?? '';
-          i += 2;
+          const next = argv[i + 1];
+          // Don't consume the next token as the value if it looks like a flag
+          // (starts with '--'), unless it's a negative number like -3 or -3.5.
+          if (next !== undefined && next.startsWith('--')) {
+            values[key] = '';
+            i++;
+          } else {
+            values[key] = next ?? '';
+            i += 2;
+          }
         }
         continue;
       }
 
-      // Unknown option — treat as string if next token is available and is not
-      // another option flag (but allow negative numbers like -1, -3.5)
-      if (i + 1 < argv.length && (!argv[i + 1].startsWith('-') || /^-\d/.test(argv[i + 1]))) {
+      // Unknown option — treat as string
+      if (inlineVal !== undefined) {
+        // --key=value form for unknown option
+        values[key] = inlineVal;
+        i++;
+      } else if (i + 1 < argv.length && (!argv[i + 1].startsWith('-') || /^-\d/.test(argv[i + 1]))) {
         values[key] = argv[i + 1];
         i += 2;
       } else {

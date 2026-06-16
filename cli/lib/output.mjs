@@ -56,7 +56,15 @@ function toYaml(value, indent = 0) {
       const lines = value.split('\n').map(l => `${pad}  ${l}`);
       return `|\n${lines.join('\n')}`;
     }
-    if (/[:#\[\]{}&*!,|>'"@`%]/.test(value) || /^\s|\s$/.test(value)) {
+    // Quote strings that contain YAML-special characters, leading/trailing whitespace,
+    // look like numbers (would be parsed as number by YAML loaders), or are YAML 1.1
+    // boolean / null keywords (true, false, null, yes, no, on, off and their variants).
+    if (
+      /[:#\[\]{}&*!,|>'"@`%]/.test(value) ||
+      /^\s|\s$/.test(value) ||
+      /^-?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/.test(value) ||
+      /^(true|false|null|yes|no|on|off|y|n)$/i.test(value)
+    ) {
       return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
     }
     return value;

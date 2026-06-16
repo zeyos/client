@@ -208,11 +208,35 @@ test('oauth2 helper builds and parses authorization URLs', () => {
   assert.equal(parsed.searchParams.get('client_id'), 'my-client');
   assert.equal(parsed.searchParams.get('response_type'), 'code');
   assert.equal(parsed.searchParams.get('code_challenge_method'), 'S256');
+  // scope is omitted from the URL when not supplied
+  assert.equal(parsed.searchParams.has('scope'), false);
 
   const callback = client.oauth2.parseAuthorizationCallback('https://example.com/callback?code=abc123&state=state-123');
   assert.equal(callback.code, 'abc123');
   assert.equal(callback.state, 'state-123');
   assert.equal(callback.isError, false);
+});
+
+test('buildAuthorizationUrl includes scope when provided', () => {
+  const client = createZeyosClient({
+    instance: 'demo',
+    fetch: async () => jsonResponse({}),
+    auth: { oauth: { clientId: 'my-client' } }
+  });
+
+  const url = client.oauth2.buildAuthorizationUrl({
+    redirectUri: 'https://example.com/callback',
+    state: 'state-123',
+    scope: 'global'
+  });
+  assert.equal(new URL(url).searchParams.get('scope'), 'global');
+
+  // also accepts a nested options.scope (as some callers forward an options bag)
+  const nested = client.oauth2.buildAuthorizationUrl({
+    redirectUri: 'https://example.com/callback',
+    options: { scope: 'local' }
+  });
+  assert.equal(new URL(nested).searchParams.get('scope'), 'local');
 });
 
 test('accepts redirect (303) success responses for oauth2 authorize', async () => {
@@ -836,4 +860,56 @@ test('retry: false surfaces the first 429 without retrying', async () => {
     }
   );
   assert.equal(fetch.calls(), 1);
+});
+
+test('an empty Retry-After header falls back to backoff and still retries', async () => {
+  // An empty header must not be parsed as "0 seconds" (Number('') === 0); it should
+  // fall through to the exponential backoff path so the retry still happens.
+  const fetch = createFetchSequence([
+    () => textResponse('busy', 503, { 'retry-after': '   ' }),
+    () => jsonResponse([{ ID: 1 }])
+  ]);
+  const client = createZeyosClient({
+    instance: 'demo',
+    auth: { mode: 'session' },
+    retry: { baseDelayMs: 1, maxDelayMs: 5 },
+    fetch
+  });
+  const result = await client.api.listTickets({ filters: { visibility: 0 } });
+  assert.equal(Array.isArray(result), true);
+  assert.equal(fetch.calls(), 2);
+});
+
+test('aborting before a zero-delay retry stops further requests', async () => {
+  const controller = new AbortController();
+  const fetch = createFetchSequence([
+    () => {
+      // Abort while handling the first (retryable) response, before the retry fires.
+      controller.abort();
+      return textResponse('busy', 429, { 'retry-after': '0' });
+    },
+    () => jsonResponse([{ ID: 1 }])
+  ]);
+  const client = createZeyosClient({
+    instance: 'demo',
+    auth: { mode: 'session' },
+    retry: { baseDelayMs: 1 },
+    fetch
+  });
+  await assert.rejects(() =>
+    client.api.listTickets({ filters: { visibility: 0 } }, { signal: controller.signal })
+  );
+  // Only the first request was sent; the abort prevented the zero-delay retry.
+  assert.equal(fetch.calls(), 1);
+});
+
+test('normalizeListResult preserves a numeric-string count', () => {
+  assert.deepEqual(normalizeListResult({ data: [{ ID: 1 }], count: '42' }), {
+    data: [{ ID: 1 }],
+    count: 42
+  });
+  // a non-numeric count string is dropped rather than coerced to NaN
+  assert.deepEqual(normalizeListResult({ data: [{ ID: 1 }], count: 'lots' }), {
+    data: [{ ID: 1 }]
+  });
 });

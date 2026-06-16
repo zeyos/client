@@ -11,10 +11,18 @@ import { resolveResource } from '../lib/resources.mjs';
 import { colors as c, outputMode, printJson, printYaml, printTable, error } from '../lib/output.mjs';
 
 export const USAGE = `\
-Usage: zeyos describe <resource>
+Usage: zeyos describe <resource> [options]
 
 Show the fields, types, foreign keys and enum values for a resource.
 Runs offline — no authentication required.
+
+Arguments:
+  resource            Resource name (e.g. ticket, tickets, account)
+
+Options:
+  --json              Output as JSON
+  --yaml              Output as YAML
+  -h, --help          Show this help
 
 Examples:
   zeyos describe tickets

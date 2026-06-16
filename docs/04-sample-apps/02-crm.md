@@ -29,7 +29,7 @@ For long-lived browser sessions, prefer session mode or move OAuth refresh to a 
 | `listAccounts` | Fetch paginated CRM rows with aliased and joined fields |
 | `getAccount` | Load the full record before editing |
 | `createAccount` | Create new accounts from the modal |
-| `updateAccount` | Apply modal edits with flat `{ ID, ...fields }` input |
+| `updateAccount` | Apply modal edits via `{ ID, body: data }` |
 | `deleteAccount` | Remove records from the dataset |
 
 ## Reusable Patterns
@@ -37,7 +37,7 @@ For long-lived browser sessions, prefer session mode or move OAuth refresh to a 
 - **Object-form `fields`**: the UI requests aliased fields such as `City: 'contact.city'`
 - **Server-side search**: full-text queries use the `query` parameter instead of client-side filtering
 - **Server-side sorting**: column headers map friendly names back to raw API fields
-- **Flat update helpers**: update helpers pass path parameters and changed fields in one object
+- **Update helpers**: update helpers use `{ ID, body: data }` to keep path parameters separate from changed fields
 - **Token persistence**: runtime tokens are stored in `localStorage` for the next page load
 
 ## Safe to Copy
@@ -76,6 +76,6 @@ http://localhost:8080/samples/crm/
 
 ## What to Read Next
 
-- [Browser UI Playbook](../05-tutorials/01-build-your-own-zeyos-frontend.md)
+- [Browser UI Playbook](../05-tutorials/02-build-your-own-zeyos-frontend.md)
 - [Making Requests](../02-javascript-client/03-making-requests.md)
 - [CRM sample README](../../samples/crm/README.md)

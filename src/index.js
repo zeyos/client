@@ -36,7 +36,14 @@ export function normalizeListResult(result) {
   if (result != null && typeof result === 'object') {
     const data  = Array.isArray(result.data) ? result.data : [];
     const out   = { data };
-    if (typeof result.count === 'number') out.count = result.count;
+    // `count` may arrive as a number or a numeric string depending on endpoint;
+    // preserve it as a number when it is a finite numeric value.
+    if (typeof result.count === 'number' && Number.isFinite(result.count)) {
+      out.count = result.count;
+    } else if (typeof result.count === 'string' && result.count !== '') {
+      const parsed = Number(result.count);
+      if (Number.isFinite(parsed)) out.count = parsed;
+    }
     return out;
   }
   return { data: [] };
