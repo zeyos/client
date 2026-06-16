@@ -5,14 +5,14 @@
   "type": "module",
   "license": "MIT",
   "author": "Peter Haider <peter.haider@zeyos.com>",
-  "homepage": "https://github.com/zeyos/api#readme",
+  "homepage": "https://github.com/zeyos/client/tree/main/cli#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/zeyos/api.git",
+    "url": "git+https://github.com/zeyos/client.git",
     "directory": "cli"
   },
   "bugs": {
-    "url": "https://github.com/zeyos/api/issues"
+    "url": "https://github.com/zeyos/client/issues"
   },
   "keywords": [
     "zeyos",

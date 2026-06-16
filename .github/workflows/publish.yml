@@ -1,0 +1,51 @@
+name: Publish to npm
+
+# Publishes @zeyos/client and @zeyos/cli to npm when a GitHub Release is published.
+# The release tag must be `v<version>` and match the version in BOTH package.json
+# files. Requires a repository secret named NPM_TOKEN (an npm automation token with
+# publish rights to the @zeyos scope).
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - name: Verify package versions match the release tag
+        env:
+          TAG_NAME: ${{ github.event.release.tag_name }}
+        run: |
+          TAG="${TAG_NAME#v}"
+          CLIENT="$(node -p "require('./package.json').version")"
+          CLI="$(node -p "require('./cli/package.json').version")"
+          echo "release tag=$TAG  @zeyos/client=$CLIENT  @zeyos/cli=$CLI"
+          if [ "$TAG" != "$CLIENT" ] || [ "$TAG" != "$CLI" ]; then
+            echo "Version mismatch: tag '$TAG' must equal both package versions." >&2
+            exit 1
+          fi
+
+      - name: Test (zero-dependency offline suite)
+        run: npm test
+
+      - name: Publish @zeyos/client
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish @zeyos/cli
+        run: npm publish --access public
+        working-directory: cli
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
