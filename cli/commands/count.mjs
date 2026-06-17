@@ -10,7 +10,7 @@
  */
 
 import { normalizeCountResult }    from '@zeyos/client';
-import { buildCliClient, callApi, parseJsonOption, requireResource } from '../lib/command.mjs';
+import { buildCliClient, callApi, maybeDryRun, parseJsonOption, requireResource } from '../lib/command.mjs';
 import { outputMode, printJson, printYaml } from '../lib/output.mjs';
 
 export const USAGE = `\
@@ -25,6 +25,7 @@ Options:
   --filter <json>     JSON filter object  e.g. '{"status":1}'
   --json              Output as JSON ({ "count": N })
   --yaml              Output as YAML
+  --query             Print the request route + JSON body without sending it
   -h, --help          Show this help
 
 Examples:
@@ -46,6 +47,8 @@ export async function run(values, positional) {
   }
 
   // ── Call API ───────────────────────────────────────────────────────────────
+  if (await maybeDryRun(clientState, res.list, body, values)) return;
+
   const result = await callApi(clientState, res.list, body);
 
   const count = normalizeCountResult(result);

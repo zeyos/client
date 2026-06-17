@@ -66,6 +66,16 @@ For every scenario, the harness runs this state machine (`harness/run.mjs`):
 The scorecard leads with the `CLIENT_DEFECT` list. The harness exits non-zero **only**
 when there is at least one `CLIENT_DEFECT`, so CI fails on real bugs but tolerates flakes.
 
+**`PLANNED_NOT_EXECUTED` annotation.** Orthogonal to the classification above, the harness
+flags any failing attempt where the agent *planned* — described a query, asked for "the
+execution endpoint", or claimed it "has no tools" — and never ran a command (no usable
+`RESULT`, planning/no-tools language in the transcript). When **every** failing attempt on
+a scenario is flagged, the scorecard adds a 🧭 hint: the likely cause is a **skill that
+isn't self-contained** (the operating contract — "you have tools, the CLI is
+authenticated, act don't plan" — never reached the model), a skill-pack gap rather than a
+client defect. This is exactly the failure seen running the bare `zeyos-billing-insights`
+skill under `pi`/gemma. Confirm it with a `--bare-skill` run (see §5.1).
+
 ---
 
 ## 4. Preconditions
@@ -88,10 +98,14 @@ when there is at least one `CLIENT_DEFECT`, so CI fails on real bugs but tolerat
    headless agent cannot log in through the CLI — password-grant login belongs to the
    harness (or a dedicated client-side login scenario).
 3. **`agentProtocol` config block** in `config.test.json` (see the repo-root `config.test.json.example`).
-4. **A runner** on `PATH` — opencode by default — and **model access**:
+4. **A runner** on `PATH` and **model access**. The runner is configurable
+   (`agentProtocol.runner`); two are supported out of the box:
+   - **opencode** (default). Copy `opencode/opencode.json.example` → `opencode/opencode.json`.
+   - **pi** (`pi -p …`). A coding-agent CLI with shell/read/edit/write tools, used the way
+     a real downstream user consumes the skill pack. See §5.2 for the runner config.
+   And model access:
    - OpenRouter: set `OPENROUTER_API_KEY`.
-   - Ollama (local): run `ollama serve` and `ollama pull <model>`.
-   - Copy `opencode/opencode.json.example` → `opencode/opencode.json`.
+   - Ollama (local): run `ollama serve` and `ollama pull <model>` (e.g. `gemma4:latest`).
 
 ---
 
@@ -115,11 +129,60 @@ npm run test:agent-protocol
 #   --layer a|b           restrict to a layer
 #   --models a,b,c        override the rotation
 #   --no-cleanup          keep created records (debugging only)
+#   --bare-skill          omit the inlined operating contract (skill self-containment test, §5.1)
 #   --run-id <id>         name the results folder
 ```
 
 Results land in `test/agent-protocol/results/<runId>/` (gitignored):
 `scorecard.json`, `scorecard.md`, and `transcripts/<scenario>__<model>.txt`.
+
+### 5.1 Two consumption modes: harness vs. bare-skill
+
+The harness can present the skills to the model two ways, and the difference is the whole
+point of catching the `pi`/gemma failure:
+
+- **Harness mode (default).** Every prompt is prefixed with the full operating contract
+  (`opencode/AGENTS.md`: you have tools, the CLI is authenticated, the `RESULT:` contract,
+  safety). This isolates *skill content* quality from *operating context*, but it also
+  means a skill can pass here while being unusable on its own.
+- **Bare-skill mode (`--bare-skill`).** The operating contract is **not** inlined. The
+  model gets only the pointer to read `agents/<skill>/SKILL.md` + its `workflows.md` and
+  the task. The skill must therefore carry its own operating contract (it does, via
+  `agents/shared/zeyos-agent-operating-guide.md`, which every SKILL references first). This
+  reproduces how a real downstream agent (`pi`, Claude Code, …) consumes the pack, and is
+  the test that would have caught the original failure. **Safety:** bare-skill mode refuses
+  to run `mutates: true` scenarios (the inlined safety rules are absent), so it is a
+  read-only Layer-A/B check.
+
+```bash
+# Does the billing skill stand on its own, with no harness scaffolding?
+npm run test:agent-protocol -- --bare-skill --scenario b03-billing-transaction-count --models ollama/gemma4:latest
+```
+
+A scenario that passes in harness mode but fails `--bare-skill` (typically with the 🧭
+`PLANNED_NOT_EXECUTED` hint) is a skill self-containment gap — fix the skill, not the client.
+
+### 5.2 Running under `pi`
+
+`pi` is a coding-agent CLI with shell/read/edit/write tools. Point the runner at it via
+`agentProtocol.runner` in `config.test.json`:
+
+```jsonc
+"runner": {
+  "command": "pi",
+  // -p = non-interactive; --no-session = ephemeral; -nc would drop AGENTS.md/CLAUDE.md
+  // discovery (we inline the contract via {prompt} instead, so cwd files don't matter).
+  "args": ["-p", "--provider", "ollama", "--model", "{model}", "--no-session", "{prompt}"],
+  "cwd": ".",
+  "timeoutMs": 240000
+}
+```
+
+`pi` inherits the harness's `childEnv` (`ZEYOS_BASE_URL`, `ZEYOS_TOKEN`, `ZEYOS_REPO_ROOT`),
+so the `zeyos` CLI it shells out to is authenticated the same way. Combine with
+`--bare-skill` to test the skills the way you actually run them in
+`…/bell/agent`. Keep `agentProtocol.allowInstances` set to `["demo"]` — `pi` holds the same
+full-access token and the same safety caveats in §8 apply.
 
 ---
 

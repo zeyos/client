@@ -5,7 +5,12 @@ description: Analyze ZeyOS billing transactions, invoices, credits, payments, an
 
 # ZeyOS Billing Insights
 
-Read [../shared/zeyos-query-patterns.md](../shared/zeyos-query-patterns.md) first. Read [../shared/zeyos-entity-map.md](../shared/zeyos-entity-map.md) when the request crosses accounts, transactions, payments, items, and documents. Read [references/workflows.md](references/workflows.md) for finance-specific metric selection and query plans.
+Read [../shared/zeyos-agent-operating-guide.md](../shared/zeyos-agent-operating-guide.md) and [../shared/zeyos-query-patterns.md](../shared/zeyos-query-patterns.md) first. Read [../shared/zeyos-entity-map.md](../shared/zeyos-entity-map.md) when the request crosses accounts, transactions, payments, items, and documents. Read [references/workflows.md](references/workflows.md) for finance-specific metric selection and query plans.
+
+> **Run the query — don't hand back a plan.** Finance questions still get answered by
+> executing `zeyos` commands (or `@zeyos/client`) against the live instance and summing
+> real rows. State your metric definition, then go fetch the numbers. Never end by asking
+> for "an execution endpoint" or "the data layer" — it's already wired (`zeyos whoami`).
 
 Typical prompts:
 

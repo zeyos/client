@@ -20,6 +20,7 @@ const c = {
   red:    s => USE_COLOR ? `\x1b[31m${s}\x1b[0m` : s,
   yellow: s => USE_COLOR ? `\x1b[33m${s}\x1b[0m` : s,
   cyan:   s => USE_COLOR ? `\x1b[36m${s}\x1b[0m` : s,
+  gray:   s => USE_COLOR ? `\x1b[90m${s}\x1b[0m` : s, // bright-black: dim IDs / muted cells
 };
 
 export { c as colors };
@@ -37,6 +38,33 @@ export function outputMode(values) {
 
 export function printJson(data) {
   process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+}
+
+// ── Query (dry run) ─────────────────────────────────────────────────────────────
+
+/**
+ * Print a dry-run request descriptor (from `--query`): the resolved HTTP route
+ * and the JSON payload that *would* be sent, without performing the request.
+ *
+ * @param {{method:string,url:string,body?:unknown,bodyType?:string}} descriptor
+ * @param {Record<string, unknown>} [values] - parsed CLI flags (for --json/--yaml)
+ */
+export function printQuery(descriptor, values = {}) {
+  if (values.json) { printJson(descriptor); return; }
+  if (values.yaml) { printYaml(descriptor); return; }
+
+  const { method, url, body, bodyType } = descriptor;
+  process.stdout.write(`${c.bold(method)} ${url}\n`);
+  if (bodyType) {
+    const contentType = bodyType === 'form' ? 'application/x-www-form-urlencoded' : 'application/json';
+    process.stdout.write(c.dim(`Content-Type: ${contentType}`) + '\n');
+  }
+  process.stdout.write('\n');
+  if (body === undefined || body === null) {
+    process.stdout.write(c.dim('(no request body)') + '\n');
+  } else {
+    process.stdout.write(JSON.stringify(body, null, 2) + '\n');
+  }
 }
 
 // ── YAML ──────────────────────────────────────────────────────────────────────
@@ -129,14 +157,54 @@ export function printTable(rows, columns, labels = {}, formatters = {}) {
     Math.max(headers[i].length, ...data.map(row => _visibleLength(row[i])))
   );
 
-  const headerRow = headers.map((h, i) => _pad(c.bold(h), widths[i])).join('  ');
+  // QW-2: detect numeric columns (every non-empty cell is a plain number,
+  // ignoring ANSI) so we can right-align them — header included.
+  const numeric = columns.map((_, i) => {
+    let sawValue = false;
+    for (const row of data) {
+      const plain = row[i].replace(/\x1b\[[0-9;]*m/g, '');
+      if (plain === '' || plain === '—') continue; // blank / em-dash placeholder
+      sawValue = true;
+      if (!/^-?\d+(\.\d+)?$/.test(plain)) return false;
+    }
+    return sawValue;
+  });
+
+  // QW-1: when stdout is a TTY, shrink the widest column(s) until the row fits
+  // the terminal. Non-TTY (piped) output stays full-width so `| grep`/`| awk`
+  // see complete cell text. Budget = columns − 2 leading spaces − 2 per gutter.
+  if (process.stdout.isTTY) {
+    const term = process.stdout.columns;
+    if (term && term > 0) {
+      const MIN_COL = 8;
+      const gutters = (widths.length - 1) * 2;
+      const budget = term - 2 - gutters;
+      // Repeatedly trim the single widest column above the floor until it fits.
+      let total = widths.reduce((a, b) => a + b, 0);
+      while (total > budget) {
+        let widest = -1;
+        for (let i = 0; i < widths.length; i++) {
+          if (widths[i] > MIN_COL && (widest === -1 || widths[i] > widths[widest])) widest = i;
+        }
+        if (widest === -1) break; // every column already at the floor
+        widths[widest]--;
+        total--;
+      }
+    }
+  }
+
+  const align = (str, i) => (numeric[i] ? _padLeft(str, widths[i]) : _pad(_truncate(str, widths[i]), widths[i]));
+
+  const headerRow = headers.map((h, i) =>
+    numeric[i] ? _padLeft(c.bold(h), widths[i]) : _pad(_truncate(c.bold(h), widths[i]), widths[i])
+  ).join('  ');
   const separator = widths.map(w => '─'.repeat(w)).join('  ');
 
   process.stdout.write('\n');
   process.stdout.write('  ' + headerRow + '\n');
   process.stdout.write('  ' + c.dim(separator) + '\n');
   for (const row of data) {
-    process.stdout.write('  ' + row.map((v, i) => _pad(v, widths[i])).join('  ') + '\n');
+    process.stdout.write('  ' + row.map((v, i) => align(v, i)).join('  ') + '\n');
   }
   process.stdout.write('\n');
 }
@@ -163,10 +231,15 @@ export function printRecord(record, keys, labels = {}, formatters = {}) {
 
     if (formatters[key]) {
       display = String(formatters[key](val, record));
-    } else if (val === null) {
+    } else if (val === null || val === '') {
+      // QW-6: render null AND empty string as a dim em-dash, not a blank gap.
       display = c.dim('—');
+    } else if (Array.isArray(val)) {
+      // QW-6: empty array → dim em-dash; otherwise compact JSON.
+      display = val.length === 0 ? c.dim('—') : JSON.stringify(val);
     } else if (typeof val === 'object') {
-      display = JSON.stringify(val);
+      // QW-6: empty object → dim em-dash; otherwise compact JSON.
+      display = Object.keys(val).length === 0 ? c.dim('—') : JSON.stringify(val);
     } else {
       display = String(val);
     }
@@ -269,6 +342,77 @@ export function buildDateFormatters(columns, dateFormat = 'YYYY-MM-DD', aliasToP
   return formatters;
 }
 
+// ── Semantic enum / ID coloring (QW-3) ─────────────────────────────────────────
+
+/**
+ * Pick a colorizer for an enum LABEL by keyword.
+ *
+ * Enum codes are resource-specific (ticket status 1 = AWAITINGACCEPTANCE but
+ * transaction status 1 = COMPLETED), so color is derived from the label text —
+ * never from the numeric code. Returns `null` when no keyword matches, so the
+ * caller renders the value plain rather than guessing.
+ *
+ * @param {string} label
+ * @returns {((s:string)=>string)|null}
+ */
+function _enumColorForLabel(label) {
+  const L = String(label).toUpperCase();
+  // Positive / terminal-success states → green.
+  if (/COMPLETED|BOOKED|ACTIVE|DONE|ACCEPTED|PAID/.test(L)) return c.green;
+  // Failure / negative states → red.
+  if (/CANCELLED|CANCELED|FAILED|REJECTED|DELETED|OVERDUE/.test(L)) return c.red;
+  // Priority extremes.
+  if (/HIGHEST|HIGH/.test(L)) return c.red;
+  if (/LOWEST|LOW/.test(L)) return c.dim;
+  return null;
+}
+
+/** A field name that denotes a record identifier / foreign key → render dim. */
+function _isIdField(name) {
+  const lower = String(name).toLowerCase();
+  return lower === 'id' || lower.endsWith('id');
+}
+
+/**
+ * Build value formatters that colorize enum + ID columns, schema-driven.
+ *
+ * For each display column, the API field path (via `aliasToPath`) is reduced to
+ * its leaf column name and looked up in `fieldDefs` (a resource's
+ * `schema.describe(resource).fields` map). Columns whose field has an `enum` are
+ * colored by label keyword; ID/FK columns are dimmed. Columns with no resolvable
+ * enum label are left plain. No-ops entirely when color is disabled.
+ *
+ * @param {string[]} columns - display column keys
+ * @param {Record<string, {enum?:Record<string,string>, fk?:string}>} [fieldDefs]
+ * @param {Record<string,string>} [aliasToPath] - alias → API field path
+ * @returns {Record<string, ValueFormatter>}
+ */
+export function buildEnumFormatters(columns, fieldDefs = {}, aliasToPath) {
+  const formatters = {};
+  if (!USE_COLOR) return formatters; // color-gated: nothing to do when plain.
+
+  for (const col of columns) {
+    const fieldPath = aliasToPath?.[col] ?? col;
+    // Dot-notation joins (contact.city) can't be mapped to a base column reliably.
+    if (fieldPath.includes('.')) continue;
+    const def = fieldDefs[fieldPath];
+
+    if (def?.enum) {
+      const enumMap = def.enum;
+      formatters[col] = (val) => {
+        if (val == null || val === '') return c.dim('—');
+        const label = enumMap[String(val)];
+        if (label == null) return String(val); // unknown code → plain, never guess
+        const paint = _enumColorForLabel(label);
+        return paint ? paint(String(val)) : String(val);
+      };
+    } else if (_isIdField(fieldPath) || def?.fk) {
+      formatters[col] = (val) => (val == null || val === '' ? c.dim('—') : c.gray(String(val)));
+    }
+  }
+  return formatters;
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /** String length ignoring ANSI escape codes. */
@@ -281,4 +425,50 @@ function _pad(str, len) {
   const visible = _visibleLength(str);
   if (visible >= len) return str;
   return str + ' '.repeat(len - visible);
+}
+
+/** Left-pad a string to a visible width (right-align), ANSI-aware. */
+function _padLeft(str, len) {
+  const visible = _visibleLength(str);
+  if (visible >= len) return str;
+  return ' '.repeat(len - visible) + str;
+}
+
+/**
+ * Truncate a string to a max visible width, appending '…', ANSI-aware.
+ * Preserves any trailing reset so colored cells don't bleed. Strings already
+ * within the budget are returned untouched.
+ *
+ * @param {string} str
+ * @param {number} max - max visible width (including the ellipsis)
+ * @returns {string}
+ */
+function _truncate(str, max) {
+  if (max <= 0) return '';
+  if (_visibleLength(str) <= max) return str;
+
+  // Walk the string copying characters, skipping over ANSI sequences (which
+  // have zero visible width), until we've kept (max - 1) visible chars; then
+  // append the ellipsis and any trailing reset.
+  const keep = max - 1;
+  let out = '';
+  let visible = 0;
+  let i = 0;
+  let hadColor = false;
+  while (i < str.length && visible < keep) {
+    const ansi = str.slice(i).match(/^\x1b\[[0-9;]*m/);
+    if (ansi) {
+      out += ansi[0];
+      hadColor = true;
+      i += ansi[0].length;
+      continue;
+    }
+    out += str[i];
+    visible++;
+    i++;
+  }
+  out += '…';
+  // Re-apply a reset if the original was colored so the ellipsis/padding stay clean.
+  if (hadColor) out += '\x1b[0m';
+  return out;
 }

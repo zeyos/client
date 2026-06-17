@@ -2,6 +2,14 @@
 
 Use this file as the default operating playbook before answering any business question against ZeyOS.
 
+> **Operate, don't plan.** You have a shell tool and the `zeyos` CLI is already
+> authenticated against the configured instance. Answer business questions by **running
+> commands and reporting real output** — never reply with a query plan, never ask for an
+> "execution endpoint" or "a tool to run this", never claim you lack execution access.
+> Confirm access any time with `zeyos whoami`. The full operating contract (tools, auth,
+> output, safety) is in [zeyos-agent-operating-guide.md](./zeyos-agent-operating-guide.md) —
+> read it first.
+
 For the full source-backed inventory, read [zeyos-entity-reference.md](./zeyos-entity-reference.md).
 For cross-platform benchmark guidance, read [business-app-benchmarks.md](./business-app-benchmarks.md).
 
@@ -22,7 +30,7 @@ For cross-platform benchmark guidance, read [business-app-benchmarks.md](./busin
 
 - Discover before guessing: `zeyos describe <resource>` (or `client.schema.describe(resource)`) lists a resource's fields, types, foreign keys, and enum values; both run offline. `zeyos describe`, `create`, `update`, and `list` all accept singular, plural, or aliased resource names (`ticket`/`tickets`/`invoice`). Pre-check a call with `client.schema.validate(operationId, input)` — it flags unknown fields (with suggestions), `filter` vs `filters`, invalid enum values, and missing required create fields. An unknown operation name rejects with a "did you mean …?" suggestion.
 - Creating accounts requires `currency` (e.g. `"EUR"`): the column is NOT NULL with no DB default, so a create that omits it fails with an opaque HTTP 500 even though the OpenAPI spec does not mark it required. `validate('createAccount', …)` now catches this; supply a currency code. (The spec carries no required-field metadata at all, so unknown required fields can still surface only as a server-side 500 — when a create 500s, suspect a missing NOT-NULL column.)
-- Use `visibility: 0` on resources that expose a `visibility` field, unless the user explicitly wants archived or deleted records.
+- Use `visibility: 0` on resources that expose a `visibility` field, unless the user explicitly wants archived or deleted records. Not every resource has the column: `tickets`, `accounts`, and `items` do; **`transactions` does not — filtering `visibility` there returns an opaque HTTP 400**. More generally, filtering on any column a resource lacks 400s with no hint which field was wrong, so filter only on fields `zeyos describe <resource>` lists.
 - Treat list operations as `POST` queries.
 - Treat `filter` versus `filters` as a source inconsistency, not a universal rule:
   - `api.json` documents `filter`

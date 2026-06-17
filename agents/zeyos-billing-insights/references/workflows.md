@@ -41,17 +41,38 @@ Recommended approach:
 4. If credits matter, query billing credits separately and subtract them.
 5. Sum the values client-side.
 
-Client example:
+CLI example — do this, end to end ("what was last year's total revenue?"):
+
+```bash
+# Current year is 2026, so "last calendar year" = 2025.
+# ZeyOS dates are Unix seconds: 2025-01-01 = 1735689600, 2026-01-01 = 1767225600.
+# NOTE: transactions has NO `visibility` column — adding "visibility":0 here 400s. Don't.
+zeyos list transactions \
+  --filter '{"type":3,"date":{">=":1735689600,"<":1767225600}}' \
+  --fields ID,transactionnum,date,netamount,tax \
+  --limit 10000 --json \
+  | python3 -c 'import sys,json; rows=json.load(sys.stdin); print(sum(r.get("netamount",0) for r in rows.get("data",rows)))'
+```
+
+There is no server-side SUM — you `list` the matching rows (high `--limit`) and add
+`netamount` yourself. Use whatever summing tool you have (a shell pipe, the JS client,
+etc.); the point is to **run it and report the figure**, not to describe the plan.
+Filtering an unknown column (like `visibility` on `transactions`) returns an opaque
+HTTP 400, so only filter on fields `zeyos describe transactions` actually lists.
+
+Client example (use when you need `expand`, richer control, or to subtract credits in one pass):
 
 ```js
 const invoices = await client.api.listTransactions({
   fields: ['ID', 'transactionnum', 'date', 'type', 'status', 'netamount', 'tax', 'account', 'account.lastname'],
   filters: {
     type: 3,
-    date: { '>=': yearStart },
+    // no visibility: transactions has no such column (would 400)
+    date: { '>=': yearStart, '<': yearEnd },
   },
-  limit: 1000,
+  limit: 10000,
 });
+const total = invoices.reduce((s, r) => s + (r.netamount || 0), 0);
 ```
 
 If the user actually wants cash basis, switch to `payments` and sum `amount` over the same date window.

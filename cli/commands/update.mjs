@@ -13,6 +13,7 @@ import {
   buildCliClient,
   buildRecordPayload,
   callApi,
+  maybeDryRun,
   requireRecordId,
   requireResource
 } from '../lib/command.mjs';
@@ -32,6 +33,7 @@ Options:
   --<field> <value>   Set individual fields  e.g. --status 2
   --json              Output updated record as JSON
   --yaml              Output updated record as YAML
+  --query             Print the request route + JSON body without sending it
   -h, --help          Show this help
 
 Examples:
@@ -54,6 +56,8 @@ export async function run(values, positional) {
   const clientState = buildCliClient();
 
   // ── Call API ───────────────────────────────────────────────────────────────
+  if (await maybeDryRun(clientState, res.update, { ID: id, body: data }, values)) return;
+
   const record = await callApi(clientState, res.update, { ID: id, body: data }, {
     notFoundMessage: `${resourceName} #${id} not found.`
   });

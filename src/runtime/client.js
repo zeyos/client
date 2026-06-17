@@ -788,6 +788,33 @@ export function createZeyosClient(rawConfig = {}) {
   }
 
   async function executeOperation({ serviceKey, operation, prepared, requestOptions = {} }) {
+    // Dry run: resolve the route + payload exactly as they would be sent, but
+    // return that descriptor instead of performing any network request or token
+    // work. Powers `zeyos … --query` and is handy for debugging/testing.
+    if (requestOptions.dryRun || prepared.dryRun) {
+      const baseUrl = resolveBaseUrl({
+        services: SERVICES,
+        serviceKey,
+        config,
+        explicitBaseUrl: prepared.baseUrl ?? requestOptions.baseUrl
+      });
+      const url = buildUrl(baseUrl, operation.path, prepared.pathParams, prepared.query);
+      const bodyType = chooseBodyType(serviceKey, operation, prepared, requestOptions?.bodyType);
+      return {
+        dryRun: true,
+        service: serviceKey,
+        operationId: operation.operationId,
+        method: operation.method,
+        url,
+        path: operation.path,
+        pathParams: prepared.pathParams,
+        query: prepared.query,
+        headers: prepared.headers,
+        body: prepared.body,
+        bodyType
+      };
+    }
+
     const requestAuth = normalizeRequestAuth(prepared.auth ?? requestOptions.auth);
     const mode = normalizeAuthMode(requestAuth.mode, defaultMode);
     const schemes = securitySchemesFromOperation(operation);

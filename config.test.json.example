@@ -26,6 +26,7 @@
       "ollama/llama3.1:8b"
     ],
     "judgeModel": "openrouter/anthropic/claude-opus-4.8",
+    "_runnerNote": "Swap `runner` to change agent CLI. opencode (default) below. For pi: { \"command\": \"pi\", \"args\": [\"-p\", \"--provider\", \"ollama\", \"--model\", \"{model}\", \"--no-session\", \"{prompt}\"], \"cwd\": \".\", \"timeoutMs\": 240000 }. Pair the pi runner with the harness `--bare-skill` flag to test skills the way a real downstream agent consumes them (no inlined operating contract). See PROTOCOL.md §5.1–5.2.",
     "runner": {
       "command": "opencode",
       "args": ["run", "--model", "{model}", "{prompt}"],

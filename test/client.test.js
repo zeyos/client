@@ -62,6 +62,27 @@ test('binds all generated operations', async () => {
   assert.equal(typeof client.legacyAuth.login, 'function');
 });
 
+test('dryRun resolves the route + payload without sending a request', async () => {
+  const fetch = async () => { throw new Error('fetch must not be called for a dry run'); };
+  const client = createZeyosClient({ instance: 'demo', fetch, auth: { mode: 'session' } });
+
+  const listReq = await client.api.listTickets(
+    { fields: ['ID', 'name'], filters: { status: 1 }, limit: 5 },
+    { dryRun: true }
+  );
+  assert.equal(listReq.dryRun, true);
+  assert.equal(listReq.method, 'POST');
+  assert.match(listReq.url, /\/demo\/api\/v1\/tickets$/);
+  assert.deepEqual(listReq.body, { fields: ['ID', 'name'], filters: { status: 1 }, limit: 5 });
+  assert.equal(listReq.bodyType, 'json');
+
+  // Path params are routed into the URL, not the body.
+  const getReq = await client.api.getTicket({ ID: 42, query: { extdata: 1 } }, { dryRun: true });
+  assert.equal(getReq.method, 'GET');
+  assert.match(getReq.url, /\/demo\/api\/v1\/tickets\/42\?extdata=1$/);
+  assert.equal(getReq.body, undefined);
+});
+
 test('builds API URL with path and query parameters', async () => {
   const fetch = createFetchSequence([
     ({ url, init }) => {

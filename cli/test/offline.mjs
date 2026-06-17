@@ -214,6 +214,24 @@ test('describe rejects an unknown resource', async () => {
   assert.match(result.stderr, /Unknown resource/);
 });
 
+test('table output stays plain and full when piped/NO_COLOR (scriptability)', async () => {
+  // Width-aware truncation and semantic color are TTY-only. Under NO_COLOR and a
+  // piped (non-TTY) stdout the output must carry no ANSI escapes AND must not drop
+  // data — so `| grep`/`| awk` keep working. The describe enums block also prints
+  // the full code=LABEL pairs below the (truncatable) table.
+  const result = await cli(['describe', 'tickets']);
+  assert.equal(result.code, 0, result.stderr);
+  assert.doesNotMatch(result.stdout, /\x1b\[[0-9;]*m/, 'piped output must contain no ANSI color codes');
+  assert.match(result.stdout, /NOTSTARTED/);
+  assert.match(result.stdout, /BOOKED/); // last enum value survives in full
+});
+
+test('help output is plain (no ANSI) when color is disabled', async () => {
+  const result = await cli(['--help']);
+  assert.doesNotMatch(result.stdout, /\x1b\[[0-9;]*m/, 'help must contain no ANSI when NO_COLOR is set');
+  assert.match(result.stdout, /Commands:/);
+});
+
 test('invalid local credential config fails loudly', async (t) => {
   const cwd = await tempDir(t);
   await mkdir(join(cwd, '.zeyos'), { recursive: true });
@@ -299,4 +317,82 @@ test('invalid local resource config fails loudly', async (t) => {
 
   assert.equal(result.code, 1);
   assert.match(result.stderr, /Failed to read resource config .*\.zeyos[/\\]api[/\\]ticket\.json/);
+});
+
+// Credentials sufficient for buildCliClient to succeed. --query never sends a
+// request, so these stay fully offline.
+const CREDENTIALS = {
+  ZEYOS_BASE_URL: 'https://zeyos.example.com/dev',
+  ZEYOS_CLIENT_ID: 'client-id',
+  ZEYOS_CLIENT_SECRET: 'client-secret',
+  ZEYOS_TOKEN: 'access-token'
+};
+
+test('unknown flags fail loudly instead of being ignored', async (t) => {
+  const cwd = await tempDir(t);
+  const result = await cli(['list', 'tickets', '--invalid'], {
+    cwd,
+    env: isolatedEnv(cwd, CREDENTIALS)
+  });
+
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /Unknown option: --invalid/);
+});
+
+test('a near-miss flag suggests the intended option', async (t) => {
+  const cwd = await tempDir(t);
+  const result = await cli(['list', 'tickets', '--filterr', '{}'], {
+    cwd,
+    env: isolatedEnv(cwd, CREDENTIALS)
+  });
+
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /did you mean --filter\?/);
+});
+
+test('a leading flag is reported as an unknown option, not a command', async () => {
+  const result = await cli(['--invalid']);
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /Unknown option: "--invalid"/);
+});
+
+test('create still accepts arbitrary --<field> flags', async (t) => {
+  const cwd = await tempDir(t);
+  const result = await cli(['create', 'tickets', '--name', 'Hi', '--anything', 'goes', '--query'], {
+    cwd,
+    env: isolatedEnv(cwd, CREDENTIALS)
+  });
+
+  assert.equal(result.code, 0);
+  assert.match(result.stdout, /"anything": "goes"/);
+});
+
+test('--query prints the route + JSON payload without sending a request', async (t) => {
+  const cwd = await tempDir(t);
+  const result = await cli(
+    ['list', 'tickets', '--filter', '{"status":1}', '--limit', '5', '--query'],
+    { cwd, env: isolatedEnv(cwd, CREDENTIALS) }
+  );
+
+  assert.equal(result.code, 0);
+  // Route line: METHOD + resolved URL for the configured instance.
+  assert.match(result.stdout, /POST https:\/\/zeyos\.example\.com\/dev\/api\/v1\/tickets/);
+  // Pretty-printed JSON body reflecting the filter + limit.
+  assert.match(result.stdout, /"filters"/);
+  assert.match(result.stdout, /"status": 1/);
+  assert.match(result.stdout, /"limit": 5/);
+});
+
+test('--query --json emits a machine-readable request descriptor', async (t) => {
+  const cwd = await tempDir(t);
+  const result = await cli(['get', 'ticket', '42', '--query', '--json'], {
+    cwd,
+    env: isolatedEnv(cwd, CREDENTIALS)
+  });
+
+  assert.equal(result.code, 0);
+  const descriptor = JSON.parse(result.stdout);
+  assert.equal(descriptor.dryRun, true);
+  assert.equal(descriptor.method, 'GET');
+  assert.match(descriptor.url, /\/api\/v1\/tickets\/42(\?|$)/);
 });

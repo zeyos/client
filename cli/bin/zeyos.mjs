@@ -23,45 +23,50 @@
 import { createRequire as _createRequire } from 'node:module';
 import { dirname as _dirname } from 'node:path';
 import { fileURLToPath as _fileURLToPath } from 'node:url';
+import { colors as _c } from '../lib/output.mjs';
 const _require = _createRequire(import.meta.url);
 const _VERSION = _require('../package.json').version;
 
 // ── Global help ───────────────────────────────────────────────────────────────
 
+// Section headers are bold and the `zeyos` binary / command names are cyan,
+// gated by USE_COLOR in output.mjs (so `zeyos --help | less` stays plain text).
+const _z = _c.cyan('zeyos');
 const HELP = `\
-Usage: zeyos <command> [options] [args…]
+Usage: ${_z} <command> [options] [args…]
 
-Commands:
-  login                Authenticate with a ZeyOS instance
-  logout               Revoke session and clear stored tokens
-  whoami               Show currently authenticated user
-  list   <resource>    List / query records
-  count  <resource>    Count records (with optional filter)
-  get    <resource> <id>  Fetch a single record by ID
-  show   <resource> <id>  Alias for get
-  create <resource>    Create a new record
-  update <resource> <id>  Update an existing record
-  delete <resource> <id>  Delete a record
-  resources            List all available resource types
-  describe <resource>  Show a resource's fields, types and enums
-  skills <command>     List / show / install ZeyOS agent skills
+${_c.bold('Commands:')}
+  ${_c.cyan('login')}                Authenticate with a ZeyOS instance
+  ${_c.cyan('logout')}               Revoke session and clear stored tokens
+  ${_c.cyan('whoami')}               Show currently authenticated user
+  ${_c.cyan('list')}   <resource>    List / query records
+  ${_c.cyan('count')}  <resource>    Count records (with optional filter)
+  ${_c.cyan('get')}    <resource> <id>  Fetch a single record by ID
+  ${_c.cyan('show')}   <resource> <id>  Alias for get
+  ${_c.cyan('create')} <resource>    Create a new record
+  ${_c.cyan('update')} <resource> <id>  Update an existing record
+  ${_c.cyan('delete')} <resource> <id>  Delete a record
+  ${_c.cyan('resources')}            List all available resource types
+  ${_c.cyan('describe')} <resource>  Show a resource's fields, types and enums
+  ${_c.cyan('skills')} <command>     List / show / install ZeyOS agent skills
 
-Global options:
+${_c.bold('Global options:')}
   --json               Output as JSON
   --yaml               Output as YAML
+  --query              Print the API route + JSON payload without sending it
   --no-color           Disable ANSI colors
   -h, --help           Show help for a command
   -v, --version        Print the CLI version and exit
 
-Examples:
-  zeyos login --base-url https://cloud.zeyos.com/demo --client-id myapp --secret "$ZEYOS_CLIENT_SECRET"
-  zeyos list tickets --filter '{"status":1}' --sort -lastmodified
-  zeyos count tickets --filter '{"status":1}'
-  zeyos get ticket 42
-  zeyos get ticket 42 --all
-  zeyos create ticket --name "Fix login bug" --priority 3
-  zeyos update ticket 42 --status 2
-  zeyos delete ticket 42 --force
+${_c.bold('Examples:')}
+  ${_z} login --base-url https://cloud.zeyos.com/demo --client-id myapp --secret "$ZEYOS_CLIENT_SECRET"
+  ${_z} list tickets --filter '{"status":1}' --sort -lastmodified
+  ${_z} count tickets --filter '{"status":1}'
+  ${_z} get ticket 42
+  ${_z} get ticket 42 --all
+  ${_z} create ticket --name "Fix login bug" --priority 3
+  ${_z} update ticket 42 --status 2
+  ${_z} delete ticket 42 --force
 `;
 
 // ── Argument definitions ──────────────────────────────────────────────────────
@@ -73,6 +78,7 @@ const OPTIONS = {
   'json':       { type: 'boolean' },
   'yaml':       { type: 'boolean' },
   'no-color':   { type: 'boolean' },
+  'query':      { type: 'boolean' },
   // login
   'base-url':   { type: 'string' },
   'client-id':  { type: 'string' },
@@ -132,6 +138,37 @@ const COMMANDS = {
   skill:     '../commands/skills.mjs',
 };
 
+// ── Per-command flag allow-lists ────────────────────────────────────────────────
+// Unknown flags are rejected (e.g. `zeyos list --invalid`) so typos surface
+// immediately instead of being silently ignored. `create`/`update` are the
+// exception: they accept arbitrary `--<field>` flags, marked with `null` below.
+
+const ALWAYS_FLAGS = ['help', 'json', 'yaml', 'no-color'];
+const SKILLS_FLAGS = ['target', 'dir', 'global', 'local', 'force', 'yes', 'no-logo'];
+const DELETE_FLAGS = ['force', 'query'];
+const GET_FLAGS    = ['fields', 'extdata', 'tags', 'expand', 'all', 'query'];
+
+const COMMAND_FLAGS = {
+  login:     ['base-url', 'client-id', 'secret', 'scope', 'port', 'global', 'force', 'clean', 'manual'],
+  logout:    ['global'],
+  whoami:    ['show-token'],
+  list:      ['fields', 'filter', 'sort', 'limit', 'offset', 'extdata', 'expand', 'query'],
+  count:     ['filter', 'query'],
+  get:       GET_FLAGS,
+  show:      GET_FLAGS,
+  create:    null,
+  update:    null,
+  edit:      null,
+  delete:    DELETE_FLAGS,
+  rm:        DELETE_FLAGS,
+  remove:    DELETE_FLAGS,
+  resources: [],
+  resource:  [],
+  describe:  [],
+  skills:    SKILLS_FLAGS,
+  skill:     SKILLS_FLAGS,
+};
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -149,6 +186,14 @@ async function main() {
   }
 
   const command = argv[0];
+
+  // A leading flag (e.g. `zeyos --invalid`) is not a command — surface it as a
+  // bad option rather than letting it masquerade as one.
+  if (command.startsWith('-')) {
+    process.stderr.write(`Unknown option: "${command}".  Run 'zeyos --help' for usage.\n`);
+    process.exit(1);
+  }
+
   const rest    = argv.slice(1);
 
   // Parse remaining args permissively: known options are parsed normally and
@@ -166,6 +211,24 @@ async function main() {
   if (values.help) {
     process.stdout.write(mod.USAGE ?? HELP);
     process.exit(0);
+  }
+
+  // Reject unknown flags so typos / unsupported options fail loudly instead of
+  // being silently ignored. `create`/`update` opt out (COMMAND_FLAGS = null)
+  // because they accept arbitrary `--<field>` flags as record data.
+  const allowed = COMMAND_FLAGS[command];
+  if (allowed) {
+    const allowedSet = new Set([...ALWAYS_FLAGS, ...allowed]);
+    const unknown = Object.keys(values).filter((key) => !allowedSet.has(key));
+    if (unknown.length > 0) {
+      const flag = unknown[0];
+      const hint = _suggestFlag(flag, [...allowedSet]);
+      process.stderr.write(
+        `Unknown option: --${flag}${hint ? `  (did you mean --${hint}?)` : ''}\n\n` +
+          `Run 'zeyos ${command} --help' for available options.\n`
+      );
+      process.exit(1);
+    }
   }
 
   await mod.run(values, positional);
@@ -272,6 +335,38 @@ function _parsePermissive(argv, options) {
   }
 
   return { values, positional };
+}
+
+/** Suggest the closest allowed flag for an unknown one, if it's a near miss. */
+function _suggestFlag(input, candidates) {
+  let best = null;
+  let bestDist = Infinity;
+  for (const candidate of candidates) {
+    const dist = _levenshtein(input, candidate);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = candidate;
+    }
+  }
+  // Only suggest a reasonably close match (avoid nonsense "did you mean").
+  return bestDist <= Math.max(2, Math.floor(input.length / 2)) ? best : null;
+}
+
+/** Levenshtein edit distance between two short strings. */
+function _levenshtein(a, b) {
+  const m = a.length;
+  const n = b.length;
+  const dp = Array.from({ length: m + 1 }, (_, i) => i);
+  for (let j = 1; j <= n; j++) {
+    let prev = dp[0];
+    dp[0] = j;
+    for (let i = 1; i <= m; i++) {
+      const tmp = dp[i];
+      dp[i] = a[i - 1] === b[j - 1] ? prev : 1 + Math.min(prev, dp[i], dp[i - 1]);
+      prev = tmp;
+    }
+  }
+  return dp[m];
 }
 
 main().catch(err => {

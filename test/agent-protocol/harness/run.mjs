@@ -58,12 +58,13 @@ try {
 // ── args ────────────────────────────────────────────────────────────────────
 
 function parseArgs(argv) {
-  const opts = { dryRun: false, list: false, scenario: null, layer: null, models: null, noCleanup: false, config: null, runId: null };
+  const opts = { dryRun: false, list: false, scenario: null, layer: null, models: null, noCleanup: false, config: null, runId: null, bareSkill: false };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
     if (a === '--dry-run') opts.dryRun = true;
     else if (a === '--list') opts.list = true;
     else if (a === '--no-cleanup') opts.noCleanup = true;
+    else if (a === '--bare-skill') opts.bareSkill = true;
     else if (a === '--scenario') opts.scenario = argv[++i];
     else if (a === '--layer') opts.layer = argv[++i];
     else if (a === '--models') opts.models = argv[++i].split(',').map((s) => s.trim()).filter(Boolean);
@@ -132,6 +133,22 @@ function classify(attempts, isCanary) {
   return 'CLIENT_DEFECT';
 }
 
+/**
+ * PLANNED_NOT_EXECUTED: a failure-mode annotation (not a top-level classification). The
+ * agent produced a plan, asked for an "execution endpoint", or claimed it had no tools —
+ * instead of running anything. There is no usable RESULT and the prose shows planning /
+ * no-tools language. When every model trips this on a scenario, the skill is not
+ * self-contained (the runner-agnostic operating contract didn't reach the model), which
+ * is a skill-pack gap, not a client bug. Surfaced in the scorecard as a hint.
+ */
+const PLAN_NOT_EXEC_RE = /(execution endpoint|do not have (any )?(the )?tools?\b|no tools? (that can|available|to execute|to run)|don'?t have (a |the )?(tool|way|mechanism) to (execute|run|query)|please provide (the|an|me)[^.\n]{0,40}(endpoint|tool|access|data layer|mechanism)|once I have access|query plan|i (cannot|can'?t) (execute|run) (this|the) query|if I had access|simulat(e|ing) the query)/i;
+
+function detectPlannedNotExecuted(stdout, result) {
+  const hasUsableResult = result !== null && result !== undefined && !/^ERROR\b/i.test(String(result).trim());
+  if (hasUsableResult) return false;
+  return PLAN_NOT_EXEC_RE.test(String(stdout || ''));
+}
+
 // ── main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -158,8 +175,20 @@ async function main() {
 
   // ── scenarios (no credentials needed to load/list) ──
   const all = await walkScenarios(SCENARIO_DIR);
-  const scenarios = selectScenarios(all, ap.scenarios || {}, opts);
+  let scenarios = selectScenarios(all, ap.scenarios || {}, opts);
   if (scenarios.length === 0) fail('No scenarios selected.');
+
+  // Bare-skill mode omits the inlined operating contract (the self-containment test). The
+  // safety rules then live only in the skill, so refuse to run mutating/canary scenarios
+  // in this mode — they must keep the inlined contract.
+  if (opts.bareSkill) {
+    const dropped = scenarios.filter((s) => s.mutates);
+    scenarios = scenarios.filter((s) => !s.mutates);
+    if (dropped.length) {
+      console.log(`Bare-skill mode: skipping ${dropped.length} mutating scenario(s) (${dropped.map((s) => s.id).join(', ')}) — safety contract must stay inlined.`);
+    }
+    if (scenarios.length === 0) fail('No read-only scenarios selected for --bare-skill mode.');
+  }
 
   if (opts.list) {
     console.log(`Selected ${scenarios.length} scenario(s):`);
@@ -189,7 +218,7 @@ async function main() {
 
   console.log(`\nZeyOS Agent Test Protocol — run ${runId}`);
   console.log(`Instance:  ${instance} (${baseUrl})`);
-  console.log(`Mode:      ${opts.dryRun ? 'DRY RUN (no model, no mutation)' : `LIVE — models: ${models.join(', ')}`}`);
+  console.log(`Mode:      ${opts.dryRun ? 'DRY RUN (no model, no mutation)' : `LIVE — models: ${models.join(', ')}`}${opts.bareSkill ? ' — BARE-SKILL (no inlined operating contract; tests skill self-containment)' : ''}`);
   console.log(`Scenarios: ${scenarios.length}\n`);
 
   // ── orphan sweep ──
@@ -221,7 +250,8 @@ async function main() {
   for (const scenario of scenarios) {
     const rec = await runScenario({
       scenario, models, runner, childEnv, resultsDir, client, runId, recordPrefix,
-      transientRetries, isCanary: canarySet.has(scenario.id), judgeModel: ap.judgeModel, noCleanup: opts.noCleanup
+      transientRetries, isCanary: canarySet.has(scenario.id), judgeModel: ap.judgeModel, noCleanup: opts.noCleanup,
+      bareSkill: opts.bareSkill
     });
     records.push(rec);
     console.log(`  ${badge(rec.classification)}  ${scenario.id}  ${rec.summaryLine}`);
@@ -238,8 +268,8 @@ async function main() {
 // ── per-scenario rotation engine ────────────────────────────────────────────
 
 async function runScenario(c) {
-  const { scenario, models, runner, childEnv, resultsDir, client, runId, recordPrefix, transientRetries, isCanary, judgeModel, noCleanup } = c;
-  const prompt = buildPrompt(scenario, { runId, recordPrefix });
+  const { scenario, models, runner, childEnv, resultsDir, client, runId, recordPrefix, transientRetries, isCanary, judgeModel, noCleanup, bareSkill } = c;
+  const prompt = buildPrompt(scenario, { runId, recordPrefix }, { bareSkill });
   const attempts = [];
 
   for (const model of models) {
@@ -285,7 +315,8 @@ async function runScenario(c) {
       expected: evalRes.expected, actual: evalRes.actual,
       resultRaw, transcriptPath: path.relative(resultsDir, agent.transcriptPath),
       durationMs: agent.durationMs, transient: agent.transient, timedOut: agent.timedOut,
-      exitCode: agent.code, cleanup, seed: seedReport
+      exitCode: agent.code, cleanup, seed: seedReport,
+      notExecuted: detectPlannedNotExecuted(agent.stdout, resultRaw)
     });
 
     if (evalRes.pass === true && !isCanary) break;
@@ -300,12 +331,16 @@ async function runScenario(c) {
   };
 }
 
-function buildPrompt(scenario, ctx) {
+function buildPrompt(scenario, ctx, opts = {}) {
   const lines = [];
-  if (AGENTS_CONTRACT) lines.push(AGENTS_CONTRACT, '', '--- TASK ---', '');
+  // Bare-skill mode deliberately omits the inlined operating contract so the only place
+  // the agent can learn "you have tools, the CLI is authenticated, act don't plan" is the
+  // skill itself — that is the self-containment test. Harness mode inlines AGENTS.md.
+  if (!opts.bareSkill && AGENTS_CONTRACT) lines.push(AGENTS_CONTRACT, '', '--- TASK ---', '');
   if (scenario.skill) {
     // Referenced by repo-relative path (the runner runs at the repo root) and worded
-    // to avoid colliding with opencode's own "skill" loader.
+    // to avoid colliding with opencode's own "skill" loader. In bare-skill mode this
+    // pointer (plus what the skill files say) is the agent's entire operating context.
     lines.push(
       `Before acting, read the domain guide files under the repository root: ` +
         `agents/${scenario.skill}/SKILL.md and agents/${scenario.skill}/references/workflows.md.`,
@@ -389,10 +424,17 @@ async function writeScorecards({ resultsDir, runId, instance, baseUrl, models, r
 
 function scenarioBlock(r) {
   const out = [`### \`${r.id}\` — ${r.title}`, '', `- layer ${r.layer}${r.skill ? ` · skill \`${r.skill}\`` : ''} · \`${r.kind}\``];
+  // PLANNED_NOT_EXECUTED hint: when every failing attempt only planned (never ran a
+  // command), the likely cause is a skill that isn't self-contained, not a client bug.
+  const failed = r.attempts.filter((a) => a.pass === false);
+  if (failed.length && failed.every((a) => a.notExecuted)) {
+    out.push(`- 🧭 **PLANNED_NOT_EXECUTED** on every failing attempt — the agent planned/asked for an "execution endpoint" but never ran a command. Likely a skill self-containment gap (operating contract not reaching the model), not a client defect. Re-run with \`--bare-skill\` to confirm.`);
+  }
   for (const a of r.attempts) {
     const verdict = a.pass === true ? 'PASS' : a.pass === null ? 'REVIEW' : 'FAIL';
     const exp = a.expected !== undefined ? ` · expected=${JSON.stringify(a.expected)} actual=${JSON.stringify(a.actual)}` : '';
-    out.push(`- \`${a.model}\` → **${verdict}** (${a.durationMs}ms${a.transient ? ', transient' : ''})${exp} — ${a.detail || ''}`);
+    const planned = a.notExecuted ? ' · 🧭 planned-not-executed' : '';
+    out.push(`- \`${a.model}\` → **${verdict}** (${a.durationMs}ms${a.transient ? ', transient' : ''})${exp}${planned} — ${a.detail || ''}`);
     out.push(`  - transcript: \`${a.transcriptPath}\``);
   }
   out.push('');
@@ -423,7 +465,7 @@ function fail(msg) {
 }
 
 // Pure helpers are exported for offline unit testing (see verify.test.mjs).
-export { classify, globToRe, selectScenarios, buildPrompt };
+export { classify, globToRe, selectScenarios, buildPrompt, detectPlannedNotExecuted };
 
 // Only run the orchestrator when invoked directly, not when imported by a test.
 const invokedDirectly = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;

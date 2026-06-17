@@ -11,7 +11,7 @@
  *   --yaml           Output created record as YAML
  */
 
-import { buildCliClient, buildRecordPayload, callApi, requireResource } from '../lib/command.mjs';
+import { buildCliClient, buildRecordPayload, callApi, maybeDryRun, requireResource } from '../lib/command.mjs';
 import { outputMode, printJson, printYaml, printRecord, success } from '../lib/output.mjs';
 
 export const USAGE = `\
@@ -27,6 +27,7 @@ Options:
   --<field> <value>   Set individual fields  e.g. --name "My Ticket" --status 1
   --json              Output created record as JSON
   --yaml              Output created record as YAML
+  --query             Print the request route + JSON body without sending it
   -h, --help          Show this help
 
 Examples:
@@ -46,6 +47,8 @@ export async function run(values, positional) {
   const clientState = buildCliClient();
 
   // ── Call API ───────────────────────────────────────────────────────────────
+  if (await maybeDryRun(clientState, res.create, data, values)) return;
+
   const record = await callApi(clientState, res.create, data);
 
   const mode = outputMode(values);

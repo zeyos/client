@@ -17,11 +17,12 @@
 import { loadConfig }                    from '../lib/config.mjs';
 import { canonicalName }                 from '../lib/resources.mjs';
 import { getGetFields, getGetParams }    from '../lib/resource-config.mjs';
-import { outputMode, printJson, printYaml, printRecord, buildDateFormatters } from '../lib/output.mjs';
+import { outputMode, printJson, printYaml, printRecord, buildDateFormatters, buildEnumFormatters } from '../lib/output.mjs';
 import {
   buildCliClient,
   callApi,
   fail,
+  maybeDryRun,
   requireRecordId,
   requireResource
 } from '../lib/command.mjs';
@@ -44,6 +45,7 @@ Options:
   --all               Fetch all data (extdata + tags + all fields)
   --json              Output as JSON
   --yaml              Output as YAML
+  --query             Print the request route + JSON body without sending it
   -h, --help          Show this help
 
 Fields format:
@@ -98,6 +100,8 @@ export async function run(values, positional) {
   }
 
   // ── Call API ───────────────────────────────────────────────────────────────
+  if (await maybeDryRun(clientState, res.get, params, values)) return;
+
   const record = await callApi(clientState, res.get, params, {
     notFoundMessage: `${resourceName} #${id} not found.`
   });
@@ -121,7 +125,16 @@ export async function run(values, positional) {
     const cfg = loadConfig();
     const dateFormat = cfg.dateFormat ?? 'YYYY-MM-DD';
     const displayKeys = fields ?? Object.keys(record);
-    const formatters = buildDateFormatters(displayKeys, dateFormat);
-    printRecord(record, displayKeys, fieldLabels, formatters);
+    const dateFormatters = buildDateFormatters(displayKeys, dateFormat);
+
+    // QW-3: schema-driven enum/ID coloring in the single-record view too.
+    // Enum values are colored by their resolved label keyword; ID/FK fields are
+    // dimmed. Date formatters win for date columns. No-op when color is off.
+    const schema = clientState.client.schema;
+    const schemaKey = schema?.resourceForOperation?.(res.get);
+    const fieldDefs = schemaKey ? schema.describe(schemaKey)?.fields : undefined;
+    const enumFormatters = fieldDefs ? buildEnumFormatters(displayKeys, fieldDefs) : {};
+
+    printRecord(record, displayKeys, fieldLabels, { ...enumFormatters, ...dateFormatters });
   }
 }

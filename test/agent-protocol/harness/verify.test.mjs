@@ -17,7 +17,7 @@ import {
   passwordLogin
 } from './verify.mjs';
 import { runAgent } from './opencode-adapter.mjs';
-import { classify, globToRe } from './run.mjs';
+import { classify, globToRe, buildPrompt, detectPlannedNotExecuted } from './run.mjs';
 
 const ctxBase = { runId: 'run-1', recordPrefix: 'AGENTTEST' };
 
@@ -259,6 +259,39 @@ test('classify implements the rotation escalation rule', () => {
   assert.equal(classify([{ pass: true }, { pass: true }], true), 'PASS');
   assert.equal(classify([{ pass: true }, { pass: false }], true), 'MODEL_DIVERGENCE');
   assert.equal(classify([{ pass: false }, { pass: false }], true), 'CLIENT_DEFECT');
+});
+
+test('detectPlannedNotExecuted flags plan-only / no-tools transcripts with no usable RESULT', () => {
+  // The exact failure mode observed with gemma under pi: planned, asked for an endpoint.
+  assert.equal(
+    detectPlannedNotExecuted('…Please provide the execution endpoint or tool required to run a report.', null),
+    true
+  );
+  assert.equal(detectPlannedNotExecuted('I do not have any tools that can execute this query.', null), true);
+  assert.equal(detectPlannedNotExecuted('Here is my query plan, once I have access I can return the total.', null), true);
+  // A real answer is never planned-not-executed, even if the prose mentions a "plan".
+  assert.equal(detectPlannedNotExecuted('Ran the query plan and summed the rows.', '152340'), false);
+  // An ERROR result still counts as not-executed when the prose shows planning language.
+  assert.equal(detectPlannedNotExecuted('I cannot execute the query without the data layer.', 'ERROR no data'), true);
+  // A genuine failure that actually tried (no planning language) is NOT this annotation.
+  assert.equal(detectPlannedNotExecuted('Ran zeyos count tickets; got HTTP 500 from the server.', null), false);
+});
+
+test('buildPrompt omits the inlined operating contract in bare-skill mode', () => {
+  const scenario = { skill: 'zeyos-billing-insights', interface: 'cli', prompt: 'compute last year revenue' };
+  const ctx = { runId: 'run-1', recordPrefix: 'AGENTTEST' };
+
+  const harness = buildPrompt(scenario, ctx);
+  const bare = buildPrompt(scenario, ctx, { bareSkill: true });
+
+  // Harness mode inlines AGENTS.md (marked by the TASK separator); bare-skill mode does not.
+  assert.match(harness, /--- TASK ---/);
+  assert.doesNotMatch(bare, /--- TASK ---/);
+  // Both still point the agent at the skill files and demand the RESULT line.
+  for (const p of [harness, bare]) {
+    assert.match(p, /agents\/zeyos-billing-insights\/SKILL\.md/);
+    assert.match(p, /RESULT:/);
+  }
 });
 
 test('globToRe: ** crosses path separators, * stays within a segment', () => {

@@ -7,7 +7,13 @@ Cross-platform modeling guidance lives in [`shared/business-app-benchmarks.md`](
 
 ## Structure
 
-- `shared/` contains cross-domain query rules and entity relationships.
+- `shared/` contains cross-domain query rules and entity relationships, including
+  [`shared/zeyos-agent-operating-guide.md`](./shared/zeyos-agent-operating-guide.md) — the
+  runner-agnostic operating contract (you have tools, the CLI is already authenticated,
+  act don't plan, safety) that every skill builds on.
+- `zeyos/` is the generic entry-point skill: how to actually talk to a ZeyOS instance via
+  the authenticated `zeyos` CLI. Use it when a request touches ZeyOS data and no
+  domain-specific skill clearly fits.
 - `zeyos-work-management/` handles tasks, projects, tickets, and assignee workload questions.
 - `zeyos-mail-operations/` handles message lookup, email summaries, threads, and safe draft workflows.
 - `zeyos-billing-insights/` handles transactions, payments, invoices, credits, and revenue questions.
@@ -34,6 +40,7 @@ Cross-platform modeling guidance lives in [`shared/business-app-benchmarks.md`](
 
 | Skill | Best for | Example prompts |
 |------|----------|-----------------|
+| `zeyos` | General-purpose ZeyOS access via the CLI; the catch-all when no domain skill fits | "How many open customers do we have?"; "List the 10 most recently modified tickets."; "Show me account 122." |
 | `zeyos-work-management` | Operational work queues, user workload, ticket-task-project tracing, follow-up work creation | "On which projects did Max Power work in the last two weeks?"; "Show overdue high-priority tickets for account ACME."; "What open tasks are blocking Project Atlas?" |
 | `zeyos-mail-operations` | Customer mail summaries, thread reconstruction, draft preparation, mailbox analysis | "Give me a summary of all recent mails from customer XYZ."; "Which open tickets have unanswered customer emails?"; "Draft a reply to the latest complaint from ACME." |
 | `zeyos-billing-insights` | Revenue, invoices, credits, payment tracking, transaction-level finance questions | "What is our net invoiced revenue this year?"; "How much cash did we collect this quarter?"; "Show all billing activity for customer XYZ." |
@@ -51,11 +58,14 @@ The CLI covers common operational resources such as accounts, contacts, document
 
 ## Recommended Loading Order
 
-1. Read `shared/zeyos-query-patterns.md`.
-2. Read `shared/business-app-benchmarks.md` when the semantics are unclear.
-3. Read `shared/zeyos-entity-reference.md` when the entity itself is unclear.
-4. Read `shared/zeyos-entity-map.md` if the question crosses domains.
-5. Load the matching skill folder and its `references/workflows.md`.
+1. Read `shared/zeyos-agent-operating-guide.md` — establishes that you have tools, the CLI
+   is authenticated, and you must run commands rather than produce a plan.
+2. Read `shared/zeyos-query-patterns.md`.
+3. Read `shared/business-app-benchmarks.md` when the semantics are unclear.
+4. Read `shared/zeyos-entity-reference.md` when the entity itself is unclear.
+5. Read `shared/zeyos-entity-map.md` if the question crosses domains.
+6. Load the matching skill folder and its `references/workflows.md` (or the generic `zeyos/`
+   skill when no domain skill fits).
 
 ## Good Next Skills
 

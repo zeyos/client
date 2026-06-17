@@ -5,6 +5,14 @@ ZeyOS client, CLI, and agent skill pack against a **live** ZeyOS instance. Follo
 rules exactly. The harness verifies the *outcome* of your work independently — your job
 is to perform the requested task faithfully, not to guess what the harness wants to hear.
 
+> This file is the **harness-specific** layer (env-injected auth + the `RESULT:` output
+> contract). The runner-agnostic operating contract — *you have tools, the CLI is
+> authenticated, act don't plan, safety* — is the canonical
+> `agents/shared/zeyos-agent-operating-guide.md`; the skills carry it on their own so they
+> work outside this harness (e.g. under `pi`). Keep the two consistent when editing.
+> In **bare-skill mode** (`--bare-skill`) the harness does *not* inline this file, so the
+> agent must get that contract from the skill — that mode is the self-containment test.
+
 ## Authentication (already configured)
 
 Credentials are provided in the environment. Do **not** ask for them and do **not** print them.
@@ -32,7 +40,10 @@ The task prompt names the skill that applies. Read these before acting:
 2. `$ZEYOS_REPO_ROOT/agents/<skill>/SKILL.md` and its `references/workflows.md`.
 3. `$ZEYOS_REPO_ROOT/agents/shared/zeyos-entity-reference.md` when an entity is unclear.
 
-Always include `visibility: 0` in filters unless the task explicitly wants archived records.
+Include `visibility: 0` in filters on resources that **have** a `visibility` column (e.g.
+tickets, accounts, items) unless the task explicitly wants archived records. Some resources
+(e.g. `transactions`) have no such column — filtering on it there returns an opaque HTTP
+400. Check with `zeyos describe <resource>` when unsure.
 
 ## Safety rules (hard constraints)
 

@@ -1,7 +1,7 @@
 import { buildClient, syncTokens } from './client.mjs';
 import { collectFieldFlags } from './flags.mjs';
 import { resolveResource } from './resources.mjs';
-import { error, info, warn } from './output.mjs';
+import { error, info, warn, printQuery } from './output.mjs';
 
 export function fail(message) {
   error(message);
@@ -123,6 +123,31 @@ export function buildRecordPayload(values, positionalData) {
   }
 
   fail('No fields provided.  Use --data or individual --<field> flags.');
+}
+
+/**
+ * Handle the global `--query` flag: instead of sending the request, ask the
+ * client to resolve the route + payload (dry run) and print them. Returns
+ * `true` when it handled a dry run, so the caller can `return` early.
+ *
+ * @param {ReturnType<typeof buildCliClient>} clientState
+ * @param {string} operationId
+ * @param {unknown} input - the same input the real call would receive
+ * @param {Record<string, unknown>} values - parsed CLI flags
+ * @returns {Promise<boolean>}
+ */
+export async function maybeDryRun(clientState, operationId, input, values) {
+  if (!values.query) return false;
+
+  const fn = requireApiMethod(clientState, operationId);
+  let descriptor;
+  try {
+    descriptor = await fn(input, { dryRun: true });
+  } catch (err) {
+    fail(`Could not build request: ${err.message}`);
+  }
+  printQuery(descriptor, values);
+  return true;
 }
 
 export function requireApiMethod(clientState, operationId) {

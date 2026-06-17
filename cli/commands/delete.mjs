@@ -8,7 +8,7 @@
  */
 
 import { createInterface }         from 'node:readline';
-import { buildCliClient, callApi, requireRecordId, requireResource } from '../lib/command.mjs';
+import { buildCliClient, callApi, maybeDryRun, requireRecordId, requireResource } from '../lib/command.mjs';
 import { success, warn }           from '../lib/output.mjs';
 
 export const USAGE = `\
@@ -22,6 +22,7 @@ Arguments:
 
 Options:
   --force             Skip confirmation prompt
+  --query             Print the request route + JSON body without sending it
   -h, --help          Show this help
 
 Examples:
@@ -36,6 +37,12 @@ export async function run(values, positional) {
   const res = requireResource(resourceName, 'zeyos delete <resource> <id>', 'delete', 'deletion');
   requireRecordId(id, 'zeyos delete <resource> <id>');
 
+  const clientState = buildCliClient();
+
+  // ── Dry run ────────────────────────────────────────────────────────────────
+  // Show the request without prompting or deleting anything.
+  if (await maybeDryRun(clientState, res.delete, { ID: id }, values)) return;
+
   // ── Confirmation ───────────────────────────────────────────────────────────
   if (!values.force) {
     const confirmed = await _confirm(`Delete ${resourceName} #${id}? [y/N] `);
@@ -44,8 +51,6 @@ export async function run(values, positional) {
       return;
     }
   }
-
-  const clientState = buildCliClient();
 
   // ── Call API ───────────────────────────────────────────────────────────────
   await callApi(clientState, res.delete, { ID: id }, {

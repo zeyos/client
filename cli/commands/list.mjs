@@ -19,11 +19,12 @@ import { normalizeListResult }            from '@zeyos/client';
 import { loadConfig }                    from '../lib/config.mjs';
 import { canonicalName }                 from '../lib/resources.mjs';
 import { getListFields }                 from '../lib/resource-config.mjs';
-import { outputMode, printJson, printYaml, printTable, buildDateFormatters, warn, info } from '../lib/output.mjs';
+import { outputMode, printJson, printYaml, printTable, buildDateFormatters, buildEnumFormatters, info } from '../lib/output.mjs';
 import {
   buildCliClient,
   callApi,
   fail,
+  maybeDryRun,
   parseJsonOption,
   requireApiMethod,
   requireResource
@@ -47,6 +48,7 @@ Options:
   --expand <list>     Expand JSON/binary columns (e.g. binfile, items)
   --json              Output as JSON
   --yaml              Output as YAML
+  --query             Print the request route + JSON body without sending it
   -h, --help          Show this help
 
 Fields format:
@@ -110,6 +112,8 @@ export async function run(values, positional) {
   }
 
   // ── Call API ───────────────────────────────────────────────────────────────
+  if (await maybeDryRun(clientState, res.list, body, values)) return;
+
   const fn = requireApiMethod(clientState, res.list);
   let records = await callApi(clientState, res.list, body);
 
@@ -125,13 +129,27 @@ export async function run(values, positional) {
   } else if (mode === 'yaml') {
     printYaml(records);
   } else if (records.length === 0) {
-    warn(`No ${resourceName} found.`);
+    // QW-7: an empty result is a neutral fact, not a warning — use the info `·`
+    // glyph rather than the `⚠` glyph (which reads as an error).
+    info(`No ${resourceName} match.`);
     return;
   } else {
     const cfg = loadConfig();
     const dateFormat = cfg.dateFormat ?? 'YYYY-MM-DD';
-    const formatters = buildDateFormatters(displayColumns, dateFormat, apiFields);
-    printTable(records, displayColumns, {}, formatters);
+    const dateFormatters = buildDateFormatters(displayColumns, dateFormat, apiFields);
+
+    // QW-3: schema-driven enum/ID coloring. Resolve the resource's field defs
+    // (enums, FKs) via the same schema source `describe` uses, then color enum
+    // values by label keyword and dim ID/FK columns. No-op when color is off.
+    // Date formatters win for date columns (a column is never both).
+    const schema = clientState.client.schema;
+    const schemaKey = schema?.resourceForOperation?.(res.list);
+    const fieldDefs = schemaKey ? schema.describe(schemaKey)?.fields : undefined;
+    const enumFormatters = fieldDefs
+      ? buildEnumFormatters(displayColumns, fieldDefs, apiFields)
+      : {};
+
+    printTable(records, displayColumns, {}, { ...enumFormatters, ...dateFormatters });
   }
 
   // ── Pagination / truncation hint ──────────────────────────────────────────
@@ -149,14 +167,14 @@ export async function run(values, positional) {
       const countResult = await fn(countBody);
       const total = countResult?.count ?? null;
       if (total !== null && total > records.length) {
-        info(`Showing ${from}–${to} of ${total}  (default --limit ${limit} truncated this — pass --limit, --offset ${to} for the next page, or use \`zeyos count ${resourceName}\` for the total).`);
+        info(`→ Showing ${from}–${to} of ${total}  (default --limit ${limit} truncated this — pass --limit, --offset ${to} for the next page, or use \`zeyos count ${resourceName}\` for the total).`);
       } else if (total !== null) {
-        info(`Showing ${from}–${to} of ${total}  (--offset ${to} for next page)`);
+        info(`→ Showing ${from}–${to} of ${total}  (--offset ${to} for next page)`);
       }
     } catch {
       // Non-critical — skip pagination info
     }
   } else if (offset > 0) {
-    info(`Showing ${from}–${to} of ${to}`);
+    info(`→ Showing ${from}–${to} of ${to}`);
   }
 }

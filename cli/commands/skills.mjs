@@ -177,7 +177,7 @@ async function resolveTarget(values) {
   } else if (interactive) {
     agent = await promptAgent();
   } else {
-    agent = detectAgent() || AGENTS[0];
+    agent = detectAgent() || AGENTS.find((a) => a.key === 'agents');
   }
 
   // (b) Install globally or just for this project?
@@ -225,7 +225,8 @@ function promptMenu(question, items, defaultIndex = 0) {
 
 async function promptAgent() {
   const detected = detectAgent();
-  const defaultIndex = detected ? AGENTS.indexOf(detected) : 0;
+  const agentsIdx = AGENTS.findIndex((a) => a.key === 'agents');
+  const defaultIndex = detected ? AGENTS.indexOf(detected) : agentsIdx;
   const items = AGENTS.map((a) => ({
     label: a.label,
     hint: a === detected ? `${a.local}  (detected here)` : a.local,

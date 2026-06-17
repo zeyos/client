@@ -82,12 +82,19 @@ export function run(values, positional = []) {
     return;
   }
 
+  // Keep the join-critical flags (→ fk, indexed, enum) in the table, but keep
+  // the `enum:` note SHORT so the long value list never blows out the column.
+  // The full enum values are printed below the table (see `enumDetails`), so FK
+  // and index flags stay legible in-line and the enum codes remain discoverable.
+  const enumDetails = [];
   const rows = Object.entries(def.fields).map(([name, field]) => {
     const notes = [];
     if (field.fk) notes.push(`→ ${field.fk}`);
     if (field.indexed) notes.push('indexed');
     if (field.enum) {
-      notes.push('enum: ' + Object.entries(field.enum).map(([k, v]) => `${k}=${v}`).join(' '));
+      const count = Object.keys(field.enum).length;
+      notes.push(`enum (${count})`);
+      enumDetails.push({ name, values: field.enum });
     }
     return { field: name, type: field.type, notes: notes.join('  ') };
   });
@@ -96,6 +103,20 @@ export function run(values, positional = []) {
 
   process.stdout.write(`\n  ${c.bold(def.name)} ${c.dim(`(${def.type}, ${rows.length} fields)`)}\n`);
   printTable(rows, ['field', 'type', 'notes']);
+
+  // Full enum values, one field per block, below the table. Each `code = LABEL`
+  // pair is on its own line so even long enums (e.g. ticket status) stay readable.
+  if (enumDetails.length > 0) {
+    process.stdout.write(`  ${c.bold('enums')}\n`);
+    for (const { name, values } of enumDetails) {
+      process.stdout.write(`    ${c.cyan(name)}\n`);
+      for (const [code, label] of Object.entries(values)) {
+        process.stdout.write(`      ${c.dim(code.padStart(2))}  ${label}\n`);
+      }
+    }
+    process.stdout.write('\n');
+  }
+
   if (operations.length > 0) {
     process.stdout.write(`  ${c.bold('operations')}  ${c.dim(operations.join(', '))}\n\n`);
   }
