@@ -5,7 +5,7 @@ description: Retrieve and summarize ZeyOS notes, SOPs, documents, and file-backe
 
 # ZeyOS Notes And SOPs
 
-Read [../shared/zeyos-query-patterns.md](../shared/zeyos-query-patterns.md) first. Read [../shared/zeyos-entity-map.md](../shared/zeyos-entity-map.md) when the request spans notes, documents, files, and related business records. Read [references/workflows.md](references/workflows.md) for knowledge-retrieval patterns.
+Read [../shared/zeyos-agent-operating-guide.md](../shared/zeyos-agent-operating-guide.md) and [../shared/zeyos-query-patterns.md](../shared/zeyos-query-patterns.md) first. Read [../shared/zeyos-entity-map.md](../shared/zeyos-entity-map.md) when the request spans notes, documents, files, and related business records. Read [references/workflows.md](references/workflows.md) for knowledge-retrieval patterns.
 
 Typical prompts:
 

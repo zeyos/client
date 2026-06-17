@@ -5,7 +5,7 @@ description: Analyze ZeyOS campaigns, mailing lists, participants, outbound mail
 
 # ZeyOS Campaign And Outreach
 
-Read [../shared/zeyos-query-patterns.md](../shared/zeyos-query-patterns.md) first. Read [../shared/zeyos-entity-map.md](../shared/zeyos-entity-map.md) when the request crosses campaigns, mailing lists, participants, messages, and contacts. Read [references/workflows.md](references/workflows.md) for outreach-specific query plans.
+Read [../shared/zeyos-agent-operating-guide.md](../shared/zeyos-agent-operating-guide.md) and [../shared/zeyos-query-patterns.md](../shared/zeyos-query-patterns.md) first. Read [../shared/zeyos-entity-map.md](../shared/zeyos-entity-map.md) when the request crosses campaigns, mailing lists, participants, messages, and contacts. Read [references/workflows.md](references/workflows.md) for outreach-specific query plans.
 
 Typical prompts:
 

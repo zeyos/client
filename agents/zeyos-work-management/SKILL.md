@@ -5,7 +5,7 @@ description: Manage ZeyOS tickets, tasks, projects, action steps, assignees, and
 
 # ZeyOS Work Management
 
-Read [../shared/zeyos-query-patterns.md](../shared/zeyos-query-patterns.md) first. Read [../shared/zeyos-entity-map.md](../shared/zeyos-entity-map.md) when the request crosses users, accounts, tickets, tasks, and projects. Read [references/workflows.md](references/workflows.md) for the concrete query patterns.
+Read [../shared/zeyos-agent-operating-guide.md](../shared/zeyos-agent-operating-guide.md) and [../shared/zeyos-query-patterns.md](../shared/zeyos-query-patterns.md) first. Read [../shared/zeyos-entity-map.md](../shared/zeyos-entity-map.md) when the request crosses users, accounts, tickets, tasks, and projects. Read [references/workflows.md](references/workflows.md) for the concrete query patterns.
 
 Typical prompts:
 

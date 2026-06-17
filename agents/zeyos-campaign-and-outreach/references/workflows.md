@@ -14,6 +14,14 @@ These are dbref nouns, not operationIds. Several diverge: `mailinglists` -> `lis
 [../../shared/zeyos-entity-reference.md](../../shared/zeyos-entity-reference.md#entity-noun-to-rest-operationid)
 before calling `@zeyos/client`.
 
+## First Commands For Counts
+
+- Active campaigns: `zeyos count campaigns --filter '{"visibility":0}'`
+- All campaigns: `zeyos count campaigns`
+- Participants in a campaign: `zeyos count participants --filter '{"campaign":123}'`
+
+Replace `123` with the resolved campaign ID when the user gives a campaign name.
+
 ## Schema Shape To Respect
 
 - A `participant` belongs either to a `campaign` or to a `mailinglist`.

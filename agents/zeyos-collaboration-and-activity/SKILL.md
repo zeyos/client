@@ -5,7 +5,7 @@ description: Analyze ZeyOS record timelines, comments, followers, channels, file
 
 # ZeyOS Collaboration And Activity
 
-Read [../shared/zeyos-query-patterns.md](../shared/zeyos-query-patterns.md) first. Read [../shared/business-app-benchmarks.md](../shared/business-app-benchmarks.md) for the cross-platform semantic defaults. Read [../shared/zeyos-entity-map.md](../shared/zeyos-entity-map.md) when the timeline must be correlated with work, mail, or knowledge entities. Read [references/workflows.md](references/workflows.md) for activity-specific query plans.
+Read [../shared/zeyos-agent-operating-guide.md](../shared/zeyos-agent-operating-guide.md) and [../shared/zeyos-query-patterns.md](../shared/zeyos-query-patterns.md) first. Read [../shared/business-app-benchmarks.md](../shared/business-app-benchmarks.md) for the cross-platform semantic defaults. Read [../shared/zeyos-entity-map.md](../shared/zeyos-entity-map.md) when the timeline must be correlated with work, mail, or knowledge entities. Read [references/workflows.md](references/workflows.md) for activity-specific query plans.
 
 Typical prompts:
 

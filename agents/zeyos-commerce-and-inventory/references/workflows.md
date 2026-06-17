@@ -20,6 +20,13 @@ These are dbref nouns, not operationIds. Several diverge: `pricelists` -> `listP
 [../../shared/zeyos-entity-reference.md](../../shared/zeyos-entity-reference.md#entity-noun-to-rest-operationid)
 before calling `@zeyos/client`.
 
+## First Commands For Counts
+
+- Active catalog items/products: `zeyos count items --filter '{"visibility":0}'`
+- All catalog items/products: `zeyos count items`
+
+Use `zeyos count` for item totals; `zeyos list` defaults to one page.
+
 ## Pattern: Effective Price For A Customer
 
 Use this for prompts like:

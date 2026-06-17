@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { buildClient, syncTokens } from './client.mjs';
 import { collectFieldFlags } from './flags.mjs';
 import { resolveResource } from './resources.mjs';
@@ -49,6 +51,54 @@ export function parseJsonOption(value, flagName) {
   }
 }
 
+export function parseJsonFileOption(value, flagName) {
+  if (value == null || value === '') {
+    fail(`--${flagName} requires a file path.`);
+  }
+
+  const filePath = String(value);
+  const absolutePath = resolve(process.cwd(), filePath);
+  let text;
+
+  try {
+    text = readFileSync(absolutePath, 'utf8');
+  } catch (err) {
+    if (err?.code === 'ENOENT') {
+      fail(`--${flagName} file not found: ${filePath}`);
+    }
+    if (err?.code === 'EISDIR') {
+      fail(`--${flagName} points to a directory, not a JSON file: ${filePath}`);
+    }
+    fail(`Could not read --${flagName} file ${filePath}: ${err.message || err}`);
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch (err) {
+    fail(`--${flagName} file must contain valid JSON: ${filePath} (${err.message || err})`);
+  }
+}
+
+export function parseJsonOptionOrFile(values, flagName, fileFlagName = `${flagName}-file`) {
+  const hasInline = Object.prototype.hasOwnProperty.call(values, flagName);
+  const hasFile = Object.prototype.hasOwnProperty.call(values, fileFlagName);
+
+  if (hasInline && hasFile) {
+    fail(`Use either --${flagName} or --${fileFlagName}, not both.`);
+  }
+  if (hasInline) {
+    if (values[flagName] === '') {
+      fail(`--${flagName} requires a JSON value. Use --${fileFlagName} <path> for file input.`);
+    }
+    return parseJsonOption(values[flagName], flagName);
+  }
+  if (hasFile) {
+    return parseJsonFileOption(values[fileFlagName], fileFlagName);
+  }
+
+  return undefined;
+}
+
 /** Cheap structural check: does this string look like an intended JSON object? */
 function looksLikeJsonObject(value) {
   return typeof value === 'string' && value.trim().startsWith('{');
@@ -90,7 +140,7 @@ function tryParseJsonObject(value) {
  * @returns {Record<string, unknown>}
  */
 export function buildRecordPayload(values, positionalData) {
-  const parsed = parseJsonOption(values.data, 'data');
+  const parsed = parseJsonOptionOrFile(values, 'data', 'data-file');
   const data = parsed === undefined ? {} : parsed;
 
   if (!data || typeof data !== 'object' || Array.isArray(data)) {

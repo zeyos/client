@@ -36,6 +36,16 @@ The single most common failure is *planning instead of running*. Avoid it mechan
 If a command fails, read the error, adjust, and try again — `zeyos describe <resource>`
 and `zeyos resources` are offline and safe for orienting yourself.
 
+## Bare-skill checklist for Pi/OpenCode/local models
+
+When you only have this skill text and a shell, keep the loop small:
+
+1. Pick the resource from the domain workflow.
+2. If the question says "how many", run `zeyos count …` first.
+3. Put filters inline as single-quoted JSON: `--filter '{"visibility":0}'`.
+4. If a field is uncertain, run `zeyos describe <resource>` before filtering on it.
+5. Never answer from a plan. Run the command, read stdout/stderr, then report the result.
+
 ## First move for the common question shapes
 
 | The user asks… | Your first command |
@@ -51,6 +61,19 @@ and `zeyos resources` are offline and safe for orienting yourself.
 Then read [zeyos-query-patterns.md](./zeyos-query-patterns.md) for the rules that make
 those commands correct (filters vs filter, `visibility: 0`, counting, time windows), and
 the matching domain skill for the metric definitions.
+
+## Shell-safe command hygiene
+
+- Use copy-paste-safe JSON: wrap filter JSON in single quotes and use double quotes inside
+  the JSON, for example `--filter '{"type":1,"visibility":0}'`.
+- Never execute raw JSON as a shell command. `{ "visibility": 0 }` by itself is not a
+  command; it belongs after `--filter`.
+- Prefer inline JSON for small filters. For complex filters, `zeyos list` and
+  `zeyos count` support `--filter-file <path>`, while `zeyos create` and
+  `zeyos update` support `--data-file <path>`.
+- Do not pass `@filter.json` or any other response-file syntax; use the documented
+  `--filter-file` / `--data-file` flags when a file is safer than inline JSON.
+- For counts, use `zeyos count <resource>` rather than `zeyos list … --json | length`.
 
 ## Authentication and connection (do not ask the user)
 

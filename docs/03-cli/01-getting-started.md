@@ -143,6 +143,13 @@ zeyos list tickets --filter '{"status":1,"priority":3}'
 zeyos count tickets --filter '{"status":1}'
 ```
 
+For larger filters, store the JSON in a file and use `--filter-file`:
+
+```bash
+zeyos list tickets --filter-file ./filters/open-tickets.json --json
+zeyos count tickets --filter-file ./filters/open-tickets.json --json
+```
+
 For normal operational views, include `visibility: 0`:
 
 ```bash

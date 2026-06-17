@@ -8,7 +8,8 @@
  */
 
 import { spawn } from 'node:child_process';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { cp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 
 const TRANSIENT_RE = /\b(429|rate.?limit|timed?.?out|ETIMEDOUT|ECONNRESET|ENOTFOUND|EAI_AGAIN|socket hang up|503|502|temporarily)\b/i;
@@ -20,6 +21,41 @@ function buildArgs(argsTemplate, { model, prompt }) {
   );
 }
 
+function safeName(value) {
+  return String(value || 'unknown').replace(/[^a-zA-Z0-9._-]+/g, '_');
+}
+
+function displayCommand(command, args, prompt) {
+  return `${command} ${args.map((a) => (a === prompt ? '[prompt]' : a)).join(' ')}`;
+}
+
+async function copyIfPresent(src, dest) {
+  if (!existsSync(src)) return;
+  await cp(src, dest, { recursive: true });
+}
+
+async function prepareAttemptWorkspace({ runner, model, repoRoot, scenarioId, skillRoot }) {
+  if (!runner.workspaceRoot) return { cwd: runner.cwd ? path.resolve(repoRoot, runner.cwd) : repoRoot, workspacePath: null, attemptSkillRoot: skillRoot || path.join(repoRoot, 'agents') };
+
+  const workspacePath = path.join(
+    path.resolve(runner.workspaceRoot),
+    `${safeName(scenarioId)}__${safeName(model)}__${Date.now()}_${process.pid}`
+  );
+  await rm(workspacePath, { recursive: true, force: true });
+  await mkdir(workspacePath, { recursive: true });
+
+  for (const name of ['README.md', 'docs', 'openapi', 'package.json']) {
+    await copyIfPresent(path.join(repoRoot, name), path.join(workspacePath, name));
+  }
+
+  const sourceSkillRoot = skillRoot || path.join(repoRoot, 'agents');
+  const attemptSkillRoot = path.join(workspacePath, 'agents');
+  await copyIfPresent(sourceSkillRoot, attemptSkillRoot);
+
+  const cwd = runner.cwd ? path.resolve(workspacePath, runner.cwd) : workspacePath;
+  return { cwd, workspacePath, attemptSkillRoot };
+}
+
 /**
  * Run one agent attempt.
  *
@@ -29,7 +65,18 @@ function buildArgs(argsTemplate, { model, prompt }) {
  * }>}
  */
 export async function runAgent({ runner, model, prompt, env, repoRoot, resultsDir, scenarioId }) {
-  const cwd = runner.cwd ? path.resolve(repoRoot, runner.cwd) : repoRoot;
+  const { cwd, workspacePath, attemptSkillRoot } = await prepareAttemptWorkspace({
+    runner,
+    model,
+    repoRoot,
+    scenarioId,
+    skillRoot: env?.ZEYOS_SKILL_ROOT
+  });
+  const childEnv = {
+    ...env,
+    ZEYOS_SKILL_ROOT: attemptSkillRoot,
+    ...(workspacePath ? { ZEYOS_ATTEMPT_WORKSPACE: workspacePath } : {})
+  };
   const args = buildArgs(runner.args || [], { model, prompt });
   const timeoutMs = runner.timeoutMs ?? 240000;
   const started = Date.now();
@@ -49,7 +96,7 @@ export async function runAgent({ runner, model, prompt, env, repoRoot, resultsDi
 
     let child;
     try {
-      child = spawn(runner.command, args, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'] });
+      child = spawn(runner.command, args, { cwd, env: childEnv, stdio: ['ignore', 'pipe', 'pipe'] });
     } catch (err) {
       resolve({ code: 127, stdout: '', stderr: String(err.message || err), timedOut: false, spawnError: err });
       return;
@@ -78,7 +125,15 @@ export async function runAgent({ runner, model, prompt, env, repoRoot, resultsDi
     (result.code !== 0 && TRANSIENT_RE.test(`${result.stderr}\n${result.stdout}`));
 
   const transcriptPath = await writeTranscript({
-    resultsDir, scenarioId, model, prompt, command: `${runner.command} ${args.join(' ')}`, result, durationMs
+    resultsDir,
+    scenarioId,
+    model,
+    prompt,
+    command: displayCommand(runner.command, args, prompt),
+    result,
+    durationMs,
+    workspacePath,
+    skillRoot: attemptSkillRoot
   });
 
   return {
@@ -89,12 +144,15 @@ export async function runAgent({ runner, model, prompt, env, repoRoot, resultsDi
     transient,
     durationMs,
     transcriptPath,
-    command: `${runner.command} ${args.join(' ')}`
+    command: displayCommand(runner.command, args, prompt),
+    workspacePath,
+    skillRoot: attemptSkillRoot,
+    runnerError: Boolean(result.spawnError)
   };
 }
 
-async function writeTranscript({ resultsDir, scenarioId, model, prompt, command, result, durationMs }) {
-  const safeModel = model.replace(/[^a-zA-Z0-9._-]+/g, '_');
+async function writeTranscript({ resultsDir, scenarioId, model, prompt, command, result, durationMs, workspacePath, skillRoot }) {
+  const safeModel = safeName(model);
   const dir = path.join(resultsDir, 'transcripts');
   await mkdir(dir, { recursive: true });
   const file = path.join(dir, `${scenarioId}__${safeModel}.txt`);
@@ -103,6 +161,8 @@ async function writeTranscript({ resultsDir, scenarioId, model, prompt, command,
     `# model:    ${model}`,
     `# command:  ${command}`,
     `# exitCode: ${result.code}  timedOut: ${result.timedOut}  durationMs: ${durationMs}`,
+    `# workspace: ${workspacePath || '(repo root)'}`,
+    `# skillRoot: ${skillRoot || '(default)'}`,
     '',
     '===== PROMPT =====',
     prompt,

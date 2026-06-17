@@ -3,6 +3,28 @@
 Notable changes to `@zeyos/client` and `@zeyos/cli`. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## 0.2.0
+
+### `@zeyos/client`
+- Added a `dryRun` request option: `client.api.*`, `client.request()`, etc. return a resolved `{ dryRun, method, url, body, bodyType, … }` descriptor without performing any network request or token work. Powers the CLI `--query` flag and is handy for debugging and tests.
+- Packaging: the published tarball now lists sample paths explicitly, so the generated `samples/missioncontrol/data.js` / `data.json` (which can contain real instance data) are never shipped to npm.
+
+### `@zeyos/cli` (`zeyos`)
+- New `doctor agent` command: an offline readiness check for coding agents — reports CLI version, configured base URL/instance, whether auth is present via environment/local/global config, and resource-registry health. Never prints tokens or client secrets.
+- New `--query` dry-run flag on the data commands (`list`/`count`/`get`/`create`/`update`/`delete`): prints the resolved `METHOD url` and JSON payload without sending the request; `--query --json` emits the full machine-readable request descriptor.
+- New `--filter-file <path>` (`list`/`count`) and `--data-file <path>` (`create`/`update`): read JSON from a file instead of inline. They are mutually exclusive with the inline `--filter`/`--data`, and file-read/parse errors never echo file contents.
+- Strict flag validation: unknown flags now error with a "did you mean …?" suggestion instead of being silently ignored. `create`/`update` still accept arbitrary `--<field>` flags.
+
+### Agents / skills
+- Skill packs are self-contained: each domain `SKILL.md` now points at a shared operating guide (`agents/shared/zeyos-agent-operating-guide.md`) with a bare-skill checklist and shell-safe command hygiene (inline single-quoted JSON, `--filter-file`/`--data-file`, counts via `zeyos count`).
+- Added an entity-noun → REST `operationId` reference and per-domain workflow notes (first-command examples for counts, `visibility`-column caveats, and the diverging dunning operationIds).
+
+### Samples
+- New `samples/missioncontrol` team-performance dashboard: a read-only Node fetcher (`fetch-data.mjs`) plus a static, dependency-free `index.html`. The generated data files are git-ignored and excluded from the npm package.
+
+### Docs
+- Documented `--filter-file`/`--data-file` and the new `doctor` command across the CLI getting-started and command reference.
+
 ## 0.1.1
 
 ### `@zeyos/client`

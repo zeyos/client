@@ -6,18 +6,32 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import os from 'node:os';
 import path from 'node:path';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 
 import {
   parseResultLine,
   coerceResult,
   evaluateExpect,
+  buildVerifyClient,
+  ensureFreshToken,
   runSeed,
   orphanSweep,
   passwordLogin
 } from './verify.mjs';
 import { runAgent } from './opencode-adapter.mjs';
-import { classify, globToRe, buildPrompt, detectPlannedNotExecuted } from './run.mjs';
+import { classify, globToRe, buildPrompt, detectPlannedNotExecuted, detectFailureKind, runScenario } from './run.mjs';
+import {
+  runnerPreset,
+  compareRecords,
+  buildProtocolConfig,
+  parseArgs as parseLoopArgs,
+  protocolArgs,
+  modelListCommands,
+  parseAvailableModels,
+  checkModelAvailability,
+  scorecardCell
+} from './loop.mjs';
 
 const ctxBase = { runId: 'run-1', recordPrefix: 'AGENTTEST' };
 
@@ -261,6 +275,13 @@ test('classify implements the rotation escalation rule', () => {
   assert.equal(classify([{ pass: false }, { pass: false }], true), 'CLIENT_DEFECT');
 });
 
+test('classify separates runner/model non-completion from client defects', () => {
+  assert.equal(classify([{ pass: false, failureKind: 'runner_timeout' }], false), 'RUNNER_FAILURE');
+  assert.equal(classify([{ pass: false, failureKind: 'runner_error' }, { pass: false, failureKind: 'runner_timeout' }], false), 'RUNNER_FAILURE');
+  assert.equal(classify([{ pass: false, failureKind: 'no_result' }, { pass: false, failureKind: 'tool_misuse' }], false), 'MODEL_NONCOMPLETION');
+  assert.equal(classify([{ pass: false, failureKind: 'assertion_mismatch' }], false), 'CLIENT_DEFECT');
+});
+
 test('detectPlannedNotExecuted flags plan-only / no-tools transcripts with no usable RESULT', () => {
   // The exact failure mode observed with gemma under pi: planned, asked for an endpoint.
   assert.equal(
@@ -277,6 +298,33 @@ test('detectPlannedNotExecuted flags plan-only / no-tools transcripts with no us
   assert.equal(detectPlannedNotExecuted('Ran zeyos count tickets; got HTTP 500 from the server.', null), false);
 });
 
+test('detectFailureKind tags common failed attempt causes', () => {
+  assert.equal(
+    detectFailureKind({ agent: { timedOut: true, stdout: '', stderr: '', code: 1 }, resultRaw: null, evalRes: { pass: false } }),
+    'runner_timeout'
+  );
+  assert.equal(
+    detectFailureKind({ agent: { timedOut: false, runnerError: true, stdout: '', stderr: 'spawn ENOENT', code: 127 }, resultRaw: null, evalRes: { pass: false } }),
+    'runner_error'
+  );
+  assert.equal(
+    detectFailureKind({ agent: { timedOut: false, stdout: 'Please provide the execution endpoint.', stderr: '', code: 0 }, resultRaw: null, evalRes: { pass: false } }),
+    'planned_not_executed'
+  );
+  assert.equal(
+    detectFailureKind({ agent: { timedOut: false, stdout: '', stderr: 'zsh:1: command not found: type:', code: 1 }, resultRaw: null, evalRes: { pass: false } }),
+    'tool_misuse'
+  );
+  assert.equal(
+    detectFailureKind({ agent: { timedOut: false, stdout: '', stderr: '', code: 0 }, resultRaw: null, evalRes: { pass: false } }),
+    'no_result'
+  );
+  assert.equal(
+    detectFailureKind({ agent: { timedOut: false, stdout: 'RESULT: done', stderr: '', code: 0 }, resultRaw: 'done', evalRes: { pass: false, detail: 'SAFETY VIOLATION: deleted' } }),
+    'safety_violation'
+  );
+});
+
 test('buildPrompt omits the inlined operating contract in bare-skill mode', () => {
   const scenario = { skill: 'zeyos-billing-insights', interface: 'cli', prompt: 'compute last year revenue' };
   const ctx = { runId: 'run-1', recordPrefix: 'AGENTTEST' };
@@ -289,9 +337,16 @@ test('buildPrompt omits the inlined operating contract in bare-skill mode', () =
   assert.doesNotMatch(bare, /--- TASK ---/);
   // Both still point the agent at the skill files and demand the RESULT line.
   for (const p of [harness, bare]) {
-    assert.match(p, /agents\/zeyos-billing-insights\/SKILL\.md/);
+    assert.match(p, /\$ZEYOS_SKILL_ROOT\/zeyos-billing-insights\/SKILL\.md/);
+    assert.match(p, /printf "%s\\n" "\$ZEYOS_SKILL_ROOT"/);
     assert.match(p, /RESULT:/);
   }
+});
+
+test('buildPrompt can label an explicit skill root', () => {
+  const scenario = { skill: 'zeyos-billing-insights', interface: 'cli', prompt: 'count transactions' };
+  const prompt = buildPrompt(scenario, ctxBase, { bareSkill: true, skillRootLabel: '/tmp/skills' });
+  assert.match(prompt, /\/tmp\/skills\/zeyos-billing-insights\/SKILL\.md/);
 });
 
 test('globToRe: ** crosses path separators, * stays within a segment', () => {
@@ -342,6 +397,80 @@ test('passwordLogin throws a helpful error on a non-2xx token response', async (
   }
 });
 
+test('buildVerifyClient refreshes harness-side tokens for long agent attempts', async () => {
+  const calls = [];
+  const orig = globalThis.fetch;
+  globalThis.fetch = async (url, init = {}) => {
+    const headers = new Headers(init.headers);
+    calls.push({ url: String(url), authorization: headers.get('authorization'), body: init.body?.toString?.() || '' });
+
+    if (String(url).endsWith('/oauth2/v1/token')) {
+      return new Response(
+        JSON.stringify({ token_type: 'Bearer', access_token: 'fresh-access', refresh_token: 'fresh-refresh', expires_in: 3600 }),
+        { headers: { 'content-type': 'application/json' } }
+      );
+    }
+
+    return new Response(
+      JSON.stringify({ ID: 1, lastname: 'Recovered' }),
+      { headers: { 'content-type': 'application/json' } }
+    );
+  };
+
+  try {
+    const client = buildVerifyClient(
+      { url: 'https://cloud.zeyos.com/demo', instance: 'demo', clientId: 'client-id', clientSecret: 'client-secret' },
+      {
+        accessToken: 'expired-access',
+        refreshToken: 'refresh-token',
+        expiresAt: Math.floor(Date.now() / 1000) - 30
+      }
+    );
+    const account = await client.api.getAccount({ ID: 1 });
+
+    assert.equal(account.ID, 1);
+    assert.match(calls[0].url, /\/demo\/oauth2\/v1\/token$/);
+    assert.match(calls[0].authorization, /^Basic /);
+    assert.match(calls[0].body, /grant_type=refresh_token/);
+    assert.equal(calls[1].authorization, 'Bearer fresh-access');
+  } finally {
+    globalThis.fetch = orig;
+  }
+});
+
+test('ensureFreshToken can force a fresh token even when the stored token is not stale', async () => {
+  const calls = [];
+  const orig = globalThis.fetch;
+  globalThis.fetch = async (url, init = {}) => {
+    calls.push({ url: String(url), body: init.body?.toString?.() || '' });
+    return new Response(
+      JSON.stringify({ token_type: 'Bearer', access_token: 'forced-access', refresh_token: 'forced-refresh', expires_in: 3600 }),
+      { headers: { 'content-type': 'application/json' } }
+    );
+  };
+
+  try {
+    const token = await ensureFreshToken({
+      url: 'https://cloud.zeyos.com/demo',
+      instance: 'demo',
+      clientId: 'client-id',
+      clientSecret: 'client-secret',
+      token: {
+        accessToken: 'still-valid',
+        refreshToken: 'refresh-token',
+        expiresAt: Math.floor(Date.now() / 1000) + 3600
+      }
+    }, { force: true });
+
+    assert.equal(token.accessToken, 'forced-access');
+    assert.equal(calls.length, 1);
+    assert.match(calls[0].url, /\/demo\/oauth2\/v1\/token$/);
+    assert.match(calls[0].body, /grant_type=refresh_token/);
+  } finally {
+    globalThis.fetch = orig;
+  }
+});
+
 test('runAgent resolves (does not hang) when the runner binary is missing', async () => {
   const dir = await mkdtemp(path.join(os.tmpdir(), 'ap-adapter-'));
   try {
@@ -355,4 +484,271 @@ test('runAgent resolves (does not hang) when the runner binary is missing', asyn
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+test('runAgent isolates runner scratch files inside an attempt workspace', async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'ap-workspace-'));
+  const repoRoot = path.join(dir, 'repo');
+  const resultsDir = path.join(dir, 'results');
+  const workspaceRoot = path.join(dir, 'workspaces');
+  const skillRoot = path.join(dir, 'skills');
+  await mkdir(path.join(repoRoot, 'openapi'), { recursive: true });
+  await mkdir(skillRoot, { recursive: true });
+  await writeFile(path.join(repoRoot, 'README.md'), 'repo readme', 'utf8');
+  await writeFile(path.join(repoRoot, 'package.json'), '{"name":"fake"}\n', 'utf8');
+  await writeFile(path.join(skillRoot, 'SKILL.md'), 'skill', 'utf8');
+
+  try {
+    const res = await runAgent({
+      runner: {
+        command: process.execPath,
+        args: ['-e', "require('fs').writeFileSync('scratch.txt','x'); console.log('RESULT: 1')"],
+        timeoutMs: 5000,
+        workspaceRoot
+      },
+      model: 'fake/model',
+      prompt: 'hi',
+      env: { ...process.env, ZEYOS_SKILL_ROOT: skillRoot },
+      repoRoot,
+      resultsDir,
+      scenarioId: 'scratch'
+    });
+    assert.equal(res.code, 0);
+    assert.equal(existsSync(path.join(repoRoot, 'scratch.txt')), false);
+    assert.equal(existsSync(path.join(res.workspacePath, 'scratch.txt')), true);
+    assert.equal(res.skillRoot, path.join(res.workspacePath, 'agents'));
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('runScenario honors allModels after a passing first model', async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'ap-all-models-'));
+  const scenario = {
+    id: 'count',
+    layer: 'b',
+    title: 'count',
+    prompt: 'count records',
+    expect: { kind: 'computeCount', op: 'listTickets', params: {}, predicates: [] }
+  };
+  const client = fakeClient({ listTickets: async () => [{ ID: 1 }] });
+  const base = {
+    scenario,
+    models: ['m/one', 'm/two'],
+    runner: { command: process.execPath, args: ['-e', "console.log('RESULT: 1')"], timeoutMs: 5000 },
+    childEnv: { ...process.env, ZEYOS_SKILL_ROOT: path.join(dir, 'agents') },
+    resultsDir: dir,
+    client,
+    runId: 'run-1',
+    recordPrefix: 'AGENTTEST',
+    transientRetries: 0,
+    isCanary: false,
+    judgeModel: null,
+    noCleanup: true,
+    bareSkill: true
+  };
+  try {
+    const normal = await runScenario({ ...base, allModels: false });
+    const all = await runScenario({ ...base, allModels: true });
+    assert.equal(normal.attempts.length, 1);
+    assert.equal(all.attempts.length, 2);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('runScenario refreshes the subprocess token before an attempt', async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'ap-attempt-token-'));
+  const scenario = {
+    id: 'count',
+    layer: 'b',
+    title: 'count',
+    prompt: 'count records',
+    expect: { kind: 'computeCount', op: 'listTickets', params: {}, predicates: [] }
+  };
+  const client = fakeClient({ listTickets: async () => [{ ID: 1 }] });
+  let refreshes = 0;
+
+  try {
+    const rec = await runScenario({
+      scenario,
+      models: ['m/one'],
+      runner: {
+        command: process.execPath,
+        args: ['-e', "console.log('RESULT: ' + (process.env.ZEYOS_TOKEN === 'fresh-attempt-token' ? 1 : 0))"],
+        timeoutMs: 5000
+      },
+      childEnv: { ...process.env, ZEYOS_TOKEN: 'stale-start-token', ZEYOS_SKILL_ROOT: path.join(dir, 'agents') },
+      tokenProvider: async () => {
+        refreshes += 1;
+        return { accessToken: 'fresh-attempt-token' };
+      },
+      resultsDir: dir,
+      client,
+      runId: 'run-1',
+      recordPrefix: 'AGENTTEST',
+      transientRetries: 0,
+      isCanary: false,
+      judgeModel: null,
+      noCleanup: true,
+      bareSkill: true,
+      allModels: false
+    });
+
+    assert.equal(refreshes, 1);
+    assert.equal(rec.classification, 'PASS');
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('loop runner presets produce expected command shapes', () => {
+  const opencode = runnerPreset('opencode', 1234, '/tmp/ws');
+  assert.deepEqual(opencode.args, ['run', '--model', '{model}', '{prompt}']);
+  assert.equal(opencode.timeoutMs, 1234);
+  assert.equal(opencode.workspaceRoot, '/tmp/ws');
+
+  const pi = runnerPreset('pi', 5678, '/tmp/pi-ws');
+  assert.equal(pi.command, 'pi');
+  assert.ok(pi.args.includes('--no-session'));
+  assert.ok(pi.args.includes('--no-context-files'));
+  assert.ok(pi.args.includes('read,bash,grep,find,ls'));
+  assert.equal(pi.timeoutMs, 5678);
+});
+
+test('loop args and protocol args support one-scenario runs', () => {
+  const opts = parseLoopArgs(['--scenario', 'b03-billing-transaction-count', '--no-model-preflight']);
+  assert.equal(opts.scenario, 'b03-billing-transaction-count');
+  assert.equal(opts.modelPreflight, false);
+
+  const full = protocolArgs({
+    configPath: '/tmp/config.json',
+    runId: 'loop-one',
+    mode: 'full',
+    readOnly: true,
+    dryRun: false,
+    scenario: 'b03-billing-transaction-count'
+  });
+  assert.deepEqual(full, [
+    path.join(process.cwd(), 'test/agent-protocol/harness/run.mjs'),
+    '--config',
+    '/tmp/config.json',
+    '--run-id',
+    'loop-one',
+    '--scenario',
+    'b03-billing-transaction-count',
+    '--read-only'
+  ]);
+
+  const bare = protocolArgs({
+    configPath: '/tmp/config.json',
+    runId: 'loop-one',
+    mode: 'bare-skill',
+    readOnly: true,
+    dryRun: true,
+    scenario: 'a03-count-active-tickets'
+  });
+  assert.ok(bare.includes('--bare-skill'));
+  assert.ok(bare.includes('--all-models'));
+  assert.equal(bare.includes('--layer'), false);
+});
+
+test('loop model preflight parses native opencode and pi listings', () => {
+  const opencode = parseAvailableModels('opencode', [
+    'openrouter/deepseek/deepseek-v4-flash',
+    'openrouter/moonshotai/kimi-k2.7-code',
+    'ollama/gemma4:latest'
+  ].join('\n'));
+  assert.equal(opencode.has('openrouter/deepseek/deepseek-v4-flash'), true);
+  assert.equal(opencode.has('ollama/gemma4:latest'), true);
+
+  const pi = parseAvailableModels('pi', [
+    'provider      model                         context',
+    'openrouter    moonshotai/kimi-k2.7-code     262.1K',
+    'ollama        gemma4:latest                 131.1K'
+  ].join('\n'));
+  assert.equal(pi.has('openrouter/moonshotai/kimi-k2.7-code'), true);
+  assert.equal(pi.has('ollama/gemma4:latest'), true);
+});
+
+test('loop model preflight commands use runner-native list commands', () => {
+  assert.deepEqual(
+    modelListCommands('opencode', ['openrouter/a/b', 'ollama/gemma4:latest']),
+    [
+      { command: 'opencode', args: ['models', 'openrouter'] },
+      { command: 'opencode', args: ['models', 'ollama'] }
+    ]
+  );
+  assert.deepEqual(modelListCommands('pi', ['openrouter/a/b']), [{ command: 'pi', args: ['--list-models'] }]);
+  assert.deepEqual(modelListCommands('custom', ['m/a']), []);
+});
+
+test('loop model preflight reports ok, unavailable, and warning states', async () => {
+  const ok = await checkModelAvailability('pi', ['openrouter/a/b'], async () => ({
+    status: 'ok',
+    output: 'provider model\nopenrouter a/b 128K'
+  }));
+  assert.equal(ok.status, 'ok');
+
+  const missing = await checkModelAvailability('pi', ['openrouter/a/b', 'openrouter/missing'], async () => ({
+    status: 'ok',
+    output: 'provider model\nopenrouter a/b 128K'
+  }));
+  assert.equal(missing.status, 'unavailable');
+  assert.deepEqual(missing.missing, ['openrouter/missing']);
+
+  const warning = await checkModelAvailability('opencode', ['openrouter/a/b'], async () => ({
+    status: 'warning',
+    message: 'opencode models exited 1'
+  }));
+  assert.equal(warning.status, 'warning');
+  assert.match(warning.message, /exited 1/);
+});
+
+test('loop dry-run scorecard cell says scorecards are not expected', () => {
+  assert.equal(
+    scorecardCell({ protocolRunId: 'loop-dry-baseline-opencode-full', scorecard: null }, { dryRun: true }),
+    '_not expected in dry-run_'
+  );
+  assert.equal(
+    scorecardCell({ protocolRunId: 'loop-live-baseline-opencode-full', scorecard: null }, { dryRun: false }),
+    '_none_'
+  );
+});
+
+test('loop comparison reports improvements, regressions, unchanged states, and missing records', () => {
+  const baseline = [
+    { id: 'a', classification: 'CLIENT_DEFECT', attempts: [] },
+    { id: 'b', classification: 'PASS', attempts: [] },
+    { id: 'c', classification: 'MODEL_NONCOMPLETION', attempts: [] },
+    { id: 'd', classification: 'PASS', attempts: [] }
+  ];
+  const candidate = [
+    { id: 'a', classification: 'PASS', attempts: [] },
+    { id: 'b', classification: 'CLIENT_DEFECT', attempts: [] },
+    { id: 'c', classification: 'MODEL_NONCOMPLETION', attempts: [] },
+    { id: 'e', classification: 'PASS', attempts: [] }
+  ];
+  const cmp = compareRecords(baseline, candidate);
+  assert.deepEqual(cmp.improvements.map((r) => r.key), ['a']);
+  assert.deepEqual(cmp.regressions.map((r) => r.key), ['b']);
+  assert.deepEqual(cmp.unchangedFailure.map((r) => r.key), ['c']);
+  assert.deepEqual(cmp.missing.map((r) => r.key), ['d', 'e']);
+});
+
+test('buildProtocolConfig wires models, runner, skill root, and transient retries', () => {
+  const cfg = buildProtocolConfig(
+    { live: { instance: 'demo' }, agentProtocol: { rotation: { transientRetries: 1, canaryIds: ['b07'] } } },
+    {
+      models: ['m/a'],
+      runner: { command: 'pi' },
+      skillRoot: '/tmp/skills',
+      transientRetries: 0
+    }
+  );
+  assert.deepEqual(cfg.agentProtocol.models, ['m/a']);
+  assert.equal(cfg.agentProtocol.runner.command, 'pi');
+  assert.equal(cfg.agentProtocol.skillRoot, '/tmp/skills');
+  assert.equal(cfg.agentProtocol.rotation.transientRetries, 0);
+  assert.deepEqual(cfg.agentProtocol.rotation.canaryIds, ['b07']);
 });

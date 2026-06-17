@@ -19,6 +19,8 @@
  *     --scenario <id>      run a single scenario by id
  *     --layer <a|b>        restrict to a layer
  *     --models <csv>       override the rotation
+ *     --all-models         run every selected model even after a pass
+ *     --read-only          restrict selected scenarios to non-mutating cases
  *     --no-cleanup         skip post-scenario record cleanup (debugging)
  *     --config <path>      config file (default: <repo>/config.test.json)
  *     --run-id <id>        override the run id (default: timestamp)
@@ -58,13 +60,27 @@ try {
 // ── args ────────────────────────────────────────────────────────────────────
 
 function parseArgs(argv) {
-  const opts = { dryRun: false, list: false, scenario: null, layer: null, models: null, noCleanup: false, config: null, runId: null, bareSkill: false };
+  const opts = {
+    dryRun: false,
+    list: false,
+    scenario: null,
+    layer: null,
+    models: null,
+    noCleanup: false,
+    config: null,
+    runId: null,
+    bareSkill: false,
+    allModels: false,
+    readOnly: false
+  };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
     if (a === '--dry-run') opts.dryRun = true;
     else if (a === '--list') opts.list = true;
     else if (a === '--no-cleanup') opts.noCleanup = true;
     else if (a === '--bare-skill') opts.bareSkill = true;
+    else if (a === '--all-models') opts.allModels = true;
+    else if (a === '--read-only') opts.readOnly = true;
     else if (a === '--scenario') opts.scenario = argv[++i];
     else if (a === '--layer') opts.layer = argv[++i];
     else if (a === '--models') opts.models = argv[++i].split(',').map((s) => s.trim()).filter(Boolean);
@@ -125,11 +141,13 @@ function classify(attempts, isCanary) {
   if (passes.some((p) => p === null)) return 'MANUAL_REVIEW';
   if (isCanary) {
     if (passes.every((p) => p === true)) return 'PASS';
+    if (passes.every((p) => p === false) && isNonDefectFailureSet(attempts)) return nonDefectClassification(attempts);
     if (passes.every((p) => p === false)) return 'CLIENT_DEFECT';
     return 'MODEL_DIVERGENCE';
   }
   if (passes[0] === true) return 'PASS';
   if (passes.some((p) => p === true)) return 'MODEL_FLAKE';
+  if (isNonDefectFailureSet(attempts)) return nonDefectClassification(attempts);
   return 'CLIENT_DEFECT';
 }
 
@@ -147,6 +165,40 @@ function detectPlannedNotExecuted(stdout, result) {
   const hasUsableResult = result !== null && result !== undefined && !/^ERROR\b/i.test(String(result).trim());
   if (hasUsableResult) return false;
   return PLAN_NOT_EXEC_RE.test(String(stdout || ''));
+}
+
+const TOOL_MISUSE_RE = /(command not found:|zsh:\d+:\s*command not found|--filter must be valid JSON|tool execution aborted|syntax error near unexpected token)/i;
+const NON_DEFECT_FAILURE_KINDS = new Set([
+  'runner_timeout',
+  'runner_error',
+  'no_result',
+  'planned_not_executed',
+  'tool_misuse'
+]);
+
+function detectToolMisuse(stdout, stderr) {
+  return TOOL_MISUSE_RE.test(`${stdout || ''}\n${stderr || ''}`);
+}
+
+function isNonDefectFailureSet(attempts) {
+  return attempts.length > 0 && attempts.every((a) => a.pass === false && NON_DEFECT_FAILURE_KINDS.has(a.failureKind));
+}
+
+function nonDefectClassification(attempts) {
+  if (attempts.every((a) => a.failureKind === 'runner_timeout' || a.failureKind === 'runner_error')) return 'RUNNER_FAILURE';
+  return 'MODEL_NONCOMPLETION';
+}
+
+function detectFailureKind({ agent, resultRaw, evalRes }) {
+  if (evalRes.pass === true) return null;
+  if (evalRes.pass === null) return 'manual_review';
+  if (agent.timedOut) return 'runner_timeout';
+  if (agent.runnerError) return 'runner_error';
+  if (detectPlannedNotExecuted(agent.stdout, resultRaw)) return 'planned_not_executed';
+  if (detectToolMisuse(agent.stdout, agent.stderr)) return 'tool_misuse';
+  if (resultRaw == null) return agent.code !== 0 ? 'runner_error' : 'no_result';
+  if (/SAFETY VIOLATION/i.test(String(evalRes.detail || ''))) return 'safety_violation';
+  return 'assertion_mismatch';
 }
 
 // ── main ──────────────────────────────────────────────────────────────────────
@@ -172,11 +224,21 @@ async function main() {
   const runner = ap.runner || { command: 'opencode', args: ['run', '--model', '{model}', '{prompt}'], cwd: '.', timeoutMs: 240000 };
   const transientRetries = ap.rotation?.transientRetries ?? 1;
   const canarySet = new Set(ap.rotation?.canaryIds || []);
+  const skillRoot = ap.skillRoot ? path.resolve(path.dirname(configPath), ap.skillRoot) : path.join(REPO_ROOT, 'agents');
 
   // ── scenarios (no credentials needed to load/list) ──
   const all = await walkScenarios(SCENARIO_DIR);
   let scenarios = selectScenarios(all, ap.scenarios || {}, opts);
   if (scenarios.length === 0) fail('No scenarios selected.');
+
+  if (opts.readOnly) {
+    const dropped = scenarios.filter((s) => s.mutates);
+    scenarios = scenarios.filter((s) => !s.mutates);
+    if (dropped.length && !opts.list) {
+      console.log(`Read-only mode: skipping ${dropped.length} mutating scenario(s) (${dropped.map((s) => s.id).join(', ')}).`);
+    }
+    if (scenarios.length === 0) fail('No read-only scenarios selected.');
+  }
 
   // Bare-skill mode omits the inlined operating contract (the self-containment test). The
   // safety rules then live only in the skill, so refuse to run mutating/canary scenarios
@@ -208,7 +270,13 @@ async function main() {
   }
 
   // ── auth + verification client ──
-  const token = await ensureFreshToken(live, { configPath });
+  const freshHarnessToken = async ({ force = false } = {}) => {
+    const fresh = await ensureFreshToken(live, { configPath, force });
+    live.token = fresh;
+    return fresh;
+  };
+  const buildFreshVerifyClient = async ({ force = false } = {}) => buildVerifyClient(live, await freshHarnessToken({ force }));
+  const token = await freshHarnessToken({ force: true });
   const client = buildVerifyClient(live, token);
   const baseUrl = live.url || `${live.origin}/${instance}`;
 
@@ -243,7 +311,8 @@ async function main() {
     ZEYOS_BASE_URL: baseUrl,
     ZEYOS_INSTANCE: instance,
     ZEYOS_TOKEN: token.accessToken,
-    ZEYOS_REPO_ROOT: REPO_ROOT
+    ZEYOS_REPO_ROOT: REPO_ROOT,
+    ZEYOS_SKILL_ROOT: skillRoot
   };
 
   const records = [];
@@ -251,7 +320,8 @@ async function main() {
     const rec = await runScenario({
       scenario, models, runner, childEnv, resultsDir, client, runId, recordPrefix,
       transientRetries, isCanary: canarySet.has(scenario.id), judgeModel: ap.judgeModel, noCleanup: opts.noCleanup,
-      bareSkill: opts.bareSkill
+      bareSkill: opts.bareSkill, allModels: opts.allModels,
+      tokenProvider: freshHarnessToken, verifyClientProvider: buildFreshVerifyClient
     });
     records.push(rec);
     console.log(`  ${badge(rec.classification)}  ${scenario.id}  ${rec.summaryLine}`);
@@ -268,40 +338,48 @@ async function main() {
 // ── per-scenario rotation engine ────────────────────────────────────────────
 
 async function runScenario(c) {
-  const { scenario, models, runner, childEnv, resultsDir, client, runId, recordPrefix, transientRetries, isCanary, judgeModel, noCleanup, bareSkill } = c;
+  const { scenario, models, runner, childEnv, resultsDir, client, runId, recordPrefix, transientRetries, isCanary, judgeModel, noCleanup, bareSkill, allModels, tokenProvider, verifyClientProvider } = c;
   const prompt = buildPrompt(scenario, { runId, recordPrefix }, { bareSkill });
   const attempts = [];
 
   for (const model of models) {
+    let verifyClient = verifyClientProvider ? await verifyClientProvider({ force: true }) : client;
     // Seed throwaway records for THIS attempt (e.g. the destructive-canary
     // survivors). Per-attempt so every model faces a fresh seeded set and cannot
     // benefit from a prior attempt's cleanup; cleaned up after the attempt below.
     let seed = {};
     let seedReport = [];
     if (scenario.seed) {
-      const seeded = await runSeed(scenario.seed, { client, runId, recordPrefix, result: null });
+      const seeded = await runSeed(scenario.seed, { client: verifyClient, runId, recordPrefix, result: null });
       seed = seeded.seed;
       seedReport = seeded.report;
     }
 
     let agent;
+    let agentEnv = childEnv;
     for (let t = 0; t <= transientRetries; t += 1) {
-      agent = await runAgent({ runner, model, prompt, env: childEnv, repoRoot: REPO_ROOT, resultsDir, scenarioId: scenario.id });
+      if (tokenProvider) {
+        const fresh = await tokenProvider({ force: true });
+        agentEnv = { ...childEnv, ZEYOS_TOKEN: fresh.accessToken };
+      }
+      agent = await runAgent({ runner, model, prompt, env: agentEnv, repoRoot: REPO_ROOT, resultsDir, scenarioId: scenario.id });
       if (agent.transient && t < transientRetries) continue;
       break;
     }
 
     const resultRaw = parseResultLine(agent.stdout);
-    const ctx = { client, result: resultRaw, rawStdout: agent.stdout, runId, recordPrefix, seed };
+    if (verifyClientProvider) verifyClient = await verifyClientProvider({ force: true });
+    const ctx = { client: verifyClient, result: resultRaw, rawStdout: agent.stdout, runId, recordPrefix, seed };
 
     let evalRes;
     if (scenario.expect.kind === 'manual') {
       const transcript = `STDOUT:\n${agent.stdout}\n\nSTDERR:\n${agent.stderr}`;
-      const judged = await judgeManual({ judgeModel, rubric: scenario.expect.rubric, transcript, runner, env: childEnv, repoRoot: REPO_ROOT, resultsDir, scenarioId: scenario.id });
+      const judged = await judgeManual({ judgeModel, rubric: scenario.expect.rubric, transcript, runner, env: agentEnv, repoRoot: REPO_ROOT, resultsDir, scenarioId: scenario.id });
       evalRes = { pass: judged.pass, detail: judged.reason, manual: true };
     } else {
       evalRes = await evaluateExpect(scenario.expect, ctx);
     }
+    const failureKind = detectFailureKind({ agent, resultRaw, evalRes });
 
     // Cleanup runs whenever the scenario declares it (covers both agent-created and
     // harness-seeded records), and always — even when the assertion failed.
@@ -316,11 +394,14 @@ async function runScenario(c) {
       resultRaw, transcriptPath: path.relative(resultsDir, agent.transcriptPath),
       durationMs: agent.durationMs, transient: agent.transient, timedOut: agent.timedOut,
       exitCode: agent.code, cleanup, seed: seedReport,
-      notExecuted: detectPlannedNotExecuted(agent.stdout, resultRaw)
+      notExecuted: detectPlannedNotExecuted(agent.stdout, resultRaw),
+      failureKind,
+      workspacePath: agent.workspacePath || null,
+      skillRoot: agent.skillRoot || childEnv.ZEYOS_SKILL_ROOT || null
     });
 
-    if (evalRes.pass === true && !isCanary) break;
-    if (evalRes.pass === null && !isCanary) break;
+    if (!allModels && evalRes.pass === true && !isCanary) break;
+    if (!allModels && evalRes.pass === null && !isCanary) break;
   }
 
   const classification = classify(attempts, isCanary);
@@ -338,12 +419,16 @@ function buildPrompt(scenario, ctx, opts = {}) {
   // skill itself — that is the self-containment test. Harness mode inlines AGENTS.md.
   if (!opts.bareSkill && AGENTS_CONTRACT) lines.push(AGENTS_CONTRACT, '', '--- TASK ---', '');
   if (scenario.skill) {
-    // Referenced by repo-relative path (the runner runs at the repo root) and worded
+    // Referenced through ZEYOS_SKILL_ROOT so the harness can test copied baseline or
+    // candidate skill folders without rewriting scenario files. Wording avoids
     // to avoid colliding with opencode's own "skill" loader. In bare-skill mode this
     // pointer (plus what the skill files say) is the agent's entire operating context.
+    const root = opts.skillRootLabel || '$ZEYOS_SKILL_ROOT';
     lines.push(
-      `Before acting, read the domain guide files under the repository root: ` +
-        `agents/${scenario.skill}/SKILL.md and agents/${scenario.skill}/references/workflows.md.`,
+      `Before acting, read the domain guide files from the configured skill root: ` +
+        `${root}/${scenario.skill}/SKILL.md and ${root}/${scenario.skill}/references/workflows.md. ` +
+        `If your file-read tool does not expand environment variables, first run ` +
+        '`printf "%s\\n" "$ZEYOS_SKILL_ROOT"` in the shell and read the absolute paths it prints.',
       ''
     );
   }
@@ -374,7 +459,11 @@ async function dryRun(scenarios, client) {
     if (s.expect.kind === 'computeCount') {
       try {
         const ev = await evaluateExpect(s.expect, { client, result: null, runId: 'dryrun', recordPrefix: 'AGENTTEST' });
-        console.log(`${head}\n      ground truth = ${ev.expected}`);
+        if (ev.expected !== undefined) {
+          console.log(`${head}\n      ground truth = ${ev.expected}`);
+        } else {
+          console.log(`${head}\n      compute ERROR: ${ev.detail || 'no ground truth returned'}`);
+        }
       } catch (err) {
         console.log(`${head}\n      compute ERROR: ${err.message || err}`);
       }
@@ -405,6 +494,8 @@ async function writeScorecards({ resultsDir, runId, instance, baseUrl, models, r
   for (const r of defects) lines.push(...scenarioBlock(r));
 
   for (const [title, cls] of [
+    ['⚫ RUNNER_FAILURE', 'RUNNER_FAILURE'],
+    ['⚪ MODEL_NONCOMPLETION', 'MODEL_NONCOMPLETION'],
     ['🟠 MODEL_DIVERGENCE', 'MODEL_DIVERGENCE'],
     ['🟡 MODEL_FLAKE', 'MODEL_FLAKE'],
     ['🔵 MANUAL_REVIEW', 'MANUAL_REVIEW'],
@@ -434,7 +525,8 @@ function scenarioBlock(r) {
     const verdict = a.pass === true ? 'PASS' : a.pass === null ? 'REVIEW' : 'FAIL';
     const exp = a.expected !== undefined ? ` · expected=${JSON.stringify(a.expected)} actual=${JSON.stringify(a.actual)}` : '';
     const planned = a.notExecuted ? ' · 🧭 planned-not-executed' : '';
-    out.push(`- \`${a.model}\` → **${verdict}** (${a.durationMs}ms${a.transient ? ', transient' : ''})${exp}${planned} — ${a.detail || ''}`);
+    const kind = a.failureKind ? ` · kind=${a.failureKind}` : '';
+    out.push(`- \`${a.model}\` → **${verdict}** (${a.durationMs}ms${a.transient ? ', transient' : ''})${exp}${planned}${kind} — ${a.detail || ''}`);
     out.push(`  - transcript: \`${a.transcriptPath}\``);
   }
   out.push('');
@@ -443,11 +535,11 @@ function scenarioBlock(r) {
 
 function summaryCounts(records) {
   const c = (cls) => records.filter((r) => r.classification === cls).length;
-  return `**${records.length} scenarios** — 🟢 ${c('PASS')} pass · 🔴 ${c('CLIENT_DEFECT')} defect · 🟡 ${c('MODEL_FLAKE')} flake · 🟠 ${c('MODEL_DIVERGENCE')} divergence · 🔵 ${c('MANUAL_REVIEW')} review`;
+  return `**${records.length} scenarios** — 🟢 ${c('PASS')} pass · 🔴 ${c('CLIENT_DEFECT')} defect · 🟡 ${c('MODEL_FLAKE')} flake · 🟠 ${c('MODEL_DIVERGENCE')} divergence · ⚫ ${c('RUNNER_FAILURE')} runner · ⚪ ${c('MODEL_NONCOMPLETION')} incomplete · 🔵 ${c('MANUAL_REVIEW')} review`;
 }
 
 function badge(cls) {
-  return { PASS: '🟢 PASS  ', CLIENT_DEFECT: '🔴 DEFECT', MODEL_FLAKE: '🟡 FLAKE ', MODEL_DIVERGENCE: '🟠 DIVERG', MANUAL_REVIEW: '🔵 REVIEW' }[cls] || cls;
+  return { PASS: '🟢 PASS  ', CLIENT_DEFECT: '🔴 DEFECT', MODEL_FLAKE: '🟡 FLAKE ', MODEL_DIVERGENCE: '🟠 DIVERG', RUNNER_FAILURE: '⚫ RUNNER', MODEL_NONCOMPLETION: '⚪ INCOMP', MANUAL_REVIEW: '🔵 REVIEW' }[cls] || cls;
 }
 
 function safeInstanceFromUrl(url) {
@@ -465,7 +557,7 @@ function fail(msg) {
 }
 
 // Pure helpers are exported for offline unit testing (see verify.test.mjs).
-export { classify, globToRe, selectScenarios, buildPrompt, detectPlannedNotExecuted };
+export { classify, globToRe, selectScenarios, buildPrompt, detectPlannedNotExecuted, detectFailureKind, detectToolMisuse, runScenario };
 
 // Only run the orchestrator when invoked directly, not when imported by a test.
 const invokedDirectly = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;

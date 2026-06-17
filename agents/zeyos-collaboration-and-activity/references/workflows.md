@@ -16,6 +16,15 @@ These are dbref nouns, not operationIds. Note the junction `entities2channels` -
 [../../shared/zeyos-entity-reference.md](../../shared/zeyos-entity-reference.md#entity-noun-to-rest-operationid)
 before calling `@zeyos/client`.
 
+## First Commands For Counts
+
+- All timeline events: `zeyos count events`
+- Events for account ID 123: `zeyos count events --filter '{"entity":"accounts","index":123}'`
+- Feed records for account ID 123: `zeyos count records --filter '{"entity":"accounts","index":123}'`
+
+`events` and `records` use `entity` plus `index` indirection and have no `visibility`
+field.
+
 ## Benchmark-Backed Default
 
 Treat this layer like the record timeline or collaboration feed found in Salesforce, Odoo, and Dynamics:

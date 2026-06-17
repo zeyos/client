@@ -113,6 +113,7 @@ zeyos list <resource> [options]
 |--------|-------------|
 | `--fields <fields>` | Field selection — comma-separated, JSON object, or JSON array (see below) |
 | `--filter <json>` | Filter criteria — JSON object |
+| `--filter-file <path>` | Read filter criteria from a JSON file |
 | `--sort <fields>` | Sort fields, comma-separated (prefix `+` asc, `-` desc) |
 | `--limit <n>` | Maximum records to return (default: `50`) |
 | `--offset <n>` | Skip the first n records |
@@ -139,6 +140,9 @@ zeyos list tickets
 
 # Custom filters
 zeyos list tickets --filter '{"status":1,"priority":3}'
+
+# Custom filters from a file
+zeyos list tickets --filter-file ./filters/open-tickets.json
 
 # Specify fields with aliases
 zeyos list accounts --fields '{"Name":"lastname","City":"contact.city"}'
@@ -179,6 +183,7 @@ zeyos count <resource> [options]
 | Option | Description |
 |--------|-------------|
 | `--filter <json>` | Filter criteria — JSON object |
+| `--filter-file <path>` | Read filter criteria from a JSON file |
 | `--json` | Output as `{"count": N}` |
 | `--yaml` | YAML output |
 
@@ -192,6 +197,9 @@ zeyos count tickets
 # Filtered count
 zeyos count tickets --filter '{"status":1}'
 # → 12
+
+# Filtered count using a JSON file
+zeyos count tickets --filter-file ./filters/open-tickets.json
 
 # JSON output for scripting
 zeyos count accounts --json
@@ -261,6 +269,7 @@ zeyos create <resource> [--data <json>] [--field value ...]
 | Option | Description |
 |--------|-------------|
 | `--data <json>` | Complete record as a JSON string |
+| `--data-file <path>` | Read the complete record from a JSON file |
 | `--<field> <value>` | Set individual field (any unknown flag becomes a field) |
 
 **Examples:**
@@ -268,6 +277,9 @@ zeyos create <resource> [--data <json>] [--field value ...]
 ```bash
 # Using --data JSON
 zeyos create ticket --data '{"name":"Fix login bug","status":0,"priority":3}'
+
+# Using a JSON file
+zeyos create ticket --data-file ./ticket.json
 
 # Using individual field flags
 zeyos create ticket --name "Fix login bug" --status 0 --priority 3
@@ -300,6 +312,9 @@ zeyos update <resource> <id> [--data <json>] [--field value ...]
 ```bash
 # Using --data JSON
 zeyos update ticket 42 --data '{"status":4}'
+
+# Using a JSON file
+zeyos update ticket 42 --data-file ./ticket-update.json
 
 # Using field flags
 zeyos update ticket 42 --status 4 --priority 2
@@ -365,6 +380,19 @@ zeyos describe accounts --json
 ```
 
 Foreign keys are shown as `→ <table>`, and enum fields list their valid values (e.g. `status` → `0=NOTSTARTED 1=AWAITINGACCEPTANCE …`). The operations available for the resource are listed at the bottom.
+
+---
+
+## doctor
+
+Check local CLI readiness for coding agents. This runs offline and never prints tokens or client secrets.
+
+```bash
+zeyos doctor agent
+zeyos doctor agent --json
+```
+
+The report includes the CLI version, configured base URL and instance, whether auth values are present through environment/local/global config, and whether the curated resource registry can be loaded.
 
 ---
 

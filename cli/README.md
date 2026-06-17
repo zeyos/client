@@ -52,6 +52,7 @@ Inspect the CLI-supported resource registry:
 
 ```bash
 zeyos resources
+zeyos doctor agent --json
 ```
 
 List tickets for automation:
@@ -65,11 +66,19 @@ zeyos list tickets \
   --json
 ```
 
+For larger or reusable filters, put the JSON in a file:
+
+```bash
+zeyos list tickets --filter-file ./filters/open-tickets.json --json
+```
+
 Create, update, and delete:
 
 ```bash
 zeyos create ticket --data '{"name":"Fix login bug","status":0,"priority":3,"visibility":0}' --json
+zeyos create ticket --data-file ./ticket.json --json
 zeyos update ticket 42 --data '{"status":4}' --json
+zeyos update ticket 42 --data-file ./ticket-update.json --json
 zeyos delete ticket 42
 ```
 

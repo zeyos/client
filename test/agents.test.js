@@ -98,3 +98,69 @@ test('client.<service>.<operation> references in agents/docs/samples all exist',
 
   assert.deepEqual(offenders, [], `client.<service>.<op> references to non-existent operations:\n${offenders.join('\n')}`);
 });
+
+test('every bundled skill explicitly references the operating guide', () => {
+  const files = walk(path.join(ROOT, 'agents'), ['SKILL.md'])
+    .filter((file) => path.basename(path.dirname(file)) !== 'shared');
+  assert.ok(files.length > 0, 'expected skill files to exist');
+
+  const offenders = [];
+  for (const file of files) {
+    const content = readFileSync(file, 'utf8');
+    if (!content.includes('zeyos-agent-operating-guide.md')) {
+      offenders.push(path.relative(ROOT, file));
+    }
+  }
+
+  assert.deepEqual(offenders, [], `skills missing zeyos-agent-operating-guide.md:\n${offenders.join('\n')}`);
+});
+
+test('shared operating guide keeps shell-safe bare-skill guidance', () => {
+  const content = readFileSync(path.join(ROOT, 'agents/shared/zeyos-agent-operating-guide.md'), 'utf8');
+
+  for (const expected of [
+    'Bare-skill checklist for Pi/OpenCode/local models',
+    'copy-paste-safe JSON',
+    'Never execute raw JSON as a shell command',
+    '@filter.json',
+    '--filter-file <path>',
+    '--data-file <path>',
+    'zeyos count <resource>'
+  ]) {
+    assert.ok(content.includes(expected), `missing shared guidance: ${expected}`);
+  }
+});
+
+test('count-heavy workflows include first-command zeyos count snippets', () => {
+  const expectations = [
+    [
+      'agents/zeyos-account-intelligence/references/workflows.md',
+      `zeyos count accounts --filter '{"type":1,"visibility":0}'`
+    ],
+    [
+      'agents/zeyos-billing-insights/references/workflows.md',
+      'zeyos count transactions'
+    ],
+    [
+      'agents/zeyos-commerce-and-inventory/references/workflows.md',
+      `zeyos count items --filter '{"visibility":0}'`
+    ],
+    [
+      'agents/zeyos-platform-and-schema/references/workflows.md',
+      'zeyos count customfields'
+    ],
+    [
+      'agents/zeyos-campaign-and-outreach/references/workflows.md',
+      `zeyos count campaigns --filter '{"visibility":0}'`
+    ],
+    [
+      'agents/zeyos-collaboration-and-activity/references/workflows.md',
+      'zeyos count events'
+    ]
+  ];
+
+  for (const [relativeFile, snippet] of expectations) {
+    const content = readFileSync(path.join(ROOT, relativeFile), 'utf8');
+    assert.ok(content.includes(snippet), `${relativeFile} missing ${snippet}`);
+  }
+});

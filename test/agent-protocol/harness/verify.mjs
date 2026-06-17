@@ -10,6 +10,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import {
   createZeyosClient,
+  MemoryTokenStore,
   normalizeListResult,
   normalizeTokenSet,
   tokenResponseToTokenSet
@@ -33,9 +34,9 @@ function tokenIsStale(token) {
  *   3. stored access token (best effort)
  * The refreshed/obtained token is persisted back to config.test.json for reuse.
  */
-export async function ensureFreshToken(liveCfg, { configPath } = {}) {
+export async function ensureFreshToken(liveCfg, { configPath, force = false } = {}) {
   const stored = normalizeTokenSet(liveCfg.token) || {};
-  if (!tokenIsStale(stored)) return stored;
+  if (!force && !tokenIsStale(stored)) return stored;
 
   const haveClient = liveCfg.clientId && liveCfg.clientSecret;
 
@@ -148,11 +149,22 @@ export function buildVerifyClient(liveCfg, token) {
   const platform = liveCfg.url
     ? liveCfg.url
     : { origin: liveCfg.origin, instance: liveCfg.instance };
+  const tokenStore = new MemoryTokenStore({
+    accessToken: token.accessToken,
+    refreshToken: token.refreshToken,
+    expiresAt: token.expiresAt,
+    refreshTokenExpiresAt: token.refreshTokenExpiresAt
+  });
   return createZeyosClient({
     platform,
     auth: {
       mode: 'oauth',
-      oauth: { token: { accessToken: token.accessToken }, autoRefresh: false }
+      oauth: {
+        clientId: liveCfg.clientId,
+        clientSecret: liveCfg.clientSecret,
+        tokenStore,
+        autoRefresh: true
+      }
     }
   });
 }

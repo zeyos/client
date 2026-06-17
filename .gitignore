@@ -1,7 +1,13 @@
 node_modules/
+.DS_Store
+/AGENT.md
+.claude/
 config.test.json
 temp/
-.zeyos/auth.json
+.zeyos/
+API-REPORT.md
+samples/missioncontrol/data.js
+samples/missioncontrol/data.json
 test/agent-protocol/results/
 test/agent-protocol/opencode/opencode.json
 test/agent-protocol/opencode/.opencode/

@@ -4,9 +4,10 @@
  * Update an existing record.  Works like `create` but requires an ID.
  *
  * Options:
- *   --data <json>    Fields to update as a JSON object
- *   --json           Output updated record as JSON
- *   --yaml           Output updated record as YAML
+ *   --data <json>       Fields to update as a JSON object
+ *   --data-file <path>  Read fields to update as a JSON object from a file
+ *   --json              Output updated record as JSON
+ *   --yaml              Output updated record as YAML
  */
 
 import {
@@ -30,6 +31,7 @@ Arguments:
 
 Options:
   --data <json>       Fields to update as a JSON object
+  --data-file <path>  Read fields to update as a JSON object from a file
   --<field> <value>   Set individual fields  e.g. --status 2
   --json              Output updated record as JSON
   --yaml              Output updated record as YAML
@@ -39,6 +41,7 @@ Options:
 Examples:
   zeyos update ticket 42 --status 3
   zeyos update account 7 --data '{"email":"new@example.com"}'
+  zeyos update ticket 42 --data-file ./ticket-update.json
 `;
 
 export async function run(values, positional) {

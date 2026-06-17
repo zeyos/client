@@ -16,6 +16,14 @@ Recommended defaults when the user does not specify:
 - Subtract billing credits (`transactions.type = 4`) if the user asks for net revenue after credits.
 - If the question is about reminders, notices, or overdue follow-up, switch to `dunning` and `dunning2transactions` instead of answering from revenue data alone. These dbref nouns diverge: call `listDunningNotices` (not `listDunning`) and `listDunningToTransactions` (not `listDunning2transactions`). See [../../shared/zeyos-entity-reference.md](../../shared/zeyos-entity-reference.md#entity-noun-to-rest-operationid).
 
+## First Commands For Counts
+
+- All transactions: `zeyos count transactions`
+- Billing invoices only: `zeyos count transactions --filter '{"type":3}'`
+
+`transactions` has no `visibility` field. Do not add `"visibility":0` to transaction
+filters.
+
 ## Important Status Caution
 
 The transaction status enum is broad and instance behavior may differ. Do not hard-code business meaning beyond what the schema documents unless the instance conventions are known.

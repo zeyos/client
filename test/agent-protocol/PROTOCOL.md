@@ -74,7 +74,7 @@ a scenario is flagged, the scorecard adds a 🧭 hint: the likely cause is a **s
 isn't self-contained** (the operating contract — "you have tools, the CLI is
 authenticated, act don't plan" — never reached the model), a skill-pack gap rather than a
 client defect. This is exactly the failure seen running the bare `zeyos-billing-insights`
-skill under `pi`/gemma. Confirm it with a `--bare-skill` run (see §5.1).
+skill under `pi`/gemma. Confirm it with a `--bare-skill` run (see §5.2).
 
 ---
 
@@ -102,7 +102,7 @@ skill under `pi`/gemma. Confirm it with a `--bare-skill` run (see §5.1).
    (`agentProtocol.runner`); two are supported out of the box:
    - **opencode** (default). Copy `opencode/opencode.json.example` → `opencode/opencode.json`.
    - **pi** (`pi -p …`). A coding-agent CLI with shell/read/edit/write tools, used the way
-     a real downstream user consumes the skill pack. See §5.2 for the runner config.
+    a real downstream user consumes the skill pack. See §5.3 for the runner config.
    And model access:
    - OpenRouter: set `OPENROUTER_API_KEY`.
    - Ollama (local): run `ollama serve` and `ollama pull <model>` (e.g. `gemma4:latest`).
@@ -128,15 +128,37 @@ npm run test:agent-protocol
 # Useful flags
 #   --layer a|b           restrict to a layer
 #   --models a,b,c        override the rotation
+#   --all-models          run every selected model even after a pass
+#   --read-only           restrict to non-mutating scenarios
 #   --no-cleanup          keep created records (debugging only)
-#   --bare-skill          omit the inlined operating contract (skill self-containment test, §5.1)
+#   --bare-skill          omit the inlined operating contract (skill self-containment test, §5.2)
 #   --run-id <id>         name the results folder
 ```
 
 Results land in `test/agent-protocol/results/<runId>/` (gitignored):
 `scorecard.json`, `scorecard.md`, and `transcripts/<scenario>__<model>.txt`.
 
-### 5.1 Two consumption modes: harness vs. bare-skill
+### 5.1 Developer improvement loop
+
+Use the loop runner when editing skills and comparing a candidate skill pack against the
+baseline from `HEAD`:
+
+```bash
+npm run test:agent-loop -- --run-id skill-loop-001
+npm run test:agent-loop -- --read-only --agents opencode --models openrouter/qwen/qwen3.7-plus
+npm run test:agent-loop -- --scenario b03-billing-transaction-count --agents pi --models ollama/gemma4:latest
+```
+
+The loop writes `test/agent-protocol/results/<loopId>/loop-summary.md` and
+`loop-summary.json`. It runs the protocol for `baseline` (`HEAD:agents`) and `candidate`
+(working-tree `agents/` by default), isolates runner scratch files in per-attempt
+workspaces, and adds a bare-skill read-only pass unless `--full-only` is set. For live
+runs, it first asks the selected native runners (`opencode models`, `pi --list-models`)
+for available model IDs and fails fast when a requested ID is absent. Dry-runs skip that
+check and do not produce scorecards; the loop summary calls that out explicitly. Pass
+`--no-model-preflight` only when the native listing command itself is unavailable or stale.
+
+### 5.2 Two consumption modes: harness vs. bare-skill
 
 The harness can present the skills to the model two ways, and the difference is the whole
 point of catching the `pi`/gemma failure:
@@ -162,7 +184,7 @@ npm run test:agent-protocol -- --bare-skill --scenario b03-billing-transaction-c
 A scenario that passes in harness mode but fails `--bare-skill` (typically with the 🧭
 `PLANNED_NOT_EXECUTED` hint) is a skill self-containment gap — fix the skill, not the client.
 
-### 5.2 Running under `pi`
+### 5.3 Running under `pi`
 
 `pi` is a coding-agent CLI with shell/read/edit/write tools. Point the runner at it via
 `agentProtocol.runner` in `config.test.json`:

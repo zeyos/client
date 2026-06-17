@@ -5,7 +5,7 @@ description: Inspect ZeyOS platform, schema, and admin-facing entities such as a
 
 # ZeyOS Platform And Schema
 
-Read [../shared/zeyos-query-patterns.md](../shared/zeyos-query-patterns.md) first. Read [../shared/zeyos-entity-reference.md](../shared/zeyos-entity-reference.md) for the full source-backed model. Read [references/workflows.md](references/workflows.md) for platform/admin query plans.
+Read [../shared/zeyos-agent-operating-guide.md](../shared/zeyos-agent-operating-guide.md) and [../shared/zeyos-query-patterns.md](../shared/zeyos-query-patterns.md) first. Read [../shared/zeyos-entity-reference.md](../shared/zeyos-entity-reference.md) for the full source-backed model. Read [references/workflows.md](references/workflows.md) for platform/admin query plans.
 
 Typical prompts:
 

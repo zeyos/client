@@ -22,6 +22,14 @@ These are dbref nouns, not operationIds. Several diverge: `applicationassets` ->
 [../../shared/zeyos-entity-reference.md](../../shared/zeyos-entity-reference.md#entity-noun-to-rest-operationid)
 before calling `@zeyos/client`.
 
+## First Commands For Counts
+
+- All custom fields: `zeyos count customfields`
+- Custom fields for tickets: `zeyos count customfields --filter '{"entity":"tickets"}'`
+
+`customfields` has no `visibility` field. In the JS client the list operation is
+`listCustomFields`, not `listCustomfields`.
+
 ## Pattern: Custom Fields For An Entity
 
 Use this for prompts like:

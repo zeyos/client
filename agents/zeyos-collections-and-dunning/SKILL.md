@@ -5,7 +5,7 @@ description: Analyze ZeyOS overdue receivables, dunning notices, payment gaps, a
 
 # ZeyOS Collections And Dunning
 
-Read [../shared/zeyos-query-patterns.md](../shared/zeyos-query-patterns.md) first. Read [../shared/zeyos-entity-map.md](../shared/zeyos-entity-map.md) when the request crosses accounts, transactions, payments, and dunning. Read [references/workflows.md](references/workflows.md) for collections-specific query plans.
+Read [../shared/zeyos-agent-operating-guide.md](../shared/zeyos-agent-operating-guide.md) and [../shared/zeyos-query-patterns.md](../shared/zeyos-query-patterns.md) first. Read [../shared/zeyos-entity-map.md](../shared/zeyos-entity-map.md) when the request crosses accounts, transactions, payments, and dunning. Read [references/workflows.md](references/workflows.md) for collections-specific query plans.
 
 Typical prompts:
 

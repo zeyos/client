@@ -15,8 +15,9 @@ opencode/
 scenarios/
   layer-a/*.json         deterministic conformance scenarios
   layer-b/*.json         agent-experience scenarios
-harness/
+  harness/
   run.mjs                orchestrator + rotation engine + scorecard (entry point)
+  loop.mjs               baseline-vs-candidate skill improvement loop
   verify.mjs             independent ground-truth verification via @zeyos/client
   opencode-adapter.mjs   shells out to the configurable runner, captures transcripts
   judge.mjs              optional rubric judge for `manual` scenarios
@@ -54,10 +55,23 @@ node test/agent-protocol/harness/run.mjs --list        # catalog (no creds)
 npm run test:agent-protocol -- --dry-run               # verify wiring, no model/mutation
 npm run test:agent-protocol -- --scenario a01-ticket-crud-roundtrip --models openrouter/anthropic/claude-sonnet-4.6
 npm run test:agent-protocol                            # full rotation
+npm run test:agent-loop -- --read-only                 # baseline vs candidate developer loop
 ```
 
 Then open `results/<runId>/scorecard.md` — the `🔴 CLIENT_DEFECT` section is the
 actionable one.
+
+For skill iteration, use `npm run test:agent-loop -- --run-id <id>`. It runs the
+protocol against `HEAD:agents` as the baseline and the working-tree `agents/` folder as
+the candidate, across the OpenCode/Pi runner presets and this default OpenRouter set:
+`openrouter/qwen/qwen3.7-plus`, `openrouter/x-ai/grok-build-0.1`,
+`openrouter/nvidia/nemotron-3-ultra-550b-a55b`, and `openrouter/z-ai/glm-5.2`. Add
+`--models` to override that list, `--read-only` for a cheaper loop, `--scenario <id>` for
+a one-scenario loop, and `--full-only` to skip bare-skill coverage. Live loop runs
+preflight the requested model IDs through the native `opencode models` /
+`pi --list-models` commands and fail before launching agents when a listed model is
+unavailable; use `--no-model-preflight` only when that native list command is known to be
+stale or unavailable.
 
 ## Adding a scenario
 

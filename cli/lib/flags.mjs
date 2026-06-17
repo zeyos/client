@@ -6,8 +6,8 @@
 // Global CLI flags that are never record fields. Any other --flag on
 // create/update is treated as a field on the record being written.
 const RESERVED_FLAGS = new Set([
-  'data', 'json', 'yaml', 'help', 'h',
-  'no-color', 'force', 'fields', 'filter', 'sort',
+  'data', 'data-file', 'json', 'yaml', 'help', 'h',
+  'no-color', 'force', 'fields', 'filter', 'filter-file', 'sort',
   'limit', 'offset', 'expand', 'base-url', 'client-id',
   'secret', 'scope', 'global', 'port', 'manual', 'show-token',
   'extdata', 'tags', 'all', 'clean', 'query',

@@ -1,6 +1,6 @@
 {
   "name": "@zeyos/client",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Dependency-light JavaScript client for ZeyOS OpenAPI services",
   "type": "module",
   "license": "MIT",
@@ -31,7 +31,12 @@
     "scripts/generate-client.mjs",
     "openapi",
     "docs",
-    "samples",
+    "samples/crm",
+    "samples/dashboard",
+    "samples/kanban",
+    "samples/missioncontrol/README.md",
+    "samples/missioncontrol/fetch-data.mjs",
+    "samples/missioncontrol/index.html",
     "agents",
     "README.md",
     "CHANGELOG.md",
@@ -44,6 +49,7 @@
     "generate": "node scripts/generate-client.mjs",
     "test": "node scripts/test.mjs",
     "test:cli-integration": "node --test cli/test/integration.mjs",
-    "test:agent-protocol": "node test/agent-protocol/harness/run.mjs"
+    "test:agent-protocol": "node test/agent-protocol/harness/run.mjs",
+    "test:agent-loop": "node test/agent-protocol/harness/loop.mjs"
   }
 }

@@ -16,6 +16,7 @@
  *   update <resource>    Update a record
  *   delete <resource>    Delete a record
  *   resources            List available resource types
+ *   doctor agent         Check local CLI readiness for coding agents
  */
 
 // ── Version ───────────────────────────────────────────────────────────────────
@@ -48,6 +49,7 @@ ${_c.bold('Commands:')}
   ${_c.cyan('delete')} <resource> <id>  Delete a record
   ${_c.cyan('resources')}            List all available resource types
   ${_c.cyan('describe')} <resource>  Show a resource's fields, types and enums
+  ${_c.cyan('doctor')} agent         Check local CLI readiness for coding agents
   ${_c.cyan('skills')} <command>     List / show / install ZeyOS agent skills
 
 ${_c.bold('Global options:')}
@@ -61,6 +63,7 @@ ${_c.bold('Global options:')}
 ${_c.bold('Examples:')}
   ${_z} login --base-url https://cloud.zeyos.com/demo --client-id myapp --secret "$ZEYOS_CLIENT_SECRET"
   ${_z} list tickets --filter '{"status":1}' --sort -lastmodified
+  ${_z} list tickets --filter-file ./filters/open-tickets.json
   ${_z} count tickets --filter '{"status":1}'
   ${_z} get ticket 42
   ${_z} get ticket 42 --all
@@ -94,6 +97,7 @@ const OPTIONS = {
   // list
   'fields':     { type: 'string' },
   'filter':     { type: 'string' },
+  'filter-file': { type: 'string' },
   'sort':       { type: 'string' },
   'limit':      { type: 'string' },
   'offset':     { type: 'string' },
@@ -106,6 +110,7 @@ const OPTIONS = {
   'show-token': { type: 'boolean' },
   // create / update
   'data':       { type: 'string' },
+  'data-file':  { type: 'string' },
   // delete
   // (--force is already declared above)
   // skills install
@@ -134,6 +139,7 @@ const COMMANDS = {
   resources: '../commands/resources.mjs',
   resource:  '../commands/resources.mjs',
   describe:  '../commands/describe.mjs',
+  doctor:    '../commands/doctor.mjs',
   skills:    '../commands/skills.mjs',
   skill:     '../commands/skills.mjs',
 };
@@ -152,8 +158,8 @@ const COMMAND_FLAGS = {
   login:     ['base-url', 'client-id', 'secret', 'scope', 'port', 'global', 'force', 'clean', 'manual'],
   logout:    ['global'],
   whoami:    ['show-token'],
-  list:      ['fields', 'filter', 'sort', 'limit', 'offset', 'extdata', 'expand', 'query'],
-  count:     ['filter', 'query'],
+  list:      ['fields', 'filter', 'filter-file', 'sort', 'limit', 'offset', 'extdata', 'expand', 'query'],
+  count:     ['filter', 'filter-file', 'query'],
   get:       GET_FLAGS,
   show:      GET_FLAGS,
   create:    null,
@@ -165,6 +171,7 @@ const COMMAND_FLAGS = {
   resources: [],
   resource:  [],
   describe:  [],
+  doctor:    [],
   skills:    SKILLS_FLAGS,
   skill:     SKILLS_FLAGS,
 };

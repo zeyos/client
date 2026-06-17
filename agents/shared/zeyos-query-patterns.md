@@ -29,6 +29,9 @@ For cross-platform benchmark guidance, read [business-app-benchmarks.md](./busin
 ## Common Guardrails
 
 - Discover before guessing: `zeyos describe <resource>` (or `client.schema.describe(resource)`) lists a resource's fields, types, foreign keys, and enum values; both run offline. `zeyos describe`, `create`, `update`, and `list` all accept singular, plural, or aliased resource names (`ticket`/`tickets`/`invoice`). Pre-check a call with `client.schema.validate(operationId, input)` — it flags unknown fields (with suggestions), `filter` vs `filters`, invalid enum values, and missing required create fields. An unknown operation name rejects with a "did you mean …?" suggestion.
+- CLI filters are inline JSON strings. Use `--filter '{"field":123}'`; never run the raw
+  JSON as a shell command, and do not use `@filter.json` unless the CLI help explicitly
+  documents response-file support.
 - Creating accounts requires `currency` (e.g. `"EUR"`): the column is NOT NULL with no DB default, so a create that omits it fails with an opaque HTTP 500 even though the OpenAPI spec does not mark it required. `validate('createAccount', …)` now catches this; supply a currency code. (The spec carries no required-field metadata at all, so unknown required fields can still surface only as a server-side 500 — when a create 500s, suspect a missing NOT-NULL column.)
 - Use `visibility: 0` on resources that expose a `visibility` field, unless the user explicitly wants archived or deleted records. Not every resource has the column: `tickets`, `accounts`, and `items` do; **`transactions` does not — filtering `visibility` there returns an opaque HTTP 400**. More generally, filtering on any column a resource lacks 400s with no hint which field was wrong, so filter only on fields `zeyos describe <resource>` lists.
 - Treat list operations as `POST` queries.

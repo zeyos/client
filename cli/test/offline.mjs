@@ -1,5 +1,7 @@
 import { execFile } from 'node:child_process';
 import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
+import { createServer } from 'node:http';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -8,6 +10,7 @@ import assert from 'node:assert/strict';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const CLI_BIN = resolve(__dir, '..', 'bin', 'zeyos.mjs');
+const PKG_VERSION = createRequire(import.meta.url)('../package.json').version;
 
 const ZEYOS_ENV_KEYS = [
   'ZEYOS_BASE_URL',
@@ -66,6 +69,43 @@ async function exists(path) {
   } catch {
     return false;
   }
+}
+
+async function jsonServer(t, handler) {
+  const requests = [];
+  const server = createServer((req, res) => {
+    let body = '';
+    req.setEncoding('utf8');
+    req.on('data', (chunk) => {
+      body += chunk;
+    });
+    req.on('end', () => {
+      requests.push({
+        method: req.method,
+        url: req.url,
+        headers: req.headers,
+        body
+      });
+      handler(req, res, body);
+    });
+  });
+
+  await new Promise((resolveListen, rejectListen) => {
+    server.once('error', rejectListen);
+    server.listen(0, '127.0.0.1', resolveListen);
+  });
+
+  t.after(async () => {
+    await new Promise((resolveClose) => {
+      server.close(resolveClose);
+    });
+  });
+
+  const { port } = server.address();
+  return {
+    baseUrl: `http://127.0.0.1:${port}/dev`,
+    requests
+  };
 }
 
 test('global help is available without credentials', async () => {
@@ -381,6 +421,159 @@ test('--query prints the route + JSON payload without sending a request', async 
   assert.match(result.stdout, /"filters"/);
   assert.match(result.stdout, /"status": 1/);
   assert.match(result.stdout, /"limit": 5/);
+});
+
+test('list --filter-file reads JSON filters from disk', async (t) => {
+  const cwd = await tempDir(t);
+  await writeFile(join(cwd, 'filter.json'), JSON.stringify({ status: 1, visibility: 0 }), 'utf8');
+
+  const result = await cli(
+    ['list', 'tickets', '--filter-file', 'filter.json', '--limit', '5', '--query'],
+    { cwd, env: isolatedEnv(cwd, CREDENTIALS) }
+  );
+
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /"filters"/);
+  assert.match(result.stdout, /"status": 1/);
+  assert.match(result.stdout, /"visibility": 0/);
+});
+
+test('count --filter-file reads JSON filters from disk', async (t) => {
+  const cwd = await tempDir(t);
+  await writeFile(join(cwd, 'filter.json'), JSON.stringify({ status: 2 }), 'utf8');
+
+  const result = await cli(
+    ['count', 'tickets', '--filter-file', 'filter.json', '--query', '--json'],
+    { cwd, env: isolatedEnv(cwd, CREDENTIALS) }
+  );
+
+  assert.equal(result.code, 0, result.stderr);
+  const descriptor = JSON.parse(result.stdout);
+  assert.equal(descriptor.operationId, 'listTickets');
+  assert.deepEqual(descriptor.body, { count: true, filters: { status: 2 } });
+});
+
+test('--filter-file errors do not echo file contents', async (t) => {
+  const cwd = await tempDir(t);
+  await writeFile(join(cwd, 'filter.json'), '{"token":"very-secret-token",', 'utf8');
+
+  const result = await cli(
+    ['list', 'tickets', '--filter-file', 'filter.json', '--query'],
+    { cwd, env: isolatedEnv(cwd, CREDENTIALS) }
+  );
+
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /--filter-file file must contain valid JSON/);
+  assert.doesNotMatch(result.stderr, /very-secret-token/);
+});
+
+test('create --data-file reads JSON request bodies from disk', async (t) => {
+  const cwd = await tempDir(t);
+  await writeFile(join(cwd, 'ticket.json'), JSON.stringify({ name: 'From file', status: 0 }), 'utf8');
+
+  const result = await cli(
+    ['create', 'ticket', '--data-file', 'ticket.json', '--priority', '3', '--query', '--json'],
+    { cwd, env: isolatedEnv(cwd, CREDENTIALS) }
+  );
+
+  assert.equal(result.code, 0, result.stderr);
+  const descriptor = JSON.parse(result.stdout);
+  assert.deepEqual(descriptor.body, { name: 'From file', status: 0, priority: 3 });
+});
+
+test('update --data-file reads JSON request bodies from disk', async (t) => {
+  const cwd = await tempDir(t);
+  await writeFile(join(cwd, 'ticket-update.json'), JSON.stringify({ status: 4 }), 'utf8');
+
+  const result = await cli(
+    ['update', 'ticket', '42', '--data-file', 'ticket-update.json', '--query', '--json'],
+    { cwd, env: isolatedEnv(cwd, CREDENTIALS) }
+  );
+
+  assert.equal(result.code, 0, result.stderr);
+  const descriptor = JSON.parse(result.stdout);
+  assert.deepEqual(descriptor.body, { status: 4 });
+  assert.deepEqual(descriptor.pathParams, { ID: '42' });
+});
+
+test('--data-file errors do not echo file contents', async (t) => {
+  const cwd = await tempDir(t);
+  await writeFile(join(cwd, 'ticket.json'), '{"secret":"very-secret-token",', 'utf8');
+
+  const result = await cli(['create', 'ticket', '--data-file', 'ticket.json'], {
+    cwd,
+    env: isolatedEnv(cwd, NO_CREDENTIALS)
+  });
+
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /--data-file file must contain valid JSON/);
+  assert.doesNotMatch(result.stderr, /very-secret-token/);
+});
+
+test('--data and --data-file cannot be combined', async (t) => {
+  const cwd = await tempDir(t);
+  await writeFile(join(cwd, 'ticket.json'), JSON.stringify({ name: 'From file' }), 'utf8');
+
+  const result = await cli(
+    ['create', 'ticket', '--data', '{"name":"Inline"}', '--data-file', 'ticket.json'],
+    { cwd, env: isolatedEnv(cwd, NO_CREDENTIALS) }
+  );
+
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /Use either --data or --data-file, not both/);
+});
+
+test('count --json emits a stable object', async (t) => {
+  const cwd = await tempDir(t);
+  const server = await jsonServer(t, (_req, res) => {
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ count: 129 }));
+  });
+
+  const result = await cli(['count', 'tickets', '--json'], {
+    cwd,
+    env: isolatedEnv(cwd, {
+      ...CREDENTIALS,
+      ZEYOS_BASE_URL: server.baseUrl
+    })
+  });
+
+  assert.equal(result.code, 0, result.stderr);
+  assert.deepEqual(JSON.parse(result.stdout), { count: 129 });
+  assert.equal(server.requests.length, 1);
+  assert.equal(server.requests[0].method, 'POST');
+  assert.match(server.requests[0].url, /\/dev\/api\/v1\/tickets$/);
+  assert.deepEqual(JSON.parse(server.requests[0].body), { count: true });
+});
+
+test('doctor agent --json reports local readiness without secret values', async (t) => {
+  const cwd = await tempDir(t);
+  const result = await cli(['doctor', 'agent', '--json'], {
+    cwd,
+    env: isolatedEnv(cwd, {
+      ZEYOS_BASE_URL: 'https://zeyos.example.com/dev',
+      ZEYOS_INSTANCE: 'dev',
+      ZEYOS_CLIENT_ID: 'client-id',
+      ZEYOS_CLIENT_SECRET: 'client-secret-value',
+      ZEYOS_TOKEN: 'access-token-value'
+    })
+  });
+
+  assert.equal(result.code, 0, result.stderr);
+  assert.doesNotMatch(result.stdout, /client-secret-value/);
+  assert.doesNotMatch(result.stdout, /access-token-value/);
+
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.cli.version, PKG_VERSION);
+  assert.equal(report.connection.baseUrl, 'https://zeyos.example.com/dev');
+  assert.equal(report.connection.instance, 'dev');
+  assert.equal(report.auth.ready, true);
+  assert.equal(report.auth.env.present, true);
+  assert.ok(report.auth.env.variables.includes('ZEYOS_TOKEN'));
+  assert.equal(report.auth.effective.clientSecret, true);
+  assert.equal(report.auth.effective.accessToken, true);
+  assert.equal(report.resources.ok, true);
+  assert.ok(report.resources.count > 0);
 });
 
 test('--query --json emits a machine-readable request descriptor', async (t) => {

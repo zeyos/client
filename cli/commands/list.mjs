@@ -6,6 +6,7 @@
  * Options:
  *   --fields <list>        Field selection (comma-separated or JSON object)
  *   --filter <json>        JSON filter object  e.g. '{"status":1}'
+ *   --filter-file <path>   Read JSON filter object from a file
  *   --sort <field>         Sort field, prefix with - for descending  e.g. '-lastmodified'
  *   --limit <n>            Max records to fetch  (default: 50)
  *   --offset <n>           Skip first N records  (default: 0)
@@ -25,7 +26,7 @@ import {
   callApi,
   fail,
   maybeDryRun,
-  parseJsonOption,
+  parseJsonOptionOrFile,
   requireApiMethod,
   requireResource
 } from '../lib/command.mjs';
@@ -41,6 +42,8 @@ Arguments:
 Options:
   --fields <list>     Field selection (see formats below)
   --filter <json>     JSON filter object  e.g. '{"status":1}'
+  --filter-file <path>
+                      Read JSON filter object from a file
   --sort <fields>     Sort expression  e.g. '-lastmodified'
   --limit <n>         Max records (default: 50)
   --offset <n>        Skip first N records (default: 0)
@@ -59,6 +62,7 @@ Fields format:
 Examples:
   zeyos list tickets
   zeyos list tickets --filter '{"status":1}' --sort -lastmodified
+  zeyos list tickets --filter-file ./filters/open-tickets.json
   zeyos list tickets --fields ID,name,status --limit 10
   zeyos list accounts --fields '{"Name": "lastname", "City": "contact.city"}'
   zeyos list tickets --extdata
@@ -70,7 +74,6 @@ export async function run(values, positional) {
   const res = requireResource(resourceName, 'zeyos list <resource>');
 
   const resName = canonicalName(resourceName);
-  const clientState = buildCliClient();
 
   // ── Resolve field config ──────────────────────────────────────────────────
   const { apiFields, displayColumns } = getListFields(res, resName, values.fields);
@@ -81,8 +84,9 @@ export async function run(values, positional) {
   // Pass configured fields to the API for server-side field selection
   if (apiFields) body.fields = apiFields;
 
-  if (values.filter) {
-    body.filters = parseJsonOption(values.filter, 'filter');
+  const filters = parseJsonOptionOrFile(values, 'filter', 'filter-file');
+  if (filters !== undefined) {
+    body.filters = filters;
   }
 
   if (values.sort) body.sort = values.sort.split(',').map(s => s.trim()).filter(Boolean);
@@ -112,6 +116,7 @@ export async function run(values, positional) {
   }
 
   // ── Call API ───────────────────────────────────────────────────────────────
+  const clientState = buildCliClient();
   if (await maybeDryRun(clientState, res.list, body, values)) return;
 
   const fn = requireApiMethod(clientState, res.list);

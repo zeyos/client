@@ -3,12 +3,14 @@
  *
  * Create a new record.  Field values can be supplied either as:
  *   - a JSON blob via --data '{"name":"foo","status":1}'
+ *   - a JSON file via --data-file ./ticket.json
  *   - individual --<field> <value> flags (converted automatically)
  *
  * Options:
- *   --data <json>    Full record as JSON object
- *   --json           Output created record as JSON
- *   --yaml           Output created record as YAML
+ *   --data <json>       Full record as JSON object
+ *   --data-file <path>  Read full record JSON object from a file
+ *   --json              Output created record as JSON
+ *   --yaml              Output created record as YAML
  */
 
 import { buildCliClient, buildRecordPayload, callApi, maybeDryRun, requireResource } from '../lib/command.mjs';
@@ -24,6 +26,7 @@ Arguments:
 
 Options:
   --data <json>       Record fields as a JSON object
+  --data-file <path>  Read record fields as a JSON object from a file
   --<field> <value>   Set individual fields  e.g. --name "My Ticket" --status 1
   --json              Output created record as JSON
   --yaml              Output created record as YAML
@@ -33,6 +36,7 @@ Options:
 Examples:
   zeyos create ticket --name "Fix login bug" --status 0 --priority 2
   zeyos create account --data '{"lastname":"Acme Corp","email":"info@acme.com"}'
+  zeyos create ticket --data-file ./ticket.json
 `;
 
 export async function run(values, positional) {

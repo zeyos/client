@@ -10,6 +10,13 @@
 - `campaigns`
 - `participants`
 
+## First Commands For Counts
+
+- Customer accounts, active only: `zeyos count accounts --filter '{"type":1,"visibility":0}'`
+- All active accounts: `zeyos count accounts --filter '{"visibility":0}'`
+
+`accounts.type = 1` is `CUSTOMER`. Use `zeyos count`, not `list` plus row length.
+
 ## Pattern: Customer 360 Summary
 
 Use this for prompts like:

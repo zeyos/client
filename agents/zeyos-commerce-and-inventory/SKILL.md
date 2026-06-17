@@ -5,7 +5,7 @@ description: Analyze ZeyOS items, pricing, price lists, supplier links, stock mo
 
 # ZeyOS Commerce And Inventory
 
-Read [../shared/zeyos-query-patterns.md](../shared/zeyos-query-patterns.md) first. Read [../shared/zeyos-entity-map.md](../shared/zeyos-entity-map.md) and [../shared/zeyos-entity-reference.md](../shared/zeyos-entity-reference.md) when the request crosses pricing, accounts, and stock. Read [references/workflows.md](references/workflows.md) for commerce-specific query plans.
+Read [../shared/zeyos-agent-operating-guide.md](../shared/zeyos-agent-operating-guide.md) and [../shared/zeyos-query-patterns.md](../shared/zeyos-query-patterns.md) first. Read [../shared/zeyos-entity-map.md](../shared/zeyos-entity-map.md) and [../shared/zeyos-entity-reference.md](../shared/zeyos-entity-reference.md) when the request crosses pricing, accounts, and stock. Read [references/workflows.md](references/workflows.md) for commerce-specific query plans.
 
 Typical prompts:
 
