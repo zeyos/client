@@ -6,8 +6,7 @@ config.test.json
 temp/
 .zeyos/
 API-REPORT.md
-samples/missioncontrol/data.js
-samples/missioncontrol/data.json
+samples/missioncontrol/
 test/agent-protocol/results/
 test/agent-protocol/opencode/opencode.json
 test/agent-protocol/opencode/.opencode/
