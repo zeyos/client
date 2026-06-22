@@ -421,6 +421,56 @@ test('auto mode proactively refreshes expired access tokens before bearer reques
   assert.equal(fetch.calls(), 2);
 });
 
+test('concurrent operations share a single token refresh (single-flight)', async () => {
+  const tokenStore = new MemoryTokenStore({
+    tokenType: 'Bearer',
+    accessToken: 'expired-token',
+    refreshToken: 'refresh-token',
+    expiresAt: Math.floor(Date.now() / 1000) - 30
+  });
+
+  let tokenCalls = 0;
+  let dataCalls = 0;
+  const seenAuth = [];
+
+  // Not createFetchSequence: concurrent calls arrive in nondeterministic order.
+  const fetch = async (url, init = {}) => {
+    if (/\/oauth2\/v1\/token$/.test(String(url))) {
+      tokenCalls += 1;
+      // Hold the refresh open so all concurrent callers overlap on it; without
+      // single-flight each would have fired its own token request by now.
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      return jsonResponse({
+        token_type: 'Bearer',
+        access_token: 'fresh-token',
+        expires_in: 3600,
+        refresh_token: 'fresh-refresh-token',
+        refresh_token_expires_in: 8640000
+      });
+    }
+    dataCalls += 1;
+    seenAuth.push(new Headers(init.headers).get('authorization'));
+    return jsonResponse({ ID: 1, name: 'ok' });
+  };
+
+  const client = createZeyosClient({
+    instance: 'demo',
+    fetch,
+    auth: { mode: 'auto', oauth: { clientId: 'client-id', clientSecret: 'client-secret', tokenStore } }
+  });
+
+  const results = await Promise.all([
+    client.api.getAccount({ ID: 1 }),
+    client.api.getAccount({ ID: 2 }),
+    client.api.getAccount({ ID: 3 })
+  ]);
+
+  assert.equal(results.length, 3);
+  assert.equal(tokenCalls, 1, 'concurrent ops must share exactly one token refresh');
+  assert.equal(dataCalls, 3);
+  assert.deepEqual(seenAuth, ['Bearer fresh-token', 'Bearer fresh-token', 'Bearer fresh-token']);
+});
+
 test('auto mode refreshes token on 401 and retries bearer request', async () => {
   const tokenStore = new MemoryTokenStore({
     tokenType: 'Bearer',
@@ -933,4 +983,147 @@ test('normalizeListResult preserves a numeric-string count', () => {
   assert.deepEqual(normalizeListResult({ data: [{ ID: 1 }], count: 'lots' }), {
     data: [{ ID: 1 }]
   });
+});
+
+test('timeoutMs aborts a stalled request', async () => {
+  // A fetch that never resolves until its signal aborts.
+  const fetch = (url, init = {}) =>
+    new Promise((_resolve, reject) => {
+      init.signal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+    });
+
+  const client = createZeyosClient({
+    instance: 'demo',
+    fetch,
+    auth: { mode: 'oauth', oauth: { token: { accessToken: 't' } } },
+    retry: false
+  });
+
+  await assert.rejects(
+    client.api.listTickets({ filters: {} }, { timeoutMs: 20 }),
+    (err) => err.isTimeout === true && /timed out/i.test(err.message)
+  );
+});
+
+test('network errors are retried for reads but not for writes', async () => {
+  let readCalls = 0;
+  const readClient = createZeyosClient({
+    instance: 'demo',
+    fetch: async () => {
+      readCalls += 1;
+      if (readCalls === 1) throw new TypeError('network down');
+      return jsonResponse([{ ID: 1 }]);
+    },
+    auth: { mode: 'oauth', oauth: { token: { accessToken: 't' } } },
+    retry: { baseDelayMs: 1, maxRetries: 2 }
+  });
+  const rows = await readClient.api.listTickets({ filters: {} });
+  assert.equal(readCalls, 2, 'a read should retry once then succeed');
+  assert.deepEqual(rows, [{ ID: 1 }]);
+
+  let writeCalls = 0;
+  const writeClient = createZeyosClient({
+    instance: 'demo',
+    fetch: async () => {
+      writeCalls += 1;
+      throw new TypeError('network down');
+    },
+    auth: { mode: 'oauth', oauth: { token: { accessToken: 't' } } },
+    retry: { baseDelayMs: 1, maxRetries: 2 }
+  });
+  await assert.rejects(writeClient.api.createTicket({ name: 'x' }), /network down/);
+  assert.equal(writeCalls, 1, 'a write must NOT be retried on a network error');
+});
+
+test('a user abort is never retried even for read operations', async () => {
+  const controller = new AbortController();
+  let calls = 0;
+  const client = createZeyosClient({
+    instance: 'demo',
+    fetch: async (url, init = {}) => {
+      calls += 1;
+      controller.abort();
+      const reason = init.signal?.reason ?? new Error('aborted');
+      throw reason;
+    },
+    auth: { mode: 'oauth', oauth: { token: { accessToken: 't' } } },
+    retry: { baseDelayMs: 1, maxRetries: 3 }
+  });
+  await assert.rejects(client.api.listTickets({ filters: {} }, { signal: controller.signal }));
+  assert.equal(calls, 1, 'an aborted request must not be retried');
+});
+
+test('paginate iterates every page until a short page', async () => {
+  const pages = [
+    [{ ID: 1 }, { ID: 2 }, { ID: 3 }],
+    [{ ID: 4 }, { ID: 5 }, { ID: 6 }],
+    [{ ID: 7 }]
+  ];
+  let call = 0;
+  const seen = [];
+  const client = createZeyosClient({
+    instance: 'demo',
+    fetch: async (url, init = {}) => {
+      const body = JSON.parse(init.body);
+      seen.push({ limit: body.limit, offset: body.offset });
+      return jsonResponse(pages[call++] ?? []);
+    },
+    auth: { mode: 'oauth', oauth: { token: { accessToken: 't' } } }
+  });
+
+  const ids = [];
+  for await (const row of client.paginate('listTickets', { filters: { visibility: 0 } }, { pageSize: 3 })) {
+    ids.push(row.ID);
+  }
+  assert.deepEqual(ids, [1, 2, 3, 4, 5, 6, 7]);
+  assert.deepEqual(seen, [
+    { limit: 3, offset: 0 },
+    { limit: 3, offset: 3 },
+    { limit: 3, offset: 6 }
+  ]);
+});
+
+test('collect respects max and stops paging early', async () => {
+  let call = 0;
+  const client = createZeyosClient({
+    instance: 'demo',
+    fetch: async () => jsonResponse([{ ID: call * 2 + 1 }, { ID: call++ * 2 + 2 }]),
+    auth: { mode: 'oauth', oauth: { token: { accessToken: 't' } } }
+  });
+  const rows = await client.collect('listTickets', {}, { pageSize: 2, max: 3 });
+  assert.equal(rows.length, 3);
+  assert.equal(call, 2, 'should stop after the page that reaches max');
+});
+
+test('paginate rejects an unknown operation with a suggestion', async () => {
+  const client = createZeyosClient({
+    instance: 'demo',
+    fetch: async () => jsonResponse([]),
+    auth: { mode: 'oauth', oauth: { token: { accessToken: 't' } } }
+  });
+  await assert.rejects(
+    (async () => {
+      // eslint-disable-next-line no-unused-vars
+      for await (const _ of client.paginate('listTicket', {})) { /* noop */ }
+    })(),
+    (err) => err instanceof ZeyosApiError && /Unknown list operation/.test(err.message)
+  );
+});
+
+test('API error message includes a server-provided detail', async () => {
+  const client = createZeyosClient({
+    instance: 'demo',
+    fetch: async () => jsonResponse({ message: 'unknown filter field: bogus' }, 400),
+    auth: { mode: 'oauth', oauth: { token: { accessToken: 't' } } },
+    retry: false
+  });
+
+  await assert.rejects(
+    client.api.listTickets({ filters: { bogus: 1 } }),
+    (err) =>
+      err instanceof ZeyosApiError &&
+      err.status === 400 &&
+      /unknown filter field: bogus/.test(err.message) &&
+      err.body?.message === 'unknown filter field: bogus'
+  );
 });

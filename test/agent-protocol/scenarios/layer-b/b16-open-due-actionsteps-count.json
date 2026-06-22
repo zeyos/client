@@ -1,0 +1,20 @@
+{
+  "id": "b16-open-due-actionsteps-count",
+  "layer": "b",
+  "title": "Count open actionsteps with due dates",
+  "skill": "zeyos-work-management",
+  "interface": "either",
+  "mutates": false,
+  "tags": ["work-management", "actionsteps", "due", "read-only"],
+  "prompt": "Using the work-management skill, answer: how many open actionsteps have status DRAFT (0) and a due date at or before Unix timestamp 4102444800? Output just the number on the RESULT line, e.g. `RESULT: 12`.",
+  "expect": {
+    "kind": "computeCount",
+    "op": "listActionSteps",
+    "params": { "limit": 10000 },
+    "predicates": [
+      { "field": "status", "equals": 0 },
+      { "field": "duedate", "lte": 4102444800 }
+    ],
+    "match": "exact"
+  }
+}

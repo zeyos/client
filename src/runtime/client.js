@@ -56,8 +56,14 @@ function abortableDelay(ms, signal) {
   });
 }
 
-// Honor a Retry-After header (seconds or HTTP-date), else exponential backoff
-// with jitter, capped at maxDelayMs.
+// Exponential backoff with jitter, capped at maxDelayMs.
+function backoffDelay(attempt, retryConfig) {
+  const exp = retryConfig.baseDelayMs * Math.pow(2, attempt);
+  const jitter = Math.random() * retryConfig.baseDelayMs;
+  return Math.min(retryConfig.maxDelayMs, exp + jitter);
+}
+
+// Honor a Retry-After header (seconds or HTTP-date), else exponential backoff.
 function computeRetryDelay(response, attempt, retryConfig) {
   const header = response.headers?.['retry-after'];
   // An empty or whitespace-only header carries no delay directive — `Number('')`
@@ -74,9 +80,88 @@ function computeRetryDelay(response, attempt, retryConfig) {
       return Math.min(retryConfig.maxDelayMs, Math.max(0, dateMs - Date.now()));
     }
   }
-  const exp = retryConfig.baseDelayMs * Math.pow(2, attempt);
-  const jitter = Math.random() * retryConfig.baseDelayMs;
-  return Math.min(retryConfig.maxDelayMs, exp + jitter);
+  return backoffDelay(attempt, retryConfig);
+}
+
+// Operations that are safe to transparently retry on a network error / timeout:
+// HTTP GET/HEAD, plus ZeyOS read queries (list/count/search) which are POST but
+// side-effect-free. Writes (create/update/delete) are never auto-retried, so a
+// dropped connection can't cause a duplicate mutation.
+function isReadOperation(operation) {
+  const method = operation?.method;
+  if (method === 'GET' || method === 'HEAD') {
+    return true;
+  }
+  return /^(list|count|search|exists|get)/i.test(operation?.operationId || '');
+}
+
+// Build a one-line, human-readable summary from a server error body so the thrown
+// error message says *why* (e.g. an unknown-filter 400), not just the status code.
+// The full body remains available on error.body.
+function summarizeErrorBody(body, maxLength = 200) {
+  let text = '';
+  if (typeof body === 'string') {
+    text = body.trim();
+  } else if (body && typeof body === 'object') {
+    const candidate =
+      body.message ?? body.error_description ?? body.error ?? body.detail ?? body.title;
+    if (typeof candidate === 'string' && candidate.trim()) {
+      text = candidate.trim();
+    } else {
+      try {
+        text = JSON.stringify(body);
+      } catch {
+        text = '';
+      }
+    }
+  }
+  if (!text) {
+    return '';
+  }
+  return text.length > maxLength ? `${text.slice(0, maxLength)}…` : text;
+}
+
+// Run fetch with an optional per-attempt timeout, composed with the caller's
+// AbortSignal (Node 18 compatible — no AbortSignal.any). A timeout aborts the
+// internal controller only, so `externalSignal.aborted` stays false and the
+// caller can distinguish a timeout (retryable for reads) from a user abort.
+async function fetchWithTimeout(httpRequestImpl, requestArgs, externalSignal, timeoutMs) {
+  if (!(timeoutMs > 0)) {
+    return httpRequestImpl({ ...requestArgs, signal: externalSignal });
+  }
+
+  const controller = new AbortController();
+  let timedOut = false;
+  const onExternalAbort = () => controller.abort(externalSignal.reason);
+
+  if (externalSignal) {
+    if (externalSignal.aborted) {
+      controller.abort(externalSignal.reason);
+    } else {
+      externalSignal.addEventListener('abort', onExternalAbort, { once: true });
+    }
+  }
+
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+
+  try {
+    return await httpRequestImpl({ ...requestArgs, signal: controller.signal });
+  } catch (error) {
+    if (timedOut) {
+      const timeoutError = new Error(`Request timed out after ${timeoutMs}ms`);
+      timeoutError.name = 'TimeoutError';
+      timeoutError.code = 'ETIMEDOUT';
+      timeoutError.isTimeout = true;
+      throw timeoutError;
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+    externalSignal?.removeEventListener?.('abort', onExternalAbort);
+  }
 }
 
 const AUTH_SCHEME_MAP = Object.freeze({
@@ -390,7 +475,8 @@ function chooseBodyType(serviceKey, operation, prepared, fallbackBodyType) {
 
 function createApiError(response, { serviceKey, operation, method, url }) {
   const operationDescription = operation.operationId ? `${serviceKey}.${operation.operationId}` : `${serviceKey} request`;
-  const message = `${operationDescription} failed with HTTP ${response.status}`;
+  const detail = summarizeErrorBody(response.data);
+  const message = `${operationDescription} failed with HTTP ${response.status}${detail ? `: ${detail}` : ''}`;
 
   return new ZeyosApiError(message, {
     status: response.status,
@@ -606,6 +692,10 @@ export function createZeyosClient(rawConfig = {}) {
 
   const defaultHeaders = isObject(config.headers) ? config.headers : {};
   const retryConfig = normalizeRetry(config.retry);
+  const defaultTimeoutMs = Number(config.timeoutMs) > 0 ? Number(config.timeoutMs) : 0;
+  // Whether to transparently retry network errors / timeouts. `undefined` (default)
+  // means "auto": retry only read operations. `true`/`false` force the behavior.
+  const defaultRetryOnNetworkError = typeof config.retryOnNetworkError === 'boolean' ? config.retryOnNetworkError : undefined;
   const schemaApi = createSchema({ services: SERVICES, schema: SCHEMA });
   const validateByDefault = config.validate === true;
   const operationLookup = new Map();
@@ -615,6 +705,10 @@ export function createZeyosClient(rawConfig = {}) {
       operationLookup.set(`${serviceKey}.${operation.operationId}`, operation);
     }
   }
+
+  // Single-flight token refresh: shared across all concurrent operations so an
+  // expired token triggers exactly one getToken call (see refreshAccessTokenOnce).
+  let refreshInFlight = null;
 
   async function getTokenSet() {
     return normalizeTokenSet(await tokenStore.get());
@@ -642,6 +736,15 @@ export function createZeyosClient(rawConfig = {}) {
     }
 
     return `ZEYOSID=${cookieValue}`;
+  }
+
+  // Resolve whether a network error / timeout may be retried for this call.
+  // Explicit per-request / client config wins; otherwise auto = read ops only.
+  function resolveNetworkRetry(operation, requestOptions) {
+    const explicit = requestOptions?.retryOnNetworkError ?? defaultRetryOnNetworkError;
+    if (explicit === true) return true;
+    if (explicit === false) return false;
+    return isReadOperation(operation);
   }
 
   async function sendRequestOnce({ serviceKey, operation, prepared, requestAuth, tokenSet, candidate, requestOptions }) {
@@ -698,19 +801,27 @@ export function createZeyosClient(rawConfig = {}) {
     );
 
     const signal = prepared.signal ?? requestOptions?.signal;
+    const timeoutMs = Number(requestOptions?.timeoutMs ?? defaultTimeoutMs) || 0;
+    const networkRetryAllowed = resolveNetworkRetry(operation, requestOptions);
+    const requestArgs = { fetchImpl, url, method: operation.method, headers, body, bodyType, credentials };
 
     let response;
     for (let attempt = 0; ; attempt++) {
-      response = await httpRequest({
-        fetchImpl,
-        url,
-        method: operation.method,
-        headers,
-        body,
-        bodyType,
-        signal,
-        credentials
-      });
+      try {
+        response = await fetchWithTimeout(httpRequest, requestArgs, signal, timeoutMs);
+      } catch (error) {
+        // A caller-initiated abort must never be retried — propagate immediately.
+        // (A timeout aborts only the internal controller, so signal.aborted is false.)
+        if (signal?.aborted) {
+          throw error;
+        }
+        // Network error or timeout: retry only safe (read) operations, within budget.
+        if (!networkRetryAllowed || attempt >= retryConfig.maxRetries) {
+          throw error;
+        }
+        await abortableDelay(backoffDelay(attempt, retryConfig), signal);
+        continue;
+      }
 
       if (attempt >= retryConfig.maxRetries || !retryConfig.retryOn.has(response.status)) {
         break;
@@ -787,6 +898,22 @@ export function createZeyosClient(rawConfig = {}) {
     return nextTokenSet;
   }
 
+  // Single-flight wrapper: when several operations notice an expired token at the
+  // same time (e.g. `Promise.all([...])`), they must share ONE refresh. Without
+  // this each fires its own getToken — redundant load, and a hard failure when the
+  // server rotates refresh tokens (all but the first present a stale refresh token).
+  function refreshAccessTokenOnce(currentTokenSet, requestAuth, requestOptions) {
+    if (refreshInFlight) {
+      return refreshInFlight;
+    }
+    refreshInFlight = Promise.resolve()
+      .then(() => refreshAccessToken(currentTokenSet, requestAuth, requestOptions))
+      .finally(() => {
+        refreshInFlight = null;
+      });
+    return refreshInFlight;
+  }
+
   async function executeOperation({ serviceKey, operation, prepared, requestOptions = {} }) {
     // Dry run: resolve the route + payload exactly as they would be sent, but
     // return that descriptor instead of performing any network request or token
@@ -826,7 +953,7 @@ export function createZeyosClient(rawConfig = {}) {
       canRefreshAccessToken({ mode, operation, tokenSet, oauthConfig })
     ) {
       try {
-        const refreshed = await refreshAccessToken(tokenSet, requestAuth, requestOptions);
+        const refreshed = await refreshAccessTokenOnce(tokenSet, requestAuth, requestOptions);
         if (refreshed?.accessToken) {
           tokenSet = refreshed;
         }
@@ -865,7 +992,7 @@ export function createZeyosClient(rawConfig = {}) {
 
         if (candidate.type === 'bearer' && canRefreshAccessToken({ mode, operation, tokenSet, oauthConfig })) {
           try {
-            const refreshed = await refreshAccessToken(tokenSet, requestAuth, requestOptions);
+            const refreshed = await refreshAccessTokenOnce(tokenSet, requestAuth, requestOptions);
             if (refreshed?.accessToken) {
               tokenSet = refreshed;
               const retryResponse = await sendRequestOnce({
@@ -1016,6 +1143,58 @@ export function createZeyosClient(rawConfig = {}) {
   const api = bindService('api');
   const oauth2Operations = bindService('oauth2');
   const legacyAuth = bindService('legacyAuth');
+
+  // Async-iterate every record from a list operation, paging by `offset` until a
+  // short/empty page (or `opts.max`) is reached — removing the manual offset
+  // bookkeeping the 1000/10000 list caps otherwise force on callers.
+  //
+  //   for await (const ticket of client.paginate('listTickets', { filters: { visibility: 0 } })) { … }
+  //
+  async function* paginate(operationId, input = {}, opts = {}) {
+    const op = operationLookup.get(`api.${operationId}`);
+    if (!op) {
+      const candidates = (SERVICES.api?.operations ?? []).map((entry) => entry.operationId);
+      const suggestion = suggestClosest(operationId, candidates);
+      throw new ZeyosApiError(
+        `Unknown list operation: api.${operationId}.` + (suggestion ? ` Did you mean '${suggestion}'?` : ''),
+        { operationId, service: 'api' }
+      );
+    }
+
+    const requested = Number(opts.pageSize) > 0 ? Number(opts.pageSize)
+      : Number(input.limit) > 0 ? Number(input.limit) : 1000;
+    // Clamp to the server's max page size: a larger request would be silently
+    // capped server-side, making the short-page terminator stop early and drop rows.
+    const pageSize = Math.min(requested, 10000);
+    const max = Number(opts.max) > 0 ? Number(opts.max) : Infinity;
+    let offset = Number(input.offset) > 0 ? Number(input.offset) : 0;
+    let yielded = 0;
+
+    for (;;) {
+      const page = await api[operationId]({ ...input, limit: pageSize, offset }, opts.requestOptions);
+      const rows = Array.isArray(page) ? page : Array.isArray(page?.data) ? page.data : [];
+      for (const row of rows) {
+        yield row;
+        yielded += 1;
+        if (yielded >= max) {
+          return;
+        }
+      }
+      if (rows.length < pageSize) {
+        return; // last (short or empty) page
+      }
+      offset += pageSize;
+    }
+  }
+
+  // Eager convenience: collect up to `opts.max` records into an array.
+  async function collect(operationId, input = {}, opts = {}) {
+    const out = [];
+    for await (const row of paginate(operationId, input, opts)) {
+      out.push(row);
+    }
+    return out;
+  }
 
   function buildAuthorizationUrl(options = {}) {
     const clientId = options.clientId ?? options.client_id ?? oauthConfig.clientId;
@@ -1219,6 +1398,8 @@ export function createZeyosClient(rawConfig = {}) {
     oauth2,
     legacyAuth,
     request,
+    paginate,
+    collect,
     schema: schemaApi,
     auth: {
       getTokenSet,

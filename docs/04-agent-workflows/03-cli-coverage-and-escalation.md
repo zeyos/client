@@ -13,10 +13,11 @@ The command `zeyos resources` is the source of truth for CLI-supported resource 
 
 | Resource | Operations |
 |----------|------------|
-| `account`, `appointment`, `campaign`, `contact`, `document`, `event`, `file`, `invitation`, `item`, `message`, `note`, `opportunity`, `payment`, `project`, `storage`, `task`, `ticket`, `transaction` | `list`, `get`, `create`, `update`, `delete` |
+| `account`, `actionstep`, `appointment`, `campaign`, `contact`, `document`, `event`, `file`, `invitation`, `item`, `message`, `note`, `opportunity`, `payment`, `project`, `storage`, `task`, `ticket`, `transaction` | `list`, `get`, `create`, `update`, `delete` |
+| `customfield` / `customfields` | `list`, `get` |
 | `group`, `user` | `list`, `get` |
 
-Plural names and common aliases such as `tickets`, `docs`, `invoice`, and `crm` are resolved by the CLI, but the underlying coverage boundary is still the registry above.
+Plural names and common aliases such as `tickets`, `actionsteps`, `time-entries`, `docs`, `invoice`, and `crm` are resolved by the CLI, but the underlying coverage boundary is still the registry above.
 
 ## What the CLI Does Not Try to Cover
 

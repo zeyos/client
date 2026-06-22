@@ -3,6 +3,23 @@
 Notable changes to `@zeyos/client` and `@zeyos/cli`. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## 0.3.0
+
+### `@zeyos/client`
+- **Single-flight token refresh**: when several operations notice an expired access token at once (e.g. `Promise.all([...])`), they now share a single `getToken` refresh instead of each firing its own — avoiding redundant calls and the hard failure that refresh-token rotation would otherwise cause.
+- **Request timeout**: a new `timeoutMs` option (client-wide via `config.timeoutMs`, or per request) bounds each attempt via an `AbortController` composed with any caller `signal`. Timeouts reject with `isTimeout === true` / `code === 'ETIMEDOUT'` and are distinct from a caller abort (which always propagates and is never retried).
+- **Network-error retries (reads only)**: dropped connections / timeouts are now retried within the retry budget for safe read operations (`GET`/`HEAD` + side-effect-free `list`/`count`/`search`); writes are never auto-retried. Override per request or client with `retryOnNetworkError`.
+- **Auto-pagination**: `client.paginate(operationId, input, opts)` async-iterates every matching record by paging on `offset` (page size clamped to the 10000 server max), and `client.collect(...)` is the eager array form — removing the manual offset bookkeeping the list caps otherwise force.
+- **Richer error messages**: `ZeyosApiError.message` now folds in a short snippet of the server error body (e.g. `… failed with HTTP 400: unknown filter field: bogus`); the full body remains on `error.body`.
+
+### `@zeyos/cli` (`zeyos`)
+- **Named credential profiles**: store multiple ZeyOS instances and switch between them. `zeyos profile list | current | use <name> [--local] | add <name> [--base-url/--client-id/--secret | --from-current] | remove <name>`, a global `--profile <name>` flag on every command, and `ZEYOS_PROFILE`. Profiles live in `~/.config/zeyos/profiles.json` with an active pointer; a project can pin one via `.zeyos/profile`. Resolution: `--profile` > `ZEYOS_PROFILE` > project pin > legacy `.zeyos/auth.json` > global active > legacy global. Fully backward compatible.
+- `login --profile <name>` authenticates into (and activates) a named profile; `logout` is profile-aware; refreshed tokens persist back to whichever store they came from.
+- `login` now detects an **expired** stored token and re-authenticates instead of reporting "already logged in"; `whoami` surfaces `502/503/504` as "instance temporarily unavailable" and `401` as an expired-session hint, instead of a raw status.
+
+### Agent skills
+- New **`zeyos-time-tracking`** skill: first-person work views ("what are my current tickets/tasks?") and interactive time logging ("log 60 minutes for client XYZ" → resolve account → pick ticket/task → write effort as an actionstep), plus timesheet summaries and entry corrections.
+
 ## 0.2.0
 
 ### `@zeyos/client`

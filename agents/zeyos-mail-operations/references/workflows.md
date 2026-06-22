@@ -5,6 +5,8 @@
 - `0` = inbox
 - `1` = drafts
 - `2` = sent
+- `3` = templates
+- `4` = mailings
 - `5` = archive
 - `6` = trash
 - `7` = junk
@@ -68,6 +70,17 @@ Recommended approach:
 3. Use `reference` and `messageid` to confirm direct reply relationships.
 4. Use subject matching only as a fallback.
 
+CLI example:
+
+```bash
+zeyos list messages \
+  --fields ID,date,mailbox,subject,sender_email,to_email,ticket,reference,messageid \
+  --filter '{"ticket":812}' \
+  --sort +date \
+  --limit 100 \
+  --json
+```
+
 ## Pattern: Find Unanswered Customer Mail
 
 Use this for prompts like:
@@ -80,8 +93,10 @@ Recommended approach:
 1. Start from recent inbox messages (`mailbox = 0`).
 2. Limit to customer identities you can resolve through contacts or linked tickets.
 3. Group by thread using `reference`, `messageid`, and subject.
-4. Look for a later sent message (`mailbox = 2`) in the same thread.
+4. Look for a later sent message (`mailbox = 2`) in the same thread. The strongest match is `sent.reference == inbound.ID`; subject matching is only a fallback.
 5. Report unresolved threads and their linked tickets if available.
+
+For an operational count, use this exact definition unless the user specifies another one: inbox message (`mailbox = 0`) linked to an open ticket, with no later sent message (`mailbox = 2`) whose `reference` points back to that inbound message.
 
 ## Pattern: Draft A Reply
 
@@ -95,12 +110,14 @@ Recommended approach:
 1. Summarize the relevant thread first.
 2. Extract the action items, commitments, and unresolved questions.
 3. Draft reply text separately from any ZeyOS mutation.
-4. Create or update a draft message only if the user explicitly asks and the required sender context is known.
+4. Create or update a draft message only if the user explicitly asks for a real ZeyOS draft and the required sender/mailserver context is known.
 
 Important caveat:
 
 - Creating a real draft may require more than subject and body. Inspect an existing draft or the instance-specific sending setup before writing message records.
+- Do not set `messageid` when creating test/draft messages; the API may reject it even though list/get responses can expose the field.
 - Never send email just because a user asked for a summary or a draft.
+- In agent protocol tests, "draft" means text output only. Do not call `createMessage`, `updateMessage`, or any send/dispatch path unless the scenario explicitly asks for a real draft record.
 
 ## Common Failure Modes
 

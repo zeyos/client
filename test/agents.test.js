@@ -164,3 +164,32 @@ test('count-heavy workflows include first-command zeyos count snippets', () => {
     assert.ok(content.includes(snippet), `${relativeFile} missing ${snippet}`);
   }
 });
+
+test('platform customfield workflow forbids turning command failure into zero', () => {
+  const content = readFileSync(path.join(ROOT, 'agents/zeyos-platform-and-schema/references/workflows.md'), 'utf8');
+
+  for (const expected of [
+    'zeyos count customfields --json',
+    'listCustomFields',
+    'Do not answer `0`',
+    'Unknown resource',
+    'zeyos doctor agent --json'
+  ]) {
+    assert.ok(content.includes(expected), `platform workflow missing: ${expected}`);
+  }
+});
+
+test('work-management workflow documents actionstep operation IDs and effort semantics', () => {
+  const content = readFileSync(path.join(ROOT, 'agents/zeyos-work-management/references/workflows.md'), 'utf8');
+
+  for (const expected of [
+    'listActionSteps',
+    'getActionStep',
+    'createActionStep',
+    'effort',
+    'BOOKED',
+    'COMPLETED'
+  ]) {
+    assert.ok(content.includes(expected), `work-management workflow missing: ${expected}`);
+  }
+});

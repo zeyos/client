@@ -56,7 +56,7 @@ export async function run(values, positional) {
   // (optional) JSON body some callers pass positionally instead of via --data.
   const data = buildRecordPayload(values, positional[2]);
 
-  const clientState = buildCliClient();
+  const clientState = buildCliClient(values);
 
   // ── Call API ───────────────────────────────────────────────────────────────
   if (await maybeDryRun(clientState, res.update, { ID: id, body: data }, values)) return;

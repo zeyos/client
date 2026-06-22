@@ -14,6 +14,7 @@ These options work with any command:
 |--------|-------------|
 | `--json` | Output as formatted JSON |
 | `--yaml` | Output as YAML |
+| `--profile <name>` | Use a named credential profile for this command |
 | `--no-color` | Disable ANSI color output |
 | `-h`, `--help` | Show help for a command |
 
@@ -97,6 +98,36 @@ zeyos whoami [--json|--yaml]
 zeyos whoami          # Table output
 zeyos whoami --json
 zeyos whoami --show-token --json   # explicitly include the current access token
+```
+
+---
+
+## profile
+
+Manage named credential profiles and switch between ZeyOS instances. See [Configuration → Profiles](./03-configuration.md#profiles) for the full model.
+
+```
+zeyos profile <list|current|use|add|remove> [options]
+```
+
+| Command | Description |
+|---------|-------------|
+| `profile list` | List all profiles; the active one is marked `*`, with token status |
+| `profile current` | Show which profile resolves right now, and why (flag/env/pin/active) |
+| `profile use <name>` | Make `<name>` the active profile (global) |
+| `profile use <name> --local` | Pin `<name>` to the current project (`.zeyos/profile`) |
+| `profile add <name> [opts]` | Create/update a profile (`--base-url`, `--client-id`, `--secret`, or `--from-current`) |
+| `profile remove <name>` | Delete a profile |
+
+**Examples:**
+
+```bash
+zeyos profile add dev  --base-url https://zeyos.cms-it.de/dev
+zeyos profile add prod --from-current        # snapshot current credentials
+zeyos login --profile prod                   # authenticate into & activate a profile
+zeyos profile use dev                         # switch active profile
+zeyos profile use prod --local                # pin to this project
+zeyos list tickets --profile dev              # one-off override on any command
 ```
 
 ---
@@ -363,7 +394,10 @@ List all curated CLI resources and their operations. This is the authoritative b
 zeyos resources
 ```
 
-Shows a table of all CLI-supported resource types and available operations.
+Shows a table of all CLI-supported resource types and available operations. Operational
+workflows can use `actionstep` / `actionsteps` / `time-entries` for follow-ups and
+effort records. Read-only platform schema definitions are available as `customfield` /
+`customfields` with `list`, `get`, and therefore `count` support.
 
 ---
 

@@ -25,8 +25,14 @@ Typical prompts:
 4. Pull message `text` only when you actually need a summary or draft context.
 5. Group related mail using `reference`, `messageid`, and normalized subject.
 6. If the request is about campaigns, mailing lists, participant coverage, or mailing performance, switch to `zeyos-campaign-and-outreach`.
-7. Treat drafts as safe write targets. Treat sending as high risk and require explicit confirmation plus verified sender context.
+7. Treat textual drafts as safe. Treat message record creation/update as a write and sending or marking `mailbox=2` as high risk; require explicit confirmation plus verified sender context before any real mail mutation.
 8. Escalate to `@zeyos/client` when you need binary content, MIME expansion, or richer message correlation than the CLI can express cleanly.
+
+## Safety
+
+- Never send email from an agent test or from a summary/draft request.
+- Do not create or update message records unless the user explicitly asks for a real ZeyOS draft and the sender/mailserver context is known.
+- For "draft a reply", produce reply text in the response and leave ZeyOS unchanged.
 
 ## Output Discipline
 

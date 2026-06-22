@@ -15,6 +15,7 @@ Cross-platform modeling guidance lives in [`shared/business-app-benchmarks.md`](
   the authenticated `zeyos` CLI. Use it when a request touches ZeyOS data and no
   domain-specific skill clearly fits.
 - `zeyos-work-management/` handles tasks, projects, tickets, and assignee workload questions.
+- `zeyos-time-tracking/` handles first-person work views ("my tickets/tasks") and interactive time logging (resolve account, pick the ticket/task, write the effort as an actionstep).
 - `zeyos-mail-operations/` handles message lookup, email summaries, threads, and safe draft workflows.
 - `zeyos-billing-insights/` handles transactions, payments, invoices, credits, and revenue questions.
 - `zeyos-notes-and-sops/` handles notes, SOP discovery, documents, and file-backed knowledge lookup.
@@ -42,6 +43,7 @@ Cross-platform modeling guidance lives in [`shared/business-app-benchmarks.md`](
 |------|----------|-----------------|
 | `zeyos` | General-purpose ZeyOS access via the CLI; the catch-all when no domain skill fits | "How many open customers do we have?"; "List the 10 most recently modified tickets."; "Show me account 122." |
 | `zeyos-work-management` | Operational work queues, user workload, ticket-task-project tracing, follow-up work creation | "On which projects did Max Power work in the last two weeks?"; "Show overdue high-priority tickets for account ACME."; "What open tasks are blocking Project Atlas?" |
+| `zeyos-time-tracking` | First-person work views and interactive time logging (resolve account → pick ticket/task → write effort as an actionstep) | "What are my current tickets?"; "Show my open tasks."; "Log 60 minutes for client XYZ."; "Record 2 hours on ticket 812." |
 | `zeyos-mail-operations` | Customer mail summaries, thread reconstruction, draft preparation, mailbox analysis | "Give me a summary of all recent mails from customer XYZ."; "Which open tickets have unanswered customer emails?"; "Draft a reply to the latest complaint from ACME." |
 | `zeyos-billing-insights` | Revenue, invoices, credits, payment tracking, transaction-level finance questions | "What is our net invoiced revenue this year?"; "How much cash did we collect this quarter?"; "Show all billing activity for customer XYZ." |
 | `zeyos-notes-and-sops` | SOP retrieval, note summaries, final-document lookup, attachment discovery | "Find the current escalation SOP for billing disputes."; "Summarize our notes on failed invoice syncs."; "Which finalized onboarding SOP changed last month?" |

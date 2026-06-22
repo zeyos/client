@@ -29,6 +29,16 @@ function displayCommand(command, args, prompt) {
   return `${command} ${args.map((a) => (a === prompt ? '[prompt]' : a)).join(' ')}`;
 }
 
+function redactSensitive(text, env = {}) {
+  let out = String(text || '');
+  const token = env.ZEYOS_TOKEN;
+  if (token) out = out.replaceAll(String(token), '[REDACTED_TOKEN]');
+  out = out.replace(/\b(Bearer\s+)[A-Za-z0-9._~+/=-]{16,}/gi, '$1[REDACTED_TOKEN]');
+  out = out.replace(/\b(access_token=)[^&\s"']+/gi, '$1[REDACTED_TOKEN]');
+  out = out.replace(/\b("access_token"\s*:\s*")[^"]+(")/gi, '$1[REDACTED_TOKEN]$2');
+  return out;
+}
+
 async function copyIfPresent(src, dest) {
   if (!existsSync(src)) return;
   await cp(src, dest, { recursive: true });
@@ -133,7 +143,8 @@ export async function runAgent({ runner, model, prompt, env, repoRoot, resultsDi
     result,
     durationMs,
     workspacePath,
-    skillRoot: attemptSkillRoot
+    skillRoot: attemptSkillRoot,
+    env: childEnv
   });
 
   return {
@@ -151,11 +162,13 @@ export async function runAgent({ runner, model, prompt, env, repoRoot, resultsDi
   };
 }
 
-async function writeTranscript({ resultsDir, scenarioId, model, prompt, command, result, durationMs, workspacePath, skillRoot }) {
+async function writeTranscript({ resultsDir, scenarioId, model, prompt, command, result, durationMs, workspacePath, skillRoot, env }) {
   const safeModel = safeName(model);
   const dir = path.join(resultsDir, 'transcripts');
   await mkdir(dir, { recursive: true });
   const file = path.join(dir, `${scenarioId}__${safeModel}.txt`);
+  const stdout = redactSensitive(result.stdout, env);
+  const stderr = redactSensitive(result.stderr, env);
   const body = [
     `# scenario: ${scenarioId}`,
     `# model:    ${model}`,
@@ -168,10 +181,10 @@ async function writeTranscript({ resultsDir, scenarioId, model, prompt, command,
     prompt,
     '',
     '===== STDOUT =====',
-    result.stdout || '(empty)',
+    stdout || '(empty)',
     '',
     '===== STDERR =====',
-    result.stderr || '(empty)',
+    stderr || '(empty)',
     ''
   ].join('\n');
   await writeFile(file, body, 'utf8');

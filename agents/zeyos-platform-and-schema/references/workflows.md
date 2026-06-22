@@ -24,11 +24,27 @@ before calling `@zeyos/client`.
 
 ## First Commands For Counts
 
-- All custom fields: `zeyos count customfields`
-- Custom fields for tickets: `zeyos count customfields --filter '{"entity":"tickets"}'`
+- All custom fields: `zeyos count customfields --json`
+- Custom fields for tickets: `zeyos count customfields --filter '{"entity":"tickets"}' --json`
 
-`customfields` has no `visibility` field. In the JS client the list operation is
-`listCustomFields`, not `listCustomfields`.
+`customfields` is read-only and has no `visibility` field. In the JS client the list
+operation is `listCustomFields`, not `listCustomfields`.
+
+For a total count, use the `count` value from the CLI JSON response. Do not answer `0`
+because `customfields` is missing from an old CLI registry, because a command failed, or
+because `zeyos resources` did not list it. If `zeyos count customfields` fails with
+"Unknown resource", run `zeyos doctor agent --json` to inspect the CLI version and then
+switch to the JavaScript client:
+
+```bash
+node --input-type=module -e 'const { createZeyosClient, normalizeListResult } = await import(`${process.env.ZEYOS_REPO_ROOT}/src/index.js`);
+const client = createZeyosClient({
+  platform: process.env.ZEYOS_BASE_URL,
+  auth: { mode: "oauth", oauth: { token: { accessToken: process.env.ZEYOS_TOKEN }, autoRefresh: false } }
+});
+const rows = normalizeListResult(await client.api.listCustomFields({ limit: 10000 })).data;
+console.log(rows.length);'
+```
 
 ## Pattern: Custom Fields For An Entity
 

@@ -27,7 +27,7 @@ Options:
 export async function run(values) {
   let client, config, tokenStore, configSource;
   try {
-    ({ client, config, tokenStore, configSource } = buildClient());
+    ({ client, config, tokenStore, configSource } = buildClient({}, { profile: values.profile }));
   } catch (err) {
     error(err.message);
     process.exit(1);
@@ -38,7 +38,14 @@ export async function run(values) {
     userInfo = await client.oauth2.getUserInfo();
     await syncTokens(tokenStore, configSource);
   } catch (err) {
-    error(`Failed to fetch user info: ${err.message}`);
+    const status = err?.status;
+    if (status === 502 || status === 503 || status === 504) {
+      error(`ZeyOS instance is temporarily unavailable (HTTP ${status}). The server at ${config.baseUrl} may be down or restarting — this is server-side, not your credentials.`);
+    } else if (status === 401) {
+      error('Your session has expired or is invalid. Re-authenticate with: zeyos login --force');
+    } else {
+      error(`Failed to fetch user info: ${err.message}`);
+    }
     process.exit(1);
   }
 

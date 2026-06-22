@@ -107,6 +107,28 @@ Count matching records:
 
 ```bash
 zeyos count tickets --filter '{"visibility":0,"status":4}' --json
+zeyos count customfields --json
+zeyos count actionsteps --filter '{"status":0}' --json
+```
+
+Summarize actionstep effort/time-entry evidence:
+
+```bash
+zeyos list actionsteps \
+  --fields ID,name,status,date,duedate,effort,ticket,task,account \
+  --filter '{"status":3}' \
+  --limit 100 \
+  --json
+```
+
+Inspect ticket-linked mail without sending anything:
+
+```bash
+zeyos list messages \
+  --fields ID,date,mailbox,subject,sender_email,to_email,ticket,reference,messageid \
+  --filter '{"ticket":42}' \
+  --sort +date \
+  --json
 ```
 
 ## Write Data
@@ -145,4 +167,6 @@ zeyos delete ticket 42 --force
 - Include `visibility: 0` in filters for normal business views.
 - Prefer `--data '<json>'` over many separate flags in automation.
 - Run `zeyos resources` before assuming a resource is CLI-supported.
+- Use `actionsteps.effort` for time-entry totals; do not infer booked time from task assignment.
+- Draft e-mail text in the response unless the user explicitly asks for a real ZeyOS draft record; never send mail from an agent workflow.
 - Escalate to [`@zeyos/client`](./03-cli-coverage-and-escalation.md) when the CLI resource registry is not enough.

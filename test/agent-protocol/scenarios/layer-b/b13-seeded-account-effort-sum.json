@@ -1,0 +1,32 @@
+{
+  "id": "b13-seeded-account-effort-sum",
+  "layer": "b",
+  "title": "Sum seeded account actionstep effort minutes",
+  "skill": "zeyos-work-management",
+  "interface": "either",
+  "mutates": true,
+  "tags": ["work-management", "actionsteps", "time-entry", "aggregate", "seeded-write"],
+  "seed": [
+    { "op": "createAccount", "as": "account", "data": { "lastname": "{recordPrefix}-{runId} Effort Account", "firstname": "Ops", "type": 1, "currency": "EUR" } },
+    { "op": "createActionStep", "as": "done", "data": { "account": "$SEED.account.ID", "name": "{recordPrefix}-{runId} completed effort", "status": 1, "date": 1893456000, "effort": 30 } },
+    { "op": "createActionStep", "as": "booked", "data": { "account": "$SEED.account.ID", "name": "{recordPrefix}-{runId} booked effort", "status": 3, "date": 1893542400, "effort": 45 } },
+    { "op": "createActionStep", "as": "cancelled", "data": { "account": "$SEED.account.ID", "name": "{recordPrefix}-{runId} cancelled effort", "status": 2, "date": 1893628800, "effort": 500 } }
+  ],
+  "prompt": "Using the work-management skill, find the account with lastname exactly \"{recordPrefix}-{runId} Effort Account\". Sum only the `effort` minutes from actionsteps linked to that account whose status is COMPLETED (1) or BOOKED (3). Ignore CANCELLED (2) actionsteps. Output just the total minutes on the RESULT line, e.g. `RESULT: 75`.",
+  "expect": {
+    "kind": "computeSum",
+    "op": "listActionSteps",
+    "params": { "filters": { "account": "$SEED.account.ID" }, "limit": 10000 },
+    "field": "effort",
+    "predicates": [
+      { "field": "status", "in": [1, 3] }
+    ],
+    "match": "exact"
+  },
+  "cleanup": [
+    { "op": "deleteActionStep", "idFrom": "$SEED.done.ID" },
+    { "op": "deleteActionStep", "idFrom": "$SEED.booked.ID" },
+    { "op": "deleteActionStep", "idFrom": "$SEED.cancelled.ID" },
+    { "op": "deleteAccount", "idFrom": "$SEED.account.ID" }
+  ]
+}

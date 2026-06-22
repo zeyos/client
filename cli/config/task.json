@@ -8,11 +8,13 @@
       "Priority": "priority",
       "Agent": "assigneduser.name",
       "Due": "duedate",
-      "Ticket": "ticket"
+      "Ticket": "ticket",
+      "Project": "project",
+      "Projected": "projectedeffort"
     }
   },
   "get": {
-    "fields": ["ID", "tasknum", "name", "description", "status", "priority", "duedate", "ticket", "creator", "created", "lastmodified"],
+    "fields": ["ID", "tasknum", "name", "description", "status", "priority", "datefrom", "duedate", "ticket", "project", "projectedeffort", "assigneduser", "creator", "creationdate", "lastmodified"],
     "params": { "extdata": 1 }
   }
 }

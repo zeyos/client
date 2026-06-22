@@ -33,9 +33,9 @@ export function requireRecordId(id, usage) {
   }
 }
 
-export function buildCliClient() {
+export function buildCliClient(values = {}) {
   try {
-    return buildClient();
+    return buildClient({}, { profile: values.profile });
   } catch (err) {
     fail(err.message);
   }

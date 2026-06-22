@@ -1,0 +1,13 @@
+{
+  "id": "b14-mail-unanswered-ticket-count",
+  "layer": "b",
+  "title": "Count unanswered inbox messages on open tickets",
+  "skill": "zeyos-mail-operations",
+  "interface": "either",
+  "mutates": false,
+  "tags": ["mail-operations", "tickets", "unanswered", "read-only"],
+  "prompt": "Using the mail-operations skill, answer: how many inbox messages (`mailbox` 0) are linked to open tickets and still unanswered? Treat a message as answered only when there is a later sent message (`mailbox` 2) on the same ticket whose `reference` equals the inbound message ID. Treat open tickets as tickets whose status is not COMPLETED, CANCELLED, or FAILED, and restrict tickets to visibility 0. Output just the number on the RESULT line, e.g. `RESULT: 4`.",
+  "expect": {
+    "kind": "computeUnansweredTicketMail"
+  }
+}

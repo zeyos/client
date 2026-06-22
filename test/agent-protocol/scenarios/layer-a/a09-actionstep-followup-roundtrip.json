@@ -1,0 +1,28 @@
+{
+  "id": "a09-actionstep-followup-roundtrip",
+  "layer": "a",
+  "title": "Create an actionstep follow-up linked to a seeded ticket",
+  "interface": "either",
+  "mutates": true,
+  "tags": ["crud", "actionsteps", "tickets", "foreign-key", "seeded-write"],
+  "seed": [
+    { "op": "createTicket", "as": "ticket", "data": { "name": "{recordPrefix}-{runId} actionstep parent", "status": 4, "priority": 3, "visibility": 0 } }
+  ],
+  "prompt": "Find the ticket named exactly \"{recordPrefix}-{runId} actionstep parent\". Create an actionstep named exactly \"{recordPrefix}-{runId} follow-up actionstep\" linked to that ticket via the actionstep's `ticket` field. Set status DRAFT (0), duedate to Unix timestamp 1893542400, and effort to 15 minutes. Output a JSON object on the RESULT line with the created actionstep ID, e.g. `RESULT: {\"actionstepId\":12345}`. Note: the client operation is `createActionStep`, not `createActionstep`.",
+  "expect": {
+    "kind": "verifyRecord",
+    "op": "getActionStep",
+    "idFrom": "$RESULT.actionstepId",
+    "assert": [
+      { "path": "name", "equals": "{recordPrefix}-{runId} follow-up actionstep" },
+      { "path": "ticket", "equals": "$SEED.ticket.ID" },
+      { "path": "status", "equals": 0 },
+      { "path": "duedate", "equals": 1893542400 },
+      { "path": "effort", "equals": 15 }
+    ]
+  },
+  "cleanup": [
+    { "op": "deleteActionStep", "idFrom": "$RESULT.actionstepId" },
+    { "op": "deleteTicket", "idFrom": "$SEED.ticket.ID" }
+  ]
+}

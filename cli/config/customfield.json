@@ -1,0 +1,17 @@
+{
+  "list": {
+    "fields": {
+      "ID": "ID",
+      "Name": "name",
+      "Identifier": "identifier",
+      "Context": "context",
+      "Reference": "reference",
+      "Type": "type",
+      "Entity": "entity",
+      "Activity": "activity"
+    }
+  },
+  "get": {
+    "fields": ["ID", "name", "identifier", "context", "source", "reference", "indexed", "type", "pattern", "entity", "options", "langaliases", "activity"]
+  }
+}

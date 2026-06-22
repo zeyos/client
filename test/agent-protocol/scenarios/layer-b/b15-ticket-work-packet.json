@@ -1,0 +1,30 @@
+{
+  "id": "b15-ticket-work-packet",
+  "layer": "b",
+  "title": "Summarize a seeded ticket work packet",
+  "skill": "zeyos-work-management",
+  "interface": "either",
+  "mutates": true,
+  "tags": ["work-management", "tickets", "tasks", "actionsteps", "mail", "seeded-write"],
+  "seed": [
+    { "op": "createTicket", "as": "ticket", "data": { "name": "{recordPrefix}-{runId} packet ticket", "status": 4, "priority": 4, "visibility": 0, "duedate": 1893715200 } },
+    { "op": "createTask", "as": "task", "data": { "ticket": "$SEED.ticket.ID", "name": "{recordPrefix}-{runId} packet task", "status": 0, "priority": 3, "visibility": 0, "duedate": 1893456000 } },
+    { "op": "createActionStep", "as": "actionstep", "data": { "ticket": "$SEED.ticket.ID", "name": "{recordPrefix}-{runId} packet actionstep", "status": 0, "duedate": 1893542400, "effort": 20 } },
+    { "op": "createMessage", "as": "message", "data": { "ticket": "$SEED.ticket.ID", "mailbox": 0, "verified": 0, "date": 1893369600, "subject": "{recordPrefix}-{runId} packet mail", "sender": "Agent Test Customer <agenttest@example.com>", "sender_email": "agenttest@example.com", "sender_name": "Agent Test Customer", "to": "Support <support@example.com>", "to_email": "support@example.com", "to_name": "Support", "to_count": 1, "cc": "", "bcc": "", "contenttype": "text/plain", "text": "Please include this packet mail in the work summary.", "senderror": "" } }
+  ],
+  "prompt": "Using the work-management skill, find the ticket named exactly \"{recordPrefix}-{runId} packet ticket\". Produce a concise work packet that includes its linked open task, linked open actionstep, and linked inbound message. Output the packet on the RESULT line and include the exact names/subject from the linked records.",
+  "expect": {
+    "kind": "expectText",
+    "allOf": [
+      "{recordPrefix}-{runId} packet task",
+      "{recordPrefix}-{runId} packet actionstep",
+      "{recordPrefix}-{runId} packet mail"
+    ]
+  },
+  "cleanup": [
+    { "op": "deleteMessage", "idFrom": "$SEED.message.ID" },
+    { "op": "deleteActionStep", "idFrom": "$SEED.actionstep.ID" },
+    { "op": "deleteTask", "idFrom": "$SEED.task.ID" },
+    { "op": "deleteTicket", "idFrom": "$SEED.ticket.ID" }
+  ]
+}

@@ -20,7 +20,7 @@
 
 import { createInterface }                from 'node:readline';
 import { createZeyosClient, MemoryTokenStore } from '@zeyos/client';
-import { saveConfig, loadConfig }         from '../lib/config.mjs';
+import { saveConfig, loadConfig, getProfile, upsertProfile, setActiveProfile } from '../lib/config.mjs';
 import { waitForCallback, callbackUri, BrowserUnavailableError } from '../lib/login-server.mjs';
 import { success, error, info, warn }     from '../lib/output.mjs';
 
@@ -35,6 +35,7 @@ Options:
   --base-url <url>    ZeyOS platform URL  (prompted if missing)
   --client-id <id>    OAuth client ID     (prompted if missing)
   --secret <secret>   OAuth client secret (prompted if missing)
+  --profile <name>    Store credentials/tokens in a named profile and activate it
   --scope <scope>     OAuth scope  (default: all)
   --port <port>       Local callback server port  (default: 9005)
   --global            Store credentials globally (~/.config/zeyos/credentials.json)
@@ -45,12 +46,21 @@ Options:
 `;
 
 export async function run(values) {
+  const profileName = values.profile || null;
   const scope = values.global ? 'global' : 'local';
   const port  = values.port ? Number(values.port) : DEFAULT_CALLBACK_PORT;
   const redirectUri = callbackUri(port);
 
+  // Persist either into a named profile or the legacy local/global credential file.
+  const persist = (updates) => {
+    if (profileName) upsertProfile(profileName, updates);
+    else saveConfig(updates, scope);
+  };
+
   // ── Resolve connection params ──────────────────────────────────────────────
-  const existing = values.clean ? {} : loadConfig();
+  const existing = values.clean
+    ? {}
+    : (profileName ? (getProfile(profileName) || {}) : loadConfig());
   if (values.clean) values.force = true;
 
   let baseUrl      = values['base-url']    ?? existing.baseUrl;
@@ -79,12 +89,17 @@ export async function run(values) {
   }
 
   // Save connection params immediately so they are available on retries
-  saveConfig({ baseUrl, clientId, clientSecret }, scope);
+  persist({ baseUrl, clientId, clientSecret });
 
   // ── Check if already authenticated ────────────────────────────────────────
   if (existing.accessToken && !values.force) {
-    warn('Already logged in.  Use --force to re-authenticate.');
-    return;
+    if (_tokenExpired(existing)) {
+      info('Stored access token has expired — re-authenticating…');
+    } else {
+      const where = profileName ? `profile "${profileName}"` : 'this scope';
+      warn(`Already logged in (${where}).  Use --force to re-authenticate.`);
+      return;
+    }
   }
 
   // ── Build a temporary client (no token yet) ────────────────────────────────
@@ -138,7 +153,7 @@ export async function run(values) {
     info('Exchanging authorization code for tokens…');
     const tokenSet = await client.oauth2.exchangeAuthorizationCode({ code, redirectUri });
 
-    saveConfig({
+    persist({
       baseUrl,
       clientId,
       clientSecret,
@@ -146,9 +161,12 @@ export async function run(values) {
       refreshToken:          tokenSet.refreshToken          ?? undefined,
       expiresAt:             tokenSet.expiresAt             ?? undefined,
       refreshTokenExpiresAt: tokenSet.refreshTokenExpiresAt ?? undefined,
-    }, scope);
+    });
 
-    success('Logged in successfully.');
+    if (profileName) setActiveProfile(profileName);
+    success(profileName
+      ? `Logged in — profile "${profileName}" is now active.`
+      : 'Logged in successfully.');
   } catch (err) {
     error(`Token exchange failed: ${err.message}`);
     process.exit(1);
@@ -156,6 +174,13 @@ export async function run(values) {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+/** True when stored creds carry an access token whose expiry is in the past. */
+function _tokenExpired(creds) {
+  if (!creds?.accessToken || creds.expiresAt == null) return false;
+  const exp = Number(creds.expiresAt) > 2e10 ? Number(creds.expiresAt) / 1000 : Number(creds.expiresAt);
+  return Number.isFinite(exp) && exp < Math.floor(Date.now() / 1000);
+}
 
 /**
  * Try the browser + callback server flow.

@@ -1,0 +1,27 @@
+{
+  "id": "b18-time-tracking-my-open-tickets",
+  "layer": "b",
+  "title": "Count my current (open) tickets",
+  "skill": "zeyos-time-tracking",
+  "interface": "either",
+  "mutates": true,
+  "tags": ["time-tracking", "tickets", "my-work", "current-user", "enums", "seeded-write"],
+  "seed": [
+    { "op": "createTicket", "as": "open", "data": { "name": "{recordPrefix}-{runId} my open ticket", "assigneduser": "$ME", "status": 4, "priority": 3, "visibility": 0 } },
+    { "op": "createTicket", "as": "closed", "data": { "name": "{recordPrefix}-{runId} my closed ticket", "assigneduser": "$ME", "status": 9, "priority": 3, "visibility": 0 } }
+  ],
+  "prompt": "Using the time-tracking skill, answer for the CURRENT user (yourself): how many of MY current (open) tickets have a name that starts with \"{recordPrefix}-{runId}\"? Resolve your own user id first, then filter tickets assigned to you. Treat \"open\" as any ticket whose status is not CANCELLED (8), COMPLETED (9), FAILED (10), or BOOKED (11). Restrict to active records (visibility 0). Output just the number on the RESULT line, e.g. `RESULT: 1`.",
+  "expect": {
+    "kind": "computeCount",
+    "op": "listTickets",
+    "params": { "filters": { "assigneduser": "$ME", "visibility": 0, "name": { "~~*": "{recordPrefix}-{runId}%" } }, "limit": 10000 },
+    "predicates": [
+      { "field": "status", "notIn": [8, 9, 10, 11] }
+    ],
+    "match": "exact"
+  },
+  "cleanup": [
+    { "op": "deleteTicket", "idFrom": "$SEED.open.ID" },
+    { "op": "deleteTicket", "idFrom": "$SEED.closed.ID" }
+  ]
+}

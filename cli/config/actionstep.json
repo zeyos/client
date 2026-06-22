@@ -1,0 +1,21 @@
+{
+  "list": {
+    "fields": {
+      "ID": "ID",
+      "Num": "actionnum",
+      "Name": "name",
+      "Status": "status",
+      "Date": "date",
+      "Due": "duedate",
+      "Effort": "effort",
+      "Ticket": "ticket",
+      "Task": "task",
+      "Account": "account",
+      "Transaction": "transaction"
+    }
+  },
+  "get": {
+    "fields": ["ID", "actionnum", "name", "description", "status", "date", "duedate", "effort", "ticket", "task", "account", "transaction", "assigneduser", "creator", "creationdate", "lastmodified"],
+    "params": { "extdata": 1 }
+  }
+}

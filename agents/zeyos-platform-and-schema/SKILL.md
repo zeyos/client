@@ -26,7 +26,7 @@ Typical prompts:
 3. Use:
    - `applications`, `resources`, `services`, `weblets`, `forks` for platform structure
    - `groups`, `groups2users`, `permissions` for access control (`groups2users` -> `listGroupsToUsers` / `getGroupToUser`)
-   - `customfields`, `objects`, and extdata helper families for schema and custom data (`customfields` -> `listCustomFields`; `applicationassets` -> `listApplicationAssets`; these dbref nouns do not map naively — see [../shared/zeyos-entity-reference.md](../shared/zeyos-entity-reference.md#entity-noun-to-rest-operationid))
+   - `customfields`, `objects`, and extdata helper families for schema and custom data (`customfields` is exposed in the CLI as `customfields` for read/count; in the JS client it maps to `listCustomFields`; `applicationassets` -> `listApplicationAssets`; these dbref nouns do not map naively — see [../shared/zeyos-entity-reference.md](../shared/zeyos-entity-reference.md#entity-noun-to-rest-operationid))
 4. Treat `records`, `comments`, `files`, `channels`, `follows`, and `likes` as a collaboration layer. Switch to `zeyos-collaboration-and-activity` when the user asks for timeline or discussion behavior rather than platform structure.
 5. Be explicit when the schema tells you structure but not the product convention.
 

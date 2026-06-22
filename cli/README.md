@@ -72,6 +72,20 @@ For larger or reusable filters, put the JSON in a file:
 zeyos list tickets --filter-file ./filters/open-tickets.json --json
 ```
 
+Inspect dynamic schema definitions:
+
+```bash
+zeyos count customfields --json
+zeyos list customfields --fields ID,name,identifier,context,type --json
+```
+
+Inspect actionsteps/time-entry evidence and ticket mail:
+
+```bash
+zeyos list actionsteps --fields ID,name,status,date,duedate,effort,ticket,account --json
+zeyos list messages --fields ID,date,mailbox,subject,sender_email,to_email,ticket,reference --filter '{"ticket":42}' --json
+```
+
 Create, update, and delete:
 
 ```bash
@@ -91,6 +105,6 @@ zeyos delete ticket 42
 
 ## Coverage Boundary
 
-The CLI intentionally covers a curated registry instead of the full API surface. Use `zeyos resources` to see the supported set.
+The CLI intentionally covers a curated registry instead of the full API surface. It includes operational resources such as tickets, tasks, messages, and actionsteps; use `zeyos resources` to see the supported set.
 
 When you need unsupported resources or low-level request control, switch to [`@zeyos/client`](../docs/02-javascript-client/01-getting-started.md) and follow the escalation guidance in [CLI Coverage and Escalation](../docs/04-agent-workflows/03-cli-coverage-and-escalation.md).

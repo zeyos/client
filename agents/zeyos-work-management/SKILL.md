@@ -7,12 +7,15 @@ description: Manage ZeyOS tickets, tasks, projects, action steps, assignees, and
 
 Read [../shared/zeyos-agent-operating-guide.md](../shared/zeyos-agent-operating-guide.md) and [../shared/zeyos-query-patterns.md](../shared/zeyos-query-patterns.md) first. Read [../shared/zeyos-entity-map.md](../shared/zeyos-entity-map.md) when the request crosses users, accounts, tickets, tasks, and projects. Read [references/workflows.md](references/workflows.md) for the concrete query patterns.
 
+For **first-person** requests ("what are *my* current tickets?", "my open tasks") or for **recording new time** ("log 60 minutes for client XYZ"), use [../zeyos-time-tracking/SKILL.md](../zeyos-time-tracking/SKILL.md) instead — it resolves the current user and runs the interactive account → work-item → time-entry flow. This skill stays focused on third-person analytical queues, tracing, and effort *summaries*.
+
 Typical prompts:
 
 - "On which projects did Max Power work in the last two weeks?"
 - "Show overdue high-priority tickets for customer ACME."
 - "Which open tasks are blocking Project Atlas?"
 - "Which action steps are due this week for ACME?"
+- "How much booked effort did this user log last week?"
 - "Create a follow-up ticket for this billing issue."
 
 ## Workflow
@@ -22,10 +25,10 @@ Typical prompts:
 3. Start with the narrowest query that can answer the question:
    - use `tickets` for queue, backlog, priority, and account-linked support work
    - use `tasks` for actionable delivery work and short-lived assignments
-   - use `actionsteps` for smaller cross-record follow-ups attached to tasks, tickets, accounts, or transactions
+   - use `actionsteps` for smaller cross-record follow-ups and effort/time-entry evidence attached to tasks, tickets, accounts, or transactions
    - use `projects` for top-level initiative state
 4. Follow relationships only after the primary record set is clear.
-5. Treat "worked on" as a proxy unless a stronger activity source exists. Use assignment plus recent timestamps, optionally strengthened by linked action steps, and say so explicitly.
+5. Treat "worked on" as a proxy unless actionstep effort/date evidence exists. Assignment and timestamps show involvement; `actionsteps.effort` on `COMPLETED` or `BOOKED` records is stronger time-entry evidence.
 6. Distinguish direct project assignment from project inference through linked tickets.
 7. When the question is really about account or transaction follow-up, check `actionsteps` before inventing a new task.
 8. For mutations, preview the affected record first and update with an explicit PATCH body.

@@ -60,6 +60,9 @@ npm run test:agent-loop -- --read-only                 # baseline vs candidate d
 
 Then open `results/<runId>/scorecard.md` — the `🔴 CLIENT_DEFECT` section is the
 actionable one.
+Transcripts redact bearer/access-token values before writing to disk, but they still
+capture prompts, commands, and business output; treat `results/` as local test artifacts
+and avoid publishing them wholesale.
 
 For skill iteration, use `npm run test:agent-loop -- --run-id <id>`. It runs the
 protocol against `HEAD:agents` as the baseline and the working-tree `agents/` folder as
@@ -79,6 +82,11 @@ Drop a JSON file in `scenarios/layer-a/` or `scenarios/layer-b/` following the s
 [`PROTOCOL.md` §6–7](./PROTOCOL.md). It is auto-discovered. Run
 `--scenario <id> --dry-run` (for read-only kinds) or a single-model live run to validate
 it before adding it to a full rotation.
+
+The current catalog includes operational scenarios for tickets, tasks, e-mail messages,
+and actionsteps/time-entry effort. Seeded scenarios must declare `mutates: true` even
+when the agent itself is only asked to read, because the harness creates disposable
+`AGENTTEST-*` records for independent verification.
 
 ## Swapping the runner
 

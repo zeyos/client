@@ -1,0 +1,35 @@
+{
+  "id": "b19-time-tracking-weekly-effort",
+  "layer": "b",
+  "title": "Sum my logged effort for an account within a date window",
+  "skill": "zeyos-time-tracking",
+  "interface": "either",
+  "mutates": true,
+  "tags": ["time-tracking", "actionsteps", "effort", "aggregate", "current-user", "time-window", "seeded-write"],
+  "seed": [
+    { "op": "createAccount", "as": "account", "data": { "lastname": "{recordPrefix}-{runId} Week Client", "firstname": "Ops", "type": 1, "currency": "EUR", "visibility": 0 } },
+    { "op": "createActionStep", "as": "in1", "data": { "account": "$SEED.account.ID", "assigneduser": "$ME", "name": "{recordPrefix}-{runId} in-window completed", "status": 1, "date": 1893500000, "effort": 30 } },
+    { "op": "createActionStep", "as": "in2", "data": { "account": "$SEED.account.ID", "assigneduser": "$ME", "name": "{recordPrefix}-{runId} in-window booked", "status": 3, "date": 1893600000, "effort": 45 } },
+    { "op": "createActionStep", "as": "cancelled", "data": { "account": "$SEED.account.ID", "assigneduser": "$ME", "name": "{recordPrefix}-{runId} in-window cancelled", "status": 2, "date": 1893550000, "effort": 999 } },
+    { "op": "createActionStep", "as": "before", "data": { "account": "$SEED.account.ID", "assigneduser": "$ME", "name": "{recordPrefix}-{runId} before-window completed", "status": 1, "date": 1893000000, "effort": 500 } }
+  ],
+  "prompt": "Using the time-tracking skill, how many minutes did the CURRENT user (you) log against the account whose lastname is exactly \"{recordPrefix}-{runId} Week Client\" between Unix timestamps 1893456000 and 1893715200 (inclusive)? Resolve your own user id first. Count only COMPLETED (1) and BOOKED (3) actionsteps assigned to you whose `date` is in that window; ignore CANCELLED and anything dated outside the window. Output just the total minutes on the RESULT line, e.g. `RESULT: 75`.",
+  "expect": {
+    "kind": "computeSum",
+    "op": "listActionSteps",
+    "params": { "filters": { "assigneduser": "$ME", "account": "$SEED.account.ID" }, "limit": 10000 },
+    "field": "effort",
+    "predicates": [
+      { "field": "status", "in": [1, 3] },
+      { "field": "date", "gte": 1893456000 },
+      { "field": "date", "lte": 1893715200 }
+    ]
+  },
+  "cleanup": [
+    { "op": "deleteActionStep", "idFrom": "$SEED.in1.ID" },
+    { "op": "deleteActionStep", "idFrom": "$SEED.in2.ID" },
+    { "op": "deleteActionStep", "idFrom": "$SEED.cancelled.ID" },
+    { "op": "deleteActionStep", "idFrom": "$SEED.before.ID" },
+    { "op": "deleteAccount", "idFrom": "$SEED.account.ID" }
+  ]
+}

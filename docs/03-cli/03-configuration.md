@@ -12,15 +12,47 @@ These settings apply to the CLI's curated resource registry. If you need a resou
 
 ## Credential Cascade
 
-Credentials are resolved from three sources in priority order:
+The CLI first decides **which credential set** is the base, then lets environment credential variables field-override on top. The base is chosen by the first match in this order:
 
 | Priority | Source | Location |
 |----------|--------|----------|
-| 1 (highest) | Environment variables | `ZEYOS_BASE_URL`, `ZEYOS_TOKEN`, etc. |
-| 2 | Local config file | `.zeyos/auth.json` (walks up from CWD) |
-| 3 (lowest) | Global config file | `~/.config/zeyos/credentials.json` |
+| 1 (highest) | `--profile <name>` flag | named profile (per command) |
+| 2 | `ZEYOS_PROFILE` env var | named profile |
+| 3 | Project pin | `.zeyos/profile` (walks up from CWD) |
+| 4 | Local config file | `.zeyos/auth.json` (walks up from CWD) |
+| 5 | Global active profile | `~/.config/zeyos/profiles.json` (`active`) |
+| 6 (lowest) | Global config file | `~/.config/zeyos/credentials.json` |
 
-Configuration is merged from global, then local, then environment variables. Higher-priority sources override individual fields from lower-priority sources. For example, setting `ZEYOS_TOKEN` as an environment variable overrides the stored token while still allowing `baseUrl` and client credentials to come from a config file.
+On top of the chosen base, the credential **environment variables** (`ZEYOS_BASE_URL`, `ZEYOS_TOKEN`, …) always override individual fields — so you can keep `baseUrl` and client credentials in a profile while overriding just the token via `ZEYOS_TOKEN` in CI.
+
+If you have never created a profile, nothing changes: the CLI falls through to the legacy local `.zeyos/auth.json` and global `credentials.json` exactly as before.
+
+## Profiles
+
+Profiles let you store several ZeyOS instances (e.g. `dev`, `prod`, `client-x`) and switch between them without re-running `login`. Each profile is a full credential set (URL, OAuth app, tokens) kept in `~/.config/zeyos/profiles.json`, with one marked **active**.
+
+```bash
+# Create profiles (connection params now; tokens via login)
+zeyos profile add dev  --base-url https://zeyos.cms-it.de/dev
+zeyos profile add prod --base-url https://cloud.zeyos.com/acme --client-id app --secret "$SECRET"
+
+# Authenticate into a profile (also makes it active)
+zeyos login --profile prod
+
+# See and switch profiles
+zeyos profile list                 # active marked with *, shows token status
+zeyos profile use dev              # switch the global active profile
+zeyos profile current             # what resolves right now, and why
+
+# Per-project: pin a profile so cd-ing into a repo selects its instance
+cd ~/work/acme && zeyos profile use prod --local   # writes ./.zeyos/profile
+
+# One-off override on any command (beats env, pin, and active)
+zeyos whoami --profile dev
+zeyos list tickets --profile prod
+```
+
+`zeyos profile add <name> --from-current` snapshots whatever credentials are in effect (including tokens) into a new profile — handy for adopting an existing `.zeyos/auth.json` setup. Add `.zeyos/profile` to `.gitignore` alongside `.zeyos/auth.json`.
 
 ## Environment Variables
 

@@ -1,0 +1,20 @@
+{
+  "list": {
+    "fields": {
+      "ID": "ID",
+      "Date": "date",
+      "Mailbox": "mailbox",
+      "Subject": "subject",
+      "From": "sender_email",
+      "To": "to_email",
+      "Ticket": "ticket",
+      "Opportunity": "opportunity",
+      "Reference": "reference",
+      "Message-ID": "messageid"
+    }
+  },
+  "get": {
+    "fields": ["ID", "date", "mailbox", "subject", "sender", "sender_email", "sender_name", "to", "to_email", "to_name", "cc", "bcc", "ticket", "opportunity", "reference", "messageid", "contenttype", "text", "attachments", "senddate", "senderror", "creationdate", "lastmodified"],
+    "params": { "extdata": 1 }
+  }
+}

@@ -10,7 +10,7 @@
  */
 
 import { createZeyosClient, MemoryTokenStore } from '@zeyos/client';
-import { loadConfig, clearTokens }             from '../lib/config.mjs';
+import { loadConfigWithSource, clearTokens, clearTokensForSource } from '../lib/config.mjs';
 import { success, warn, info }                 from '../lib/output.mjs';
 
 export const USAGE = `\
@@ -19,13 +19,13 @@ Usage: zeyos logout [options]
 Revoke the current session and clear stored tokens.
 
 Options:
-  --global    Target the global credentials file
-  -h, --help  Show this help
+  --profile <name>  Log out of a specific profile
+  --global          Target the legacy global credentials file
+  -h, --help        Show this help
 `;
 
 export async function run(values) {
-  const scope  = values.global ? 'global' : 'local';
-  const config = loadConfig();
+  const { config, source } = loadConfigWithSource({ profile: values.profile });
 
   if (!config.accessToken) {
     warn('Not currently logged in.');
@@ -58,6 +58,11 @@ export async function run(values) {
     }
   }
 
-  clearTokens(scope);
-  success('Logged out.');
+  if (values.global) {
+    clearTokens('global');
+  } else {
+    clearTokensForSource(source);
+  }
+  const where = source?.kind === 'profile' ? `profile "${source.name}"` : (values.global ? 'global credentials' : 'local credentials');
+  success(`Logged out (${where}).`);
 }

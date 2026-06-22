@@ -9,9 +9,19 @@
 - `users`: system identities for assignees
 
 These are dbref nouns, not operationIds. Note `actionsteps` -> `listActionSteps` /
-`getActionStep` / `createActionStep` (compound CamelCase, not `listActionsteps`). See
+`getActionStep` / `createActionStep` / `updateActionStep` / `deleteActionStep`
+(compound CamelCase, not `listActionsteps`). See
 [../../shared/zeyos-entity-reference.md](../../shared/zeyos-entity-reference.md#entity-noun-to-rest-operationid)
 before calling `@zeyos/client`.
+
+Actionstep status values:
+
+- `0` = DRAFT / open follow-up
+- `1` = COMPLETED
+- `2` = CANCELLED
+- `3` = BOOKED
+
+Use `effort` as minutes of effort only when the question is about time entries or booked/completed work. Do not infer booked time from task assignment alone.
 
 ## Resolve Before Querying
 
@@ -32,7 +42,7 @@ Recommended approach:
 1. Resolve the user from `users.name` or `users.email`.
 2. Query recent tasks assigned to that user with `lastmodified > cutoff`.
 3. Query recent tickets assigned to that user with `lastmodified > cutoff`.
-4. Optionally query recent `actionsteps` for the same user when you want stronger evidence of follow-up activity.
+4. Query recent `actionsteps` for the same user when you need stronger evidence of follow-up activity or booked effort.
 5. Collect direct `project` links from tasks and tickets.
 6. For tasks that only link to a ticket, fetch the ticket or include `ticket.project` if available in the selected fields.
 7. For action steps linked to tasks or tickets, infer the project through the linked parent only if the user asked for a broad activity summary.
@@ -67,7 +77,7 @@ const recentTickets = await client.api.listTickets({
 
 Important caveat:
 
-- The documented schema does not expose timesheets or effort logs here. "Worked on" is therefore an activity proxy, not proof of time spent.
+- Assignment-based "worked on" answers are activity proxies. `actionsteps` with `date`, `status` COMPLETED/BOOKED, and `effort` are the better evidence for time-entry summaries.
 
 ## Pattern: Review A Ticket Queue
 
@@ -86,6 +96,13 @@ zeyos list tickets \
 
 Follow up with `tasks` only if the answer requires execution detail below the ticket level.
 Follow up with `actionsteps` if the queue management style in this instance uses reminders or next steps below the ticket.
+
+For ticket work packets, include:
+
+- ticket status, priority, due date, account/project links
+- open tasks linked by `task.ticket`
+- open actionsteps linked by `actionstep.ticket` or by task
+- recent messages linked by `message.ticket` if the request asks for customer context
 
 ## Pattern: Overdue Work For An Account Or Project
 
@@ -121,6 +138,39 @@ Recommended approach:
 4. Keep due date and status visible in the result.
 5. If the anchor is a transaction and the user also wants broader work context, then check related tickets or account-level tasks second.
 
+CLI examples:
+
+```bash
+zeyos list actionsteps \
+  --fields ID,actionnum,name,status,date,duedate,effort,ticket,task,account,transaction \
+  --filter '{"ticket":812}' \
+  --sort +duedate \
+  --limit 100 \
+  --json
+```
+
+For counts:
+
+```bash
+zeyos count actionsteps --filter '{"ticket":812,"status":0}' --json
+```
+
+## Pattern: Time Entry / Effort Summaries
+
+Use this for prompts like:
+
+- "How many minutes were booked on ticket 812 last week?"
+- "Summarize completed actionstep effort for this account."
+- "Which user logged effort against this project?"
+
+Recommended approach:
+
+1. Resolve the anchor and the date window.
+2. Query `actionsteps` with fields `ID`, `date`, `status`, `effort`, and the relevant FK (`ticket`, `task`, `account`, or `transaction`).
+3. Include statuses `1` COMPLETED and `3` BOOKED for time-entry totals unless the user asks for drafts/open follow-ups.
+4. Sum `effort` as minutes; convert to hours only if the user asked for hours.
+5. Keep task/ticket assignment separate from effort totals.
+
 ## Pattern: Create Follow-Up Work
 
 For prompts like:
@@ -136,7 +186,7 @@ Recommended approach:
    - use `project` if the follow-up is project-wide
    - use `actionsteps` if the follow-up is small, account-scoped, or transaction-scoped and does not justify a standalone task
    - keep `visibility: 0`
-3. Confirm the new owner, due date, and priority if they are not explicit.
+3. Confirm the new owner, due date, and priority/effort if they are not explicit.
 4. Use explicit PATCH or create bodies and return the created record ID.
 
 ## Common Failure Modes

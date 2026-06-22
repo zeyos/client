@@ -2,7 +2,11 @@ node_modules/
 .DS_Store
 /AGENT.md
 .claude/
-config.test.json
+.env
+.env.*
+!.env.example
+config.test*.json
+!config.test.json.example
 temp/
 .zeyos/
 API-REPORT.md

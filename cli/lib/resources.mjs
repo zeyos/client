@@ -14,13 +14,21 @@
 
 /** @type {Record<string, ResourceDef>} */
 const REGISTRY = {
+  actionstep: {
+    list:   'listActionSteps',
+    get:    'getActionStep',
+    create: 'createActionStep',
+    update: 'updateActionStep',
+    delete: 'deleteActionStep',
+    fields: ['ID', 'actionnum', 'name', 'status', 'date', 'duedate', 'effort', 'ticket', 'task', 'account'],
+  },
   ticket: {
     list:   'listTickets',
     get:    'getTicket',
     create: 'createTicket',
     update: 'updateTicket',
     delete: 'deleteTicket',
-    fields: ['ID', 'ticketnum', 'name', 'status', 'priority', 'duedate', 'lastmodified'],
+    fields: ['ID', 'ticketnum', 'name', 'status', 'priority', 'duedate', 'account', 'project', 'lastmodified'],
   },
   task: {
     list:   'listTasks',
@@ -28,7 +36,7 @@ const REGISTRY = {
     create: 'createTask',
     update: 'updateTask',
     delete: 'deleteTask',
-    fields: ['ID', 'tasknum', 'name', 'status', 'priority', 'duedate', 'ticket'],
+    fields: ['ID', 'tasknum', 'name', 'status', 'priority', 'duedate', 'ticket', 'project', 'projectedeffort'],
   },
   account: {
     list:   'listAccounts',
@@ -84,7 +92,7 @@ const REGISTRY = {
     create: 'createMessage',
     update: 'updateMessage',
     delete: 'deleteMessage',
-    fields: ['ID', 'subject', 'sender', 'created', 'read'],
+    fields: ['ID', 'date', 'mailbox', 'subject', 'sender_email', 'to_email', 'ticket', 'reference', 'messageid'],
   },
   item: {
     list:   'listItems',
@@ -144,6 +152,11 @@ const REGISTRY = {
     delete: 'deleteCampaign',
     fields: ['ID', 'name', 'status', 'startdate', 'enddate'],
   },
+  customfield: {
+    list:   'listCustomFields',
+    get:    'getCustomField',
+    fields: ['ID', 'name', 'identifier', 'context', 'reference', 'type', 'entity', 'activity'],
+  },
   file: {
     list:   'listFiles',
     get:    'getFile',
@@ -174,6 +187,13 @@ const REGISTRY = {
 
 const ALIASES = {
   // Plurals
+  actionsteps:  'actionstep',
+  'action-steps': 'actionstep',
+  action_steps: 'actionstep',
+  timeentry:    'actionstep',
+  timeentries:  'actionstep',
+  'time-entry': 'actionstep',
+  'time-entries': 'actionstep',
   tickets:      'ticket',
   tasks:        'task',
   accounts:     'account',
@@ -193,6 +213,9 @@ const ALIASES = {
   payments:     'payment',
   opportunities:'opportunity',
   campaigns:    'campaign',
+  customfields:  'customfield',
+  custom_fields: 'customfield',
+  'custom-fields': 'customfield',
   files:        'file',
   invitations:  'invitation',
   storages:     'storage',

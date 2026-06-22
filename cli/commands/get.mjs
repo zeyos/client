@@ -68,7 +68,7 @@ export async function run(values, positional) {
   requireRecordId(id, 'zeyos get <resource> <id>');
 
   const resName = canonicalName(resourceName);
-  const clientState = buildCliClient();
+  const clientState = buildCliClient(values);
 
   // ── Build params ───────────────────────────────────────────────────────────
   // GET endpoints use query parameters like ?extdata=1&tags=1 to include

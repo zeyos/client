@@ -3,7 +3,7 @@
  * Also provides a helper that persists refreshed tokens back to the config file.
  */
 import { createZeyosClient, MemoryTokenStore } from '@zeyos/client';
-import { loadConfigWithSource, saveConfig, requireConfig } from './config.mjs';
+import { loadConfigWithSource, persistTokens, requireConfig, listProfiles } from './config.mjs';
 
 /** @typedef {import('./types.mjs').CliConfig} CliConfig */
 
@@ -12,10 +12,16 @@ import { loadConfigWithSource, saveConfig, requireConfig } from './config.mjs';
  * Throws a friendly error if required config keys are missing.
  *
  * @param {CliConfig} [overrides]  Extra config values (e.g. from CLI flags)
- * @returns {{ client: ReturnType<typeof createZeyosClient>, config: CliConfig, tokenStore: MemoryTokenStore, configSource: 'local'|'global'|null }}
+ * @param {{ profile?: string }} [opts]  Profile selector (from --profile / ZEYOS_PROFILE)
+ * @returns {{ client: ReturnType<typeof createZeyosClient>, config: CliConfig, tokenStore: MemoryTokenStore, configSource: import('./config.mjs').ConfigSource|null }}
  */
-export function buildClient(overrides = {}) {
-  const loaded = loadConfigWithSource();
+export function buildClient(overrides = {}, opts = {}) {
+  const loaded = loadConfigWithSource({ profile: opts.profile });
+  if (loaded.profile?.missing) {
+    const names = Object.keys(listProfiles().profiles);
+    const known = names.length ? `Known profiles: ${names.join(', ')}.` : 'No profiles defined yet — create one with `zeyos profile add <name>`.';
+    throw new Error(`Profile "${loaded.profile.name}" not found (selected via ${loaded.profile.origin}). ${known}`);
+  }
   const config = { ...loaded.config, ...overrides };
   requireConfig(['baseUrl', 'clientId', 'clientSecret', 'accessToken'], config);
 
@@ -43,25 +49,28 @@ export function buildClient(overrides = {}) {
 }
 
 /**
- * Persist any refreshed tokens back to the credential store.
+ * Persist any refreshed tokens back to the credential store the config came from
+ * (a named profile, the legacy local auth.json, or the legacy global file).
  * Call this after API operations to keep tokens up-to-date.
  *
  * @param {MemoryTokenStore} tokenStore
- * @param {'local'|'global'|null} scope
+ * @param {import('./config.mjs').ConfigSource|'local'|'global'|null} source
  */
-export async function syncTokens(tokenStore, scope = 'local') {
-  if (!scope) {
+export async function syncTokens(tokenStore, source = 'local') {
+  if (!source) {
     return;
   }
+  // Back-compat: a bare 'local'/'global' string still works.
+  const resolved = typeof source === 'string' ? { kind: source } : source;
   try {
     const ts = await tokenStore.get();
     if (ts?.accessToken) {
-      saveConfig({
+      persistTokens(resolved, {
         accessToken:           ts.accessToken,
         refreshToken:          ts.refreshToken,
         expiresAt:             ts.expiresAt,
         refreshTokenExpiresAt: ts.refreshTokenExpiresAt,
-      }, scope);
+      });
     }
   } catch {
     // non-critical

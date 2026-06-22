@@ -51,7 +51,7 @@ export async function run(values, positional) {
   }
 
   // ── Call API ───────────────────────────────────────────────────────────────
-  const clientState = buildCliClient();
+  const clientState = buildCliClient(values);
   if (await maybeDryRun(clientState, res.list, body, values)) return;
 
   const result = await callApi(clientState, res.list, body);

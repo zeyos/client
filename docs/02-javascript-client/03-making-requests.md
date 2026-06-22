@@ -253,6 +253,26 @@ const page2 = await client.api.listTickets({
 Use `count: true` to get the total number of matching records without fetching the full dataset. This is useful for building pagination controls.
 :::
 
+### Auto-pagination
+
+To iterate an entire result set without managing `offset` yourself, use `client.paginate(operationId, input, opts)` — an async iterator that pages until a short/empty page (or `opts.max`) is reached. It removes the off-by-one and "I only got the first 1000 / 50 rows" mistakes the list caps otherwise invite.
+
+```js
+// Stream every matching ticket, one page at a time
+for await (const ticket of client.paginate('listTickets', { filters: { visibility: 0 } }, { pageSize: 1000 })) {
+  process(ticket);
+}
+
+// Eagerly collect up to a cap
+const recent = await client.collect(
+  'listTickets',
+  { filters: { visibility: 0 }, sort: ['-lastmodified'] },
+  { pageSize: 500, max: 2000 }
+);
+```
+
+`opts`: `pageSize` (default 1000, clamped to the server max of 10000), `max` (stop after N records), and `requestOptions` (forwarded to each underlying call, e.g. `{ signal, timeoutMs }`). `collect` is the eager array form of `paginate`.
+
 ## Normalising List Responses
 
 List endpoints are not uniform across the full surface area. Depending on the endpoint and response mode, you may see:
@@ -432,9 +452,32 @@ const noRetry = createZeyosClient({ platform: 'live', instance: 'demo', retry: f
 Only `429`/`503` are retried by default -- statuses that clearly mean "try again later". `5xx` codes such as `500`/`502` are **not** retried automatically, to avoid re-applying a non-idempotent write that may have partially succeeded. Add them to `retryOn` only for read-heavy workloads.
 :::
 
+### Request timeout
+
+A request with no built-in deadline can hang indefinitely if the connection stalls (e.g. an instance restarting). Set `timeoutMs` to bound each attempt; it composes with any `AbortSignal` you pass. The timeout applies **per attempt**, so a retry gets a fresh deadline.
+
+```js
+// Per request
+await client.api.listTickets({ filters: { visibility: 0 } }, { timeoutMs: 8000 });
+
+// Or a client-wide default
+const client = createZeyosClient({ platform: 'live', instance: 'demo', timeoutMs: 8000 });
+```
+
+A timeout rejects with an `Error` whose `isTimeout === true` (and `code === 'ETIMEDOUT'`). A timeout is distinct from a caller abort: aborting your own `AbortSignal` always propagates immediately and is never retried.
+
+### Network-error retries
+
+Network-level failures (a dropped connection, DNS blip, or a timeout) are retried for **read** operations only — `GET`/`HEAD` plus side-effect-free `list`/`count`/`search` queries — using the same retry budget and backoff. Writes (`create`/`update`/`delete`) are **never** auto-retried on a network error, so a dropped connection can't cause a duplicate mutation. Override per request or per client with `retryOnNetworkError: true | false`.
+
+```js
+await client.api.listTickets({ filters: {} }, { retryOnNetworkError: true });  // force (already on for reads)
+await client.api.createTicket({ name: 'x' }, { retryOnNetworkError: true });   // opt a write in, at your own risk
+```
+
 ## Error Handling
 
-All API errors are thrown as `ZeyosApiError` instances. This class extends `Error` and includes structured information about the failed request.
+All API errors are thrown as `ZeyosApiError` instances. This class extends `Error` and includes structured information about the failed request. When the server returns an error body with a message, a short snippet of it is folded into `err.message` (e.g. `api.listTickets failed with HTTP 400: unknown filter field: bogus`), so the thrown error says *why*, not just the status code. The full body is always on `err.body`.
 
 ```js
 import { ZeyosApiError } from '@zeyos/client';
@@ -535,6 +578,8 @@ All generated methods and `client.request()` accept an optional second argument 
 | Option | Type | Description |
 |--------|------|-------------|
 | `signal` | `AbortSignal` | An `AbortController` signal to cancel the request |
+| `timeoutMs` | `number` | Abort this attempt after N ms (composes with `signal`); also settable client-wide as `timeoutMs` |
+| `retryOnNetworkError` | `boolean` | Force/disable retrying network errors & timeouts for this call (default: on for reads, off for writes) |
 | `raw` | `boolean` | Return the full response envelope instead of just the data |
 | `auth` | `string \| { mode?: string, accessToken?: string, access_token?: string, refreshToken?: string, refresh_token?: string, clientId?: string, client_id?: string, clientSecret?: string, client_secret?: string }` | Override the authentication mode or credentials for this request |
 | `baseUrl` | `string` | Override the base URL for this request |

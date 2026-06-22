@@ -1,0 +1,31 @@
+{
+  "id": "b17-time-tracking-log-effort",
+  "layer": "b",
+  "title": "Log time as a COMPLETED actionstep on a customer's ticket",
+  "skill": "zeyos-time-tracking",
+  "interface": "either",
+  "mutates": true,
+  "tags": ["time-tracking", "actionsteps", "tickets", "accounts", "effort", "seeded-write", "my-work"],
+  "seed": [
+    { "op": "createAccount", "as": "account", "data": { "lastname": "{recordPrefix}-{runId} Time Client", "firstname": "Ops", "type": 1, "currency": "EUR", "visibility": 0 } },
+    { "op": "createTicket", "as": "ticket", "data": { "account": "$SEED.account.ID", "name": "{recordPrefix}-{runId} time ticket", "status": 4, "priority": 3, "visibility": 0 } }
+  ],
+  "prompt": "Using the time-tracking skill, log 45 minutes of work for the customer whose lastname is exactly \"{recordPrefix}-{runId} Time Client\". Attach the time to that customer's open ticket named exactly \"{recordPrefix}-{runId} time ticket\" (set the actionstep's `ticket` field). Record it as a COMPLETED actionstep (status 1) assigned to the current user (`assigneduser` = your own user id from getUserInfo/whoami), named exactly \"{recordPrefix}-{runId} logged work\". Effort is in minutes. Output a JSON object on the RESULT line with the created actionstep ID, e.g. `RESULT: {\"actionstepId\":12345}`. Note: the client operation is `createActionStep`, not `createActionstep`.",
+  "expect": {
+    "kind": "verifyRecord",
+    "op": "getActionStep",
+    "idFrom": "$RESULT.actionstepId",
+    "assert": [
+      { "path": "name", "equals": "{recordPrefix}-{runId} logged work" },
+      { "path": "ticket", "equals": "$SEED.ticket.ID" },
+      { "path": "effort", "equals": 45 },
+      { "path": "status", "equals": 1 },
+      { "path": "assigneduser", "equals": "$ME" }
+    ]
+  },
+  "cleanup": [
+    { "op": "deleteActionStep", "idFrom": "$RESULT.actionstepId" },
+    { "op": "deleteTicket", "idFrom": "$SEED.ticket.ID" },
+    { "op": "deleteAccount", "idFrom": "$SEED.account.ID" }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "id": "a08-task-from-seeded-ticket",
+  "layer": "a",
+  "title": "Create a task linked to a seeded ticket",
+  "interface": "either",
+  "mutates": true,
+  "tags": ["crud", "tasks", "tickets", "foreign-key", "seeded-write"],
+  "seed": [
+    { "op": "createTicket", "as": "ticket", "data": { "name": "{recordPrefix}-{runId} task parent", "status": 4, "priority": 3, "visibility": 0 } }
+  ],
+  "prompt": "Find the ticket named exactly \"{recordPrefix}-{runId} task parent\". Create a task named exactly \"{recordPrefix}-{runId} linked task\" linked to that ticket via the task's `ticket` field. Set priority HIGH (3), visibility 0, and duedate to Unix timestamp 1893456000. Output a JSON object on the RESULT line with the created task ID, e.g. `RESULT: {\"taskId\":12345}`.",
+  "expect": {
+    "kind": "verifyRecord",
+    "op": "getTask",
+    "idFrom": "$RESULT.taskId",
+    "assert": [
+      { "path": "name", "equals": "{recordPrefix}-{runId} linked task" },
+      { "path": "ticket", "equals": "$SEED.ticket.ID" },
+      { "path": "priority", "equals": 3 },
+      { "path": "duedate", "equals": 1893456000 }
+    ]
+  },
+  "cleanup": [
+    { "op": "deleteTask", "idFrom": "$RESULT.taskId" },
+    { "op": "deleteTicket", "idFrom": "$SEED.ticket.ID" }
+  ]
+}

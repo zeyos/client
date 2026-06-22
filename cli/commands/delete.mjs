@@ -37,7 +37,7 @@ export async function run(values, positional) {
   const res = requireResource(resourceName, 'zeyos delete <resource> <id>', 'delete', 'deletion');
   requireRecordId(id, 'zeyos delete <resource> <id>');
 
-  const clientState = buildCliClient();
+  const clientState = buildCliClient(values);
 
   // ── Dry run ────────────────────────────────────────────────────────────────
   // Show the request without prompting or deleting anything.

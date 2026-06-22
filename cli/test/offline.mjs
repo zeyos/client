@@ -145,6 +145,29 @@ test('resources supports JSON output for automation', async () => {
   const ticket = resources.find((resource) => resource.name === 'ticket');
   assert.ok(ticket);
   assert.deepEqual(ticket.operations, ['list', 'get', 'create', 'update', 'delete']);
+
+  const actionstep = resources.find((resource) => resource.name === 'actionstep');
+  assert.ok(actionstep);
+  assert.deepEqual(actionstep.operations, ['list', 'get', 'create', 'update', 'delete']);
+
+  const customfield = resources.find((resource) => resource.name === 'customfield');
+  assert.ok(customfield);
+  assert.deepEqual(customfield.operations, ['list', 'get']);
+});
+
+test('actionstep aliases and schema are available offline', async () => {
+  const described = await cli(['describe', 'time-entries', '--json']);
+  assert.equal(described.code, 0, described.stderr);
+
+  const schema = JSON.parse(described.stdout);
+  assert.equal(schema.name, 'actionsteps');
+  assert.ok(schema.fields.effort);
+  assert.deepEqual(schema.fields.status.enum, {
+    0: 'DRAFT',
+    1: 'COMPLETED',
+    2: 'CANCELLED',
+    3: 'BOOKED'
+  });
 });
 
 test('unknown commands fail with a non-zero exit code', async () => {
@@ -246,6 +269,16 @@ test('describe reads the schema offline (fields, enums)', async () => {
   assert.equal(def.name, 'tickets');
   assert.ok(def.fields.status.enum);
   assert.equal(def.fields.account.fk, 'accounts');
+});
+
+test('describe resolves customfield aliases to the customfields schema', async () => {
+  const result = await cli(['describe', 'customfields', '--json']);
+  assert.equal(result.code, 0, result.stderr);
+
+  const def = JSON.parse(result.stdout);
+  assert.equal(def.name, 'customfields');
+  assert.equal(def.fields.identifier.indexed, true);
+  assert.ok(def.fields.activity.enum);
 });
 
 test('describe rejects an unknown resource', async () => {
@@ -453,6 +486,20 @@ test('count --filter-file reads JSON filters from disk', async (t) => {
   assert.deepEqual(descriptor.body, { count: true, filters: { status: 2 } });
 });
 
+test('count customfields uses the listCustomFields operation', async (t) => {
+  const cwd = await tempDir(t);
+  const result = await cli(
+    ['count', 'customfields', '--query', '--json'],
+    { cwd, env: isolatedEnv(cwd, CREDENTIALS) }
+  );
+
+  assert.equal(result.code, 0, result.stderr);
+  const descriptor = JSON.parse(result.stdout);
+  assert.equal(descriptor.operationId, 'listCustomFields');
+  assert.deepEqual(descriptor.body, { count: true });
+  assert.match(descriptor.url, /\/api\/v1\/customfields$/);
+});
+
 test('--filter-file errors do not echo file contents', async (t) => {
   const cwd = await tempDir(t);
   await writeFile(join(cwd, 'filter.json'), '{"token":"very-secret-token",', 'utf8');
@@ -588,4 +635,104 @@ test('--query --json emits a machine-readable request descriptor', async (t) => 
   assert.equal(descriptor.dryRun, true);
   assert.equal(descriptor.method, 'GET');
   assert.match(descriptor.url, /\/api\/v1\/tickets\/42(\?|$)/);
+});
+
+// ── profiles ────────────────────────────────────────────────────────────────
+
+// NO_CREDENTIALS blanks the ZEYOS_* cred vars; also blank ZEYOS_PROFILE so a
+// stray parent env var cannot select a profile in tests that don't intend it.
+const CLEAN_ENV = { ...NO_CREDENTIALS, ZEYOS_PROFILE: '' };
+
+async function writeProfilesFile(home, data) {
+  const p = join(home, '.config', 'zeyos', 'profiles.json');
+  await mkdir(dirname(p), { recursive: true });
+  await writeFile(p, JSON.stringify(data, null, 2));
+  return p;
+}
+
+test('profile add/list/use/remove round-trips through the global registry', async (t) => {
+  const home = await tempDir(t);
+  const cwd = await tempDir(t);
+  const env = isolatedEnv(home, CLEAN_ENV);
+
+  await cli(['profile', 'add', 'dev', '--base-url', 'https://zeyos.example.com/dev', '--client-id', 'd', '--secret', 's1'], { cwd, env });
+  await cli(['profile', 'add', 'prod', '--base-url', 'https://cloud.zeyos.com/acme', '--client-id', 'p', '--secret', 's2'], { cwd, env });
+
+  let reg = JSON.parse((await cli(['profile', 'list', '--json'], { cwd, env })).stdout);
+  assert.equal(reg.active, 'dev'); // first added becomes active
+  assert.deepEqual(Object.keys(reg.profiles).sort(), ['dev', 'prod']);
+  assert.equal(reg.profiles.prod.baseUrl, 'https://cloud.zeyos.com/acme');
+
+  await cli(['profile', 'use', 'prod'], { cwd, env });
+  reg = JSON.parse((await cli(['profile', 'list', '--json'], { cwd, env })).stdout);
+  assert.equal(reg.active, 'prod');
+
+  await cli(['profile', 'remove', 'prod'], { cwd, env });
+  reg = JSON.parse((await cli(['profile', 'list', '--json'], { cwd, env })).stdout);
+  assert.equal(reg.active, 'dev');
+  assert.deepEqual(Object.keys(reg.profiles), ['dev']);
+});
+
+test('a project pin (.zeyos/profile) selects a profile', async (t) => {
+  const home = await tempDir(t);
+  const cwd = await tempDir(t);
+  const env = isolatedEnv(home, CLEAN_ENV);
+  await writeProfilesFile(home, { active: 'dev', profiles: {
+    dev:  { baseUrl: 'https://zeyos.example.com/dev' },
+    prod: { baseUrl: 'https://cloud.zeyos.com/acme' }
+  } });
+
+  const pin = await cli(['profile', 'use', 'prod', '--local'], { cwd, env });
+  assert.equal(pin.code, 0);
+  assert.ok(await exists(join(cwd, '.zeyos', 'profile')));
+
+  const out = JSON.parse((await cli(['profile', 'current', '--json'], { cwd, env })).stdout);
+  assert.equal(out.profile, 'prod');
+  assert.equal(out.origin, 'pin');
+  assert.equal(out.baseUrl, 'https://cloud.zeyos.com/acme');
+});
+
+test('--profile flag overrides ZEYOS_PROFILE env and the active pointer', async (t) => {
+  const home = await tempDir(t);
+  const cwd = await tempDir(t);
+  await writeProfilesFile(home, { active: 'dev', profiles: {
+    dev:  { baseUrl: 'https://zeyos.example.com/dev' },
+    prod: { baseUrl: 'https://cloud.zeyos.com/acme' }
+  } });
+
+  let out = JSON.parse((await cli(['profile', 'current', '--json'], { cwd, env: isolatedEnv(home, CLEAN_ENV) })).stdout);
+  assert.equal(out.origin, 'active');
+  assert.equal(out.profile, 'dev');
+
+  out = JSON.parse((await cli(['profile', 'current', '--json'], { cwd, env: isolatedEnv(home, { ...NO_CREDENTIALS, ZEYOS_PROFILE: 'prod' }) })).stdout);
+  assert.equal(out.origin, 'env');
+  assert.equal(out.profile, 'prod');
+
+  out = JSON.parse((await cli(['profile', 'current', '--profile', 'dev', '--json'], { cwd, env: isolatedEnv(home, { ...NO_CREDENTIALS, ZEYOS_PROFILE: 'prod' }) })).stdout);
+  assert.equal(out.origin, 'flag');
+  assert.equal(out.profile, 'dev');
+});
+
+test('an unknown --profile fails loudly with the known profiles listed', async (t) => {
+  const home = await tempDir(t);
+  const cwd = await tempDir(t);
+  await writeProfilesFile(home, { active: 'dev', profiles: {
+    dev: { baseUrl: 'https://zeyos.example.com/dev', clientId: 'd', clientSecret: 's', accessToken: 't' }
+  } });
+  const res = await cli(['whoami', '--profile', 'nope'], { cwd, env: isolatedEnv(home, CLEAN_ENV) });
+  assert.notEqual(res.code, 0);
+  assert.match(res.stderr, /Profile "nope" not found/);
+  assert.match(res.stderr, /Known profiles: dev/);
+});
+
+test('login reports "already logged in" per-profile when the token is still valid', async (t) => {
+  const home = await tempDir(t);
+  const cwd = await tempDir(t);
+  const future = Math.floor(Date.now() / 1000) + 3600;
+  await writeProfilesFile(home, { active: 'dev', profiles: {
+    dev: { baseUrl: 'https://zeyos.example.com/dev', clientId: 'd', clientSecret: 's', accessToken: 'tok', expiresAt: future }
+  } });
+  const res = await cli(['login', '--profile', 'dev'], { cwd, env: isolatedEnv(home, CLEAN_ENV) });
+  assert.equal(res.code, 0);
+  assert.match(`${res.stdout}${res.stderr}`, /Already logged in \(profile "dev"\)/);
 });

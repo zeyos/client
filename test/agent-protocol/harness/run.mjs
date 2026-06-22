@@ -34,6 +34,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   ensureFreshToken,
   buildVerifyClient,
+  resolveCurrentUserId,
   evaluateExpect,
   runSeed,
   runCleanup,
@@ -279,6 +280,9 @@ async function main() {
   const token = await freshHarnessToken({ force: true });
   const client = buildVerifyClient(live, token);
   const baseUrl = live.url || `${live.origin}/${instance}`;
+  // Resolve the harness's own user id once — the `$ME` token for first-person
+  // scenarios ("my open tickets", time logged as `assigneduser: $ME`).
+  const me = await resolveCurrentUserId(client);
 
   const runId = opts.runId || `run-${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)}`;
   const resultsDir = path.join(PROTOCOL_DIR, 'results', runId);
@@ -286,6 +290,7 @@ async function main() {
 
   console.log(`\nZeyOS Agent Test Protocol — run ${runId}`);
   console.log(`Instance:  ${instance} (${baseUrl})`);
+  console.log(`User ($ME): ${me ?? '(unresolved — $ME scenarios will be skipped/failed)'}`);
   console.log(`Mode:      ${opts.dryRun ? 'DRY RUN (no model, no mutation)' : `LIVE — models: ${models.join(', ')}`}${opts.bareSkill ? ' — BARE-SKILL (no inlined operating contract; tests skill self-containment)' : ''}`);
   console.log(`Scenarios: ${scenarios.length}\n`);
 
@@ -296,7 +301,7 @@ async function main() {
   }
 
   if (opts.dryRun) {
-    await dryRun(scenarios, client);
+    await dryRun(scenarios, client, me);
     return;
   }
 
@@ -318,7 +323,7 @@ async function main() {
   const records = [];
   for (const scenario of scenarios) {
     const rec = await runScenario({
-      scenario, models, runner, childEnv, resultsDir, client, runId, recordPrefix,
+      scenario, models, runner, childEnv, resultsDir, client, runId, recordPrefix, me,
       transientRetries, isCanary: canarySet.has(scenario.id), judgeModel: ap.judgeModel, noCleanup: opts.noCleanup,
       bareSkill: opts.bareSkill, allModels: opts.allModels,
       tokenProvider: freshHarnessToken, verifyClientProvider: buildFreshVerifyClient
@@ -338,7 +343,7 @@ async function main() {
 // ── per-scenario rotation engine ────────────────────────────────────────────
 
 async function runScenario(c) {
-  const { scenario, models, runner, childEnv, resultsDir, client, runId, recordPrefix, transientRetries, isCanary, judgeModel, noCleanup, bareSkill, allModels, tokenProvider, verifyClientProvider } = c;
+  const { scenario, models, runner, childEnv, resultsDir, client, runId, recordPrefix, me, transientRetries, isCanary, judgeModel, noCleanup, bareSkill, allModels, tokenProvider, verifyClientProvider } = c;
   const prompt = buildPrompt(scenario, { runId, recordPrefix }, { bareSkill });
   const attempts = [];
 
@@ -350,7 +355,7 @@ async function runScenario(c) {
     let seed = {};
     let seedReport = [];
     if (scenario.seed) {
-      const seeded = await runSeed(scenario.seed, { client: verifyClient, runId, recordPrefix, result: null });
+      const seeded = await runSeed(scenario.seed, { client: verifyClient, runId, recordPrefix, me, result: null });
       seed = seeded.seed;
       seedReport = seeded.report;
     }
@@ -369,7 +374,7 @@ async function runScenario(c) {
 
     const resultRaw = parseResultLine(agent.stdout);
     if (verifyClientProvider) verifyClient = await verifyClientProvider({ force: true });
-    const ctx = { client: verifyClient, result: resultRaw, rawStdout: agent.stdout, runId, recordPrefix, seed };
+    const ctx = { client: verifyClient, result: resultRaw, rawStdout: agent.stdout, runId, recordPrefix, me, seed };
 
     let evalRes;
     if (scenario.expect.kind === 'manual') {
@@ -453,12 +458,12 @@ function summarizeAttempts(attempts) {
 
 // ── dry run ─────────────────────────────────────────────────────────────────
 
-async function dryRun(scenarios, client) {
+async function dryRun(scenarios, client, me) {
   for (const s of scenarios) {
     const head = `  ${s.layer}  ${s.id}  [${s.expect.kind}]  ${s.mutates ? '(mutates)' : '(read-only)'}`;
-    if (s.expect.kind === 'computeCount') {
+    if (s.expect.kind === 'computeCount' || s.expect.kind === 'computeSum' || s.expect.kind === 'computeUnansweredTicketMail') {
       try {
-        const ev = await evaluateExpect(s.expect, { client, result: null, runId: 'dryrun', recordPrefix: 'AGENTTEST' });
+        const ev = await evaluateExpect(s.expect, { client, result: null, runId: 'dryrun', recordPrefix: 'AGENTTEST', me });
         if (ev.expected !== undefined) {
           console.log(`${head}\n      ground truth = ${ev.expected}`);
         } else {

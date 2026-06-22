@@ -116,7 +116,7 @@ export async function run(values, positional) {
   }
 
   // ── Call API ───────────────────────────────────────────────────────────────
-  const clientState = buildCliClient();
+  const clientState = buildCliClient(values);
   if (await maybeDryRun(clientState, res.list, body, values)) return;
 
   const fn = requireApiMethod(clientState, res.list);
