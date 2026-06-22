@@ -736,3 +736,56 @@ test('login reports "already logged in" per-profile when the token is still vali
   assert.equal(res.code, 0);
   assert.match(`${res.stdout}${res.stderr}`, /Already logged in \(profile "dev"\)/);
 });
+
+test('okf list works without credentials and supports JSON', async () => {
+  const res = await cli(['okf', 'list', '--json']);
+  assert.equal(res.code, 0, res.stderr);
+  const data = JSON.parse(res.stdout);
+  assert.equal(data.version, '0.1');
+  assert.ok(data.concepts.some((c) => c.concept === 'entities/tickets'));
+});
+
+test('okf show resolves a bare resource name to its entity concept', async () => {
+  const res = await cli(['okf', 'show', 'tickets']);
+  assert.equal(res.code, 0, res.stderr);
+  assert.match(res.stdout, /type: ZeyOS Entity/);
+  assert.match(res.stdout, /listTickets/);
+});
+
+test('okf show rejects an unknown concept', async () => {
+  const res = await cli(['okf', 'show', 'nope-not-a-concept']);
+  assert.notEqual(res.code, 0);
+  assert.match(res.stderr, /Unknown concept/);
+});
+
+test('okf check validates the shipped bundle and exits 0', async () => {
+  const res = await cli(['okf', 'check']);
+  assert.equal(res.code, 0, res.stderr);
+  assert.match(`${res.stdout}${res.stderr}`, /conformant/i);
+});
+
+test('okf export copies the bundle and the copy is conformant', async (t) => {
+  const out = await tempDir(t);
+  const dest = join(out, 'okf');
+  const exp = await cli(['okf', 'export', '--out', dest]);
+  assert.equal(exp.code, 0, exp.stderr);
+  assert.ok(await exists(join(dest, 'index.md')));
+  assert.ok(await exists(join(dest, 'entities', 'tickets.md')));
+  const check = await cli(['okf', 'check', '--dir', dest]);
+  assert.equal(check.code, 0, check.stderr);
+});
+
+test('okf build synthesizes a conformant bundle from the client schema', async (t) => {
+  const out = await tempDir(t);
+  const res = await cli(['okf', 'build', '--out', out]);
+  assert.equal(res.code, 0, res.stderr);
+  assert.ok(await exists(join(out, 'entities', 'tickets.md')));
+  const check = await cli(['okf', 'check', '--dir', out]);
+  assert.equal(check.code, 0, check.stderr);
+});
+
+test('okf rejects unknown flags', async () => {
+  const res = await cli(['okf', 'list', '--bogus']);
+  assert.notEqual(res.code, 0);
+  assert.match(res.stderr, /Unknown option/);
+});

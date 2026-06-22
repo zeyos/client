@@ -3,6 +3,22 @@
 Notable changes to `@zeyos/client` and `@zeyos/cli`. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## 0.4.0
+
+### Open Knowledge Format (OKF)
+- **New OKF bundle** under [`okf/`](okf/): a conformant [Open Knowledge Format v0.1](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md) description of the ZeyOS data model — one Markdown concept per API-backed entity (schema, foreign keys, enums, indexes, and the real operationIds), plus curated metrics, playbooks, and cross-cutting query concepts. Generated from the OpenAPI/dbref specs into **managed blocks** so structural content stays in sync while curated `# Notes` are preserved across regeneration. Ships in the npm package.
+- **Canonical schema source**: the previously hand-maintained operationId table in `agents/shared/zeyos-entity-reference.md` is now generated from the bundle, so the skill pack and the data model can't drift apart. Skills stay the task-facing layer; OKF is the reference layer.
+- **Freshness**: `npm run generate` regenerates the bundle alongside the client; a `source_snapshot` hash and an auto-appended `okf/log.md` schema-diff track changes when the ZeyOS schema/API is updated, and `npm run okf:check` is a CI drift + conformance gate.
+
+### `@zeyos/client`
+- New OKF exports: `buildOkf()` (synthesize a conformant bundle from the client's schema — pure, browser-safe), `loadOkfBundle(dir)` (read a bundle, Node), `validateOkfBundle`/`validateOkfFiles` (OKF v0.1 conformance), `conceptIdForResource`, and `OKF_VERSION`.
+
+### `@zeyos/cli` (`zeyos`)
+- New `okf` command: `zeyos okf list | show <concept> | check | export [--out] | build [--out]` to browse, print, validate, vendor, or synthesize the OKF bundle.
+
+### Agent skills & tooling
+- The improvement loop gains a `--context skills|okf|both` axis (`run.mjs`/`loop.mjs`) to measure whether OKF-as-context lifts agent accuracy, and a new `okf:refine` loop (`refine-okf.mjs`) that drafts → validates against the schema → judges → applies improvements to a concept's curated notes (never the generated managed block).
+
 ## 0.3.0
 
 ### `@zeyos/client`

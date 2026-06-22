@@ -1,6 +1,6 @@
 {
   "name": "@zeyos/client",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Dependency-light JavaScript client for ZeyOS OpenAPI services",
   "type": "module",
   "license": "MIT",
@@ -29,8 +29,12 @@
   "files": [
     "src",
     "scripts/generate-client.mjs",
+    "scripts/generate-okf.mjs",
+    "scripts/lib",
+    "scripts/data",
     "openapi",
     "docs",
+    "okf",
     "samples/crm",
     "samples/dashboard",
     "samples/kanban",
@@ -43,7 +47,10 @@
     "node": ">=18"
   },
   "scripts": {
-    "generate": "node scripts/generate-client.mjs",
+    "generate": "node scripts/generate-client.mjs && node scripts/generate-okf.mjs",
+    "okf:build": "node scripts/generate-okf.mjs",
+    "okf:check": "node --test test/okf.test.js",
+    "okf:refine": "node test/agent-protocol/harness/refine-okf.mjs",
     "test": "node scripts/test.mjs",
     "test:cli-integration": "node --test cli/test/integration.mjs",
     "test:agent-protocol": "node test/agent-protocol/harness/run.mjs",

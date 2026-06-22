@@ -41,6 +41,9 @@ function parseArgs(argv) {
     runId: `loop-${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)}`,
     agents: DEFAULT_AGENTS,
     models: DEFAULT_MODELS,
+    // Knowledge-context axis: which guidance the agent is pointed at. Defaults to
+    // the original skills-only behaviour; add okf/both to measure the OKF bundle.
+    contexts: ['skills'],
     baselineRef: 'HEAD',
     candidateSkills: path.join(REPO_ROOT, 'agents'),
     timeoutMs: 180000,
@@ -58,6 +61,7 @@ function parseArgs(argv) {
     if (a === '--run-id') opts.runId = argv[++i];
     else if (a === '--agents') opts.agents = csv(argv[++i]);
     else if (a === '--models') opts.models = csv(argv[++i]);
+    else if (a === '--context') opts.contexts = csv(argv[++i], ['skills']);
     else if (a === '--baseline-ref') opts.baselineRef = argv[++i];
     else if (a === '--candidate-skills') opts.candidateSkills = path.resolve(argv[++i]);
     else if (a === '--timeout-ms') opts.timeoutMs = Number(argv[++i]);
@@ -279,8 +283,11 @@ async function writeConfig(file, config) {
   await writeFile(file, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
 }
 
-function protocolArgs({ configPath, runId, mode, readOnly, dryRun, scenario }) {
+function protocolArgs({ configPath, runId, mode, readOnly, dryRun, scenario, context = 'skills' }) {
   const args = [RUNNER, '--config', configPath, '--run-id', runId];
+  // Only emit --context for non-default contexts so default skills-only runs stay
+  // byte-identical to the original invocation (run.mjs defaults to skills).
+  if (context && context !== 'skills') args.push('--context', context);
   if (dryRun) args.push('--dry-run');
   if (scenario) args.push('--scenario', scenario);
   if (readOnly) args.push('--read-only');
@@ -359,7 +366,7 @@ function compareRecords(baseline = [], candidate = []) {
 
 function flattenRuns(runs) {
   return runs.flatMap((run) =>
-    (run.scorecard?.records || []).map((record) => ({ ...record, variant: run.variant, agent: run.agent, mode: run.mode, protocolRunId: run.protocolRunId }))
+    (run.scorecard?.records || []).map((record) => ({ ...record, variant: run.variant, agent: run.agent, mode: run.mode, context: run.context, protocolRunId: run.protocolRunId }))
   );
 }
 
@@ -367,14 +374,14 @@ function groupAttemptRates(records) {
   const rows = new Map();
   for (const record of records) {
     for (const attempt of record.attempts || []) {
-      const key = [record.variant, record.agent, record.mode, attempt.model].join('|');
-      const row = rows.get(key) || { variant: record.variant, agent: record.agent, mode: record.mode, model: attempt.model, pass: 0, total: 0 };
+      const key = [record.variant, record.agent, record.mode, record.context, attempt.model].join('|');
+      const row = rows.get(key) || { variant: record.variant, agent: record.agent, mode: record.mode, context: record.context, model: attempt.model, pass: 0, total: 0 };
       row.total += 1;
       if (attempt.pass === true) row.pass += 1;
       rows.set(key, row);
     }
   }
-  return [...rows.values()].sort((a, b) => [a.variant, a.agent, a.mode, a.model].join('|').localeCompare([b.variant, b.agent, b.mode, b.model].join('|')));
+  return [...rows.values()].sort((a, b) => [a.variant, a.agent, a.mode, a.context, a.model].join('|').localeCompare([b.variant, b.agent, b.mode, b.context, b.model].join('|')));
 }
 
 function summarizeVariant(records, variant) {
@@ -405,9 +412,12 @@ async function writeLoopReports({ loopDir, loopId, opts, runs }) {
   const comparisons = [];
   for (const agent of opts.agents) {
     for (const mode of ['full', ...(opts.fullOnly ? [] : ['bare-skill'])]) {
-      const baseline = records.filter((r) => r.variant === 'baseline' && r.agent === agent && r.mode === mode);
-      const candidate = records.filter((r) => r.variant === 'candidate' && r.agent === agent && r.mode === mode);
-      if (baseline.length || candidate.length) comparisons.push({ agent, mode, ...compareRecords(baseline, candidate) });
+      for (const context of opts.contexts) {
+        const match = (variant) => records.filter((r) => r.variant === variant && r.agent === agent && r.mode === mode && r.context === context);
+        const baseline = match('baseline');
+        const candidate = match('candidate');
+        if (baseline.length || candidate.length) comparisons.push({ agent, mode, context, ...compareRecords(baseline, candidate) });
+      }
     }
   }
 
@@ -437,6 +447,7 @@ async function writeLoopReports({ loopDir, loopId, opts, runs }) {
   lines.push(`- Models: ${opts.models.map((m) => `\`${m}\``).join(', ')}`);
   lines.push(`- Agents: ${opts.agents.map((a) => `\`${a}\``).join(', ')}`);
   lines.push(`- Modes: ${opts.fullOnly ? '`full`' : '`full`, `bare-skill`'}`);
+  lines.push(`- Contexts: ${opts.contexts.map((c) => `\`${c}\``).join(', ')}`);
   if (opts.scenario) lines.push(`- Scenario: \`${opts.scenario}\``);
   if (opts.dryRun) lines.push('- Dry run: scorecards are not expected; protocol runs verify setup and selected scenario wiring without invoking models.');
   lines.push('');
@@ -447,7 +458,7 @@ async function writeLoopReports({ loopDir, loopId, opts, runs }) {
   ));
   lines.push('', '## Deltas', '');
   for (const cmp of comparisons) {
-    lines.push(`### ${cmp.agent} / ${cmp.mode}`, '');
+    lines.push(`### ${cmp.agent} / ${cmp.mode} / context:${cmp.context}`, '');
     lines.push(`- Improvements: ${cmp.improvements.length}`);
     lines.push(`- Regressions: ${cmp.regressions.length}`);
     lines.push(`- Unchanged failures: ${cmp.unchangedFailure.length}`);
@@ -461,8 +472,8 @@ async function writeLoopReports({ loopDir, loopId, opts, runs }) {
   }
   lines.push('## Attempt Pass Rates', '');
   lines.push(markdownTable(
-    ['Variant', 'Agent', 'Mode', 'Model', 'Pass/Total'],
-    groupAttemptRates(records).map((r) => [r.variant, r.agent, r.mode, `\`${r.model}\``, `${r.pass}/${r.total}`])
+    ['Variant', 'Agent', 'Mode', 'Context', 'Model', 'Pass/Total'],
+    groupAttemptRates(records).map((r) => [r.variant, r.agent, r.mode, r.context, `\`${r.model}\``, `${r.pass}/${r.total}`])
   ));
   lines.push('', '## Protocol Runs', '');
   lines.push(markdownTable(
@@ -498,30 +509,34 @@ async function main() {
     for (const variant of variants) {
       for (const agent of opts.agents) {
         for (const mode of modes) {
-          const protocolRunId = `${opts.runId}-${variant.key}-${agent}-${mode.key}`;
-          const workspaceRoot = path.join(loopDir, 'workspaces', `${variant.key}-${agent}-${mode.key}`);
-          const runner = runnerPreset(agent, opts.timeoutMs, workspaceRoot);
-          const protocolConfig = buildProtocolConfig(baseConfig, {
-            models: opts.models,
-            runner,
-            skillRoot: variant.skillRoot,
-            transientRetries: opts.transientRetries
-          });
-          const configPath = path.join(runtimeDir, 'configs', `${protocolRunId}.json`);
-          await writeConfig(configPath, protocolConfig);
+          for (const context of opts.contexts) {
+            const tag = `${variant.key}-${agent}-${mode.key}-${context}`;
+            const protocolRunId = `${opts.runId}-${tag}`;
+            const workspaceRoot = path.join(loopDir, 'workspaces', tag);
+            const runner = runnerPreset(agent, opts.timeoutMs, workspaceRoot);
+            const protocolConfig = buildProtocolConfig(baseConfig, {
+              models: opts.models,
+              runner,
+              skillRoot: variant.skillRoot,
+              transientRetries: opts.transientRetries
+            });
+            const configPath = path.join(runtimeDir, 'configs', `${protocolRunId}.json`);
+            await writeConfig(configPath, protocolConfig);
 
-          const args = protocolArgs({
-            configPath,
-            runId: protocolRunId,
-            mode: mode.key,
-            readOnly: mode.readOnly,
-            dryRun: opts.dryRun,
-            scenario: opts.scenario
-          });
-          console.log(`\n[agent-loop] ${variant.key} / ${agent} / ${mode.key}`);
-          const exitCode = await runProtocol(args);
-          const scorecard = await readScorecard(protocolRunId);
-          runs.push({ variant: variant.key, agent, mode: mode.key, protocolRunId, exitCode, scorecard });
+            const args = protocolArgs({
+              configPath,
+              runId: protocolRunId,
+              mode: mode.key,
+              readOnly: mode.readOnly,
+              dryRun: opts.dryRun,
+              scenario: opts.scenario,
+              context
+            });
+            console.log(`\n[agent-loop] ${variant.key} / ${agent} / ${mode.key} / context:${context}`);
+            const exitCode = await runProtocol(args);
+            const scorecard = await readScorecard(protocolRunId);
+            runs.push({ variant: variant.key, agent, mode: mode.key, context, protocolRunId, exitCode, scorecard });
+          }
         }
       }
     }

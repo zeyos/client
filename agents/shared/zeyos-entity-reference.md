@@ -14,6 +14,13 @@ Current source snapshot:
 
 Use this file when you need to understand what an entity is for before building a query plan.
 
+> **Canonical schema lives in the OKF bundle.** Per-entity columns, types, enums, foreign keys,
+> indexes (incl. the GIN/partial indexes behind the `filters` footgun), and operationIds are
+> generated into [`okf/entities/`](../../okf/entities/index.md) from the specs, and cross-cutting
+> rules into [`okf/concepts/`](../../okf/concepts/index.md). This reference keeps the curated
+> narrative (entity families, query priorities, use-case clusters); the operationId table below is
+> generated from the same source. When schema facts here and in `okf/` ever disagree, `okf/` wins.
+
 ## Source Note: `filter` vs `filters`
 
 Do not treat the spelling as universally settled.
@@ -58,39 +65,88 @@ Entities that follow the regular rule directly (lowercase noun, single English w
 
 `*` = read-only entity: only `list*`, `get*`, and `exists*` exist (no create/update/delete).
 
-### Exceptions (verify these — the noun does NOT map naively)
+### The authoritative table (generated from `openapi/api.json`)
 
-Every operationId below was verified to exist in `src/generated/operations.js`. Junction tables
-(`X2Y`) become `XToY` (CamelCase, with the **left** side often re-pluralized). Some entities are
-renamed entirely (`dunning` -> `DunningNotice`), and several are compound words that must keep their
-internal capitalization (e.g. `MailingLists`, not `Mailinglists`).
+The full `list`/`get`/`create`/`update`/`delete`/`exists` operationId for **every** API-backed
+entity is generated below and kept in sync with the specs by `scripts/generate-okf.mjs`. The
+tricky cases all appear with their real operationIds: junction tables (`X2Y` → `XToY`, often
+re-pluralizing the left side), renamed entities (`dunning` → `DunningNotice`), compounds that
+keep internal capitalization (`MailingLists`, not `Mailinglists`), and quirks like `listCategorys`
+(sic) or the plural `existsMailingRecipients`. A `—` means the operation does not exist
+(read-only or list-only entity). Per-entity schema, enums, and foreign keys live in the matching
+[`okf/entities/<name>.md`](../../okf/entities/index.md) concept, which is the canonical source.
 
-| dbref noun | list | get | create | update | delete | exists | Notes |
-|------------|------|-----|--------|--------|--------|--------|-------|
-| `actionsteps` | `listActionSteps` | `getActionStep` | `createActionStep` | `updateActionStep` | `deleteActionStep` | `existsActionStep` | Compound `ActionStep` |
-| `applicationassets` | `listApplicationAssets` | `getApplicationAsset` | — | — | — | `existsApplicationAsset` | Read-only; compound |
-| `binfiles` | `listBinFiles` | — | — | — | — | — | **List-only.** `BinFiles` |
-| `categories` | `listCategorys` | `getCategory` | `createCategory` | `updateCategory` | `deleteCategory` | `existsCategory` | List op is `listCategorys` (sic — no irregular plural); singular ops use `Category` |
-| `contacts2contacts` | `listContactsToContacts` | `getContactToContact` | `createContactToContact` | `updateContactToContact` | `deleteContactToContact` | `existsContactToContact` | Junction `X2Y` -> `XToY` |
-| `couponcodes` | `listCouponCodes` | `getCouponCode` | `createCouponCode` | `updateCouponCode` | `deleteCouponCode` | `existsCouponCode` | Compound `CouponCode` |
-| `customfields` | `listCustomFields` | `getCustomField` | — | — | — | `existsCustomField` | Read-only; compound |
-| `davservers` | `listDAVServers` | `getDAVServer` | `createDAVServer` | `updateDAVServer` | `deleteDAVServer` | `existsDAVServer` | Acronym uppercased: `DAVServer` |
-| `dunning` | `listDunningNotices` | `getDunningNotice` | `createDunningNotice` | `updateDunningNotice` | `deleteDunningNotice` | `existsDunningNotice` | Entity is **`DunningNotice`**, not `Dunning` |
-| `dunning2transactions` | `listDunningToTransactions` | `getDunningToTransaction` | `createDunningToTransaction` | `updateDunningToTransaction` | `deleteDunningToTransaction` | `existsDunningToTransaction` | Junction `dunning2transactions` -> `DunningToTransaction(s)` |
-| `entities2channels` | `listEntitiesToChannels` | `getEntityToChannel` | `createEntityToChannel` | `updateEntityToChannel` | `deleteEntityToChannel` | `existsEntityToChannel` | Junction; singular re-singularized to `EntityToChannel` |
-| `feedservers` | `listFeedServers` | `getFeedServer` | `createFeedServer` | `updateFeedServer` | `deleteFeedServer` | `existsFeedServer` | Compound `FeedServer` |
-| `groups2users` | `listGroupsToUsers` | `getGroupToUser` | — | — | — | `existsGroupToUser` | Read-only junction `X2Y` -> `XToY` |
-| `mailinglists` | `listMailingLists` | `getMailingList` | `createMailingList` | `updateMailingList` | `deleteMailingList` | `existsMailingList` | Compound `MailingList` |
-| `mailingrecipients` | `listMailingRecipients` | `getMailingRecipient` | `createMailingRecipient` | `updateMailingRecipient` | `deleteMailingRecipient` | `existsMailingRecipients` | Compound; **exists op is plural** `existsMailingRecipients` (sic) |
-| `mailservers` | `listMailServers` | `getMailServer` | `createMailServer` | `updateMailServer` | `deleteMailServer` | `existsMailServer` | Compound `MailServer` |
-| `messagereads` | `listMessageReads` | `getMessageRead` | `createMessageRead` | `updateMessageRead` | `deleteMessageRead` | `existsMessageRead` | Compound `MessageRead` |
-| `pricelists` | `listPriceLists` | `getPriceList` | `createPriceList` | `updatePriceList` | `deletePriceList` | `existsPriceList` | Compound `PriceList` |
-| `pricelists2accounts` | `listPriceListsToAccounts` | `getPriceListToAccount` | `createPriceListToAccount` | `updatePriceListToAccount` | `deletePriceListToAccount` | `existsPriceListToAccount` | Junction; compound on both sides |
-| `relateditems` | `listRelatedItems` | `getRelatedItem` | `createRelatedItem` | `updateRelatedItem` | `deleteRelatedItem` | `existsRelatedItem` | Compound `RelatedItem` |
-| `stocktransactions` | `listStockTransactions` | `getStockTransaction` | `createStockTransaction` | `updateStockTransaction` | `deleteStockTransaction` | `existsStockTransaction` | Compound `StockTransaction` |
+<!-- okf:generated:start — rewritten by scripts/generate-okf.mjs; do not edit by hand -->
+| Entity | Concept | list | get | create | update | delete | exists |
+|---|---|---|---|---|---|---|---|
+| `accounts` | [↗](../../okf/entities/accounts.md) | `listAccounts` | `getAccount` | `createAccount` | `updateAccount` | `deleteAccount` | `existsAccount` |
+| `actionsteps` | [↗](../../okf/entities/actionsteps.md) | `listActionSteps` | `getActionStep` | `createActionStep` | `updateActionStep` | `deleteActionStep` | `existsActionStep` |
+| `addresses` | [↗](../../okf/entities/addresses.md) | `listAddresses` | `getAddress` | `createAddress` | `updateAddress` | `deleteAddress` | `existsAddress` |
+| `applicationassets` | [↗](../../okf/entities/applicationassets.md) | `listApplicationAssets` | `getApplicationAsset` | — | — | — | `existsApplicationAsset` |
+| `applications` | [↗](../../okf/entities/applications.md) | `listApplications` | `getApplication` | — | — | — | `existsApplication` |
+| `appointments` | [↗](../../okf/entities/appointments.md) | `listAppointments` | `getAppointment` | `createAppointment` | `updateAppointment` | `deleteAppointment` | `existsAppointment` |
+| `associations` | [↗](../../okf/entities/associations.md) | `listAssociations` | `getAssociation` | `createAssociation` | `updateAssociation` | `deleteAssociation` | `existsAssociation` |
+| `binfiles` | [↗](../../okf/entities/binfiles.md) | `listBinFiles` | — | — | — | — | — |
+| `campaigns` | [↗](../../okf/entities/campaigns.md) | `listCampaigns` | `getCampaign` | `createCampaign` | `updateCampaign` | `deleteCampaign` | `existsCampaign` |
+| `categories` | [↗](../../okf/entities/categories.md) | `listCategorys` | `getCategory` | `createCategory` | `updateCategory` | `deleteCategory` | `existsCategory` |
+| `channels` | [↗](../../okf/entities/channels.md) | `listChannels` | `getChannel` | `createChannel` | `updateChannel` | `deleteChannel` | `existsChannel` |
+| `comments` | [↗](../../okf/entities/comments.md) | `listComments` | `getComment` | `createComment` | `updateComment` | `deleteComment` | `existsComment` |
+| `components` | [↗](../../okf/entities/components.md) | `listComponents` | `getComponent` | `createComponent` | `updateComponent` | `deleteComponent` | `existsComponent` |
+| `contacts` | [↗](../../okf/entities/contacts.md) | `listContacts` | `getContact` | `createContact` | `updateContact` | `deleteContact` | `existsContact` |
+| `contacts2contacts` | [↗](../../okf/entities/contacts2contacts.md) | `listContactsToContacts` | `getContactToContact` | `createContactToContact` | `updateContactToContact` | `deleteContactToContact` | `existsContactToContact` |
+| `contracts` | [↗](../../okf/entities/contracts.md) | `listContracts` | `getContract` | `createContract` | `updateContract` | `deleteContract` | `existsContract` |
+| `couponcodes` | [↗](../../okf/entities/couponcodes.md) | `listCouponCodes` | `getCouponCode` | `createCouponCode` | `updateCouponCode` | `deleteCouponCode` | `existsCouponCode` |
+| `coupons` | [↗](../../okf/entities/coupons.md) | `listCoupons` | `getCoupon` | `createCoupon` | `updateCoupon` | `deleteCoupon` | `existsCoupon` |
+| `customfields` | [↗](../../okf/entities/customfields.md) | `listCustomFields` | `getCustomField` | — | — | — | `existsCustomField` |
+| `davservers` | [↗](../../okf/entities/davservers.md) | `listDAVServers` | `getDAVServer` | `createDAVServer` | `updateDAVServer` | `deleteDAVServer` | `existsDAVServer` |
+| `devices` | [↗](../../okf/entities/devices.md) | `listDevices` | `getDevice` | `createDevice` | `updateDevice` | `deleteDevice` | `existsDevice` |
+| `documents` | [↗](../../okf/entities/documents.md) | `listDocuments` | `getDocument` | `createDocument` | `updateDocument` | `deleteDocument` | `existsDocument` |
+| `dunning` | [↗](../../okf/entities/dunning.md) | `listDunningNotices` | `getDunningNotice` | `createDunningNotice` | `updateDunningNotice` | `deleteDunningNotice` | `existsDunningNotice` |
+| `dunning2transactions` | [↗](../../okf/entities/dunning2transactions.md) | `listDunningToTransactions` | `getDunningToTransaction` | `createDunningToTransaction` | `updateDunningToTransaction` | `deleteDunningToTransaction` | `existsDunningToTransaction` |
+| `entities2channels` | [↗](../../okf/entities/entities2channels.md) | `listEntitiesToChannels` | `getEntityToChannel` | `createEntityToChannel` | `updateEntityToChannel` | `deleteEntityToChannel` | `existsEntityToChannel` |
+| `events` | [↗](../../okf/entities/events.md) | `listEvents` | `getEvent` | `createEvent` | `updateEvent` | `deleteEvent` | `existsEvent` |
+| `feedservers` | [↗](../../okf/entities/feedservers.md) | `listFeedServers` | `getFeedServer` | `createFeedServer` | `updateFeedServer` | `deleteFeedServer` | `existsFeedServer` |
+| `files` | [↗](../../okf/entities/files.md) | `listFiles` | `getFile` | `createFile` | `updateFile` | `deleteFile` | `existsFile` |
+| `follows` | [↗](../../okf/entities/follows.md) | `listFollows` | `getFollow` | `createFollow` | `updateFollow` | `deleteFollow` | `existsFollow` |
+| `forks` | [↗](../../okf/entities/forks.md) | `listForks` | `getFork` | — | — | — | `existsFork` |
+| `groups` | [↗](../../okf/entities/groups.md) | `listGroups` | `getGroup` | — | — | — | `existsGroup` |
+| `groups2users` | [↗](../../okf/entities/groups2users.md) | `listGroupsToUsers` | `getGroupToUser` | — | — | — | `existsGroupToUser` |
+| `invitations` | [↗](../../okf/entities/invitations.md) | `listInvitations` | `getInvitation` | `createInvitation` | `updateInvitation` | `deleteInvitation` | `existsInvitation` |
+| `items` | [↗](../../okf/entities/items.md) | `listItems` | `getItem` | `createItem` | `updateItem` | `deleteItem` | `existsItem` |
+| `ledgers` | [↗](../../okf/entities/ledgers.md) | `listLedgers` | `getLedger` | `createLedger` | `updateLedger` | `deleteLedger` | `existsLedger` |
+| `likes` | [↗](../../okf/entities/likes.md) | `listLikes` | `getLike` | `createLike` | `updateLike` | `deleteLike` | `existsLike` |
+| `links` | [↗](../../okf/entities/links.md) | `listLinks` | `getLink` | `createLink` | `updateLink` | `deleteLink` | `existsLink` |
+| `mailinglists` | [↗](../../okf/entities/mailinglists.md) | `listMailingLists` | `getMailingList` | `createMailingList` | `updateMailingList` | `deleteMailingList` | `existsMailingList` |
+| `mailingrecipients` | [↗](../../okf/entities/mailingrecipients.md) | `listMailingRecipients` | `getMailingRecipient` | `createMailingRecipient` | `updateMailingRecipient` | `deleteMailingRecipient` | `existsMailingRecipients` |
+| `mailservers` | [↗](../../okf/entities/mailservers.md) | `listMailServers` | `getMailServer` | `createMailServer` | `updateMailServer` | `deleteMailServer` | `existsMailServer` |
+| `messagereads` | [↗](../../okf/entities/messagereads.md) | `listMessageReads` | `getMessageRead` | `createMessageRead` | `updateMessageRead` | `deleteMessageRead` | `existsMessageRead` |
+| `messages` | [↗](../../okf/entities/messages.md) | `listMessages` | `getMessage` | `createMessage` | `updateMessage` | `deleteMessage` | `existsMessage` |
+| `notes` | [↗](../../okf/entities/notes.md) | `listNotes` | `getNote` | `createNote` | `updateNote` | `deleteNote` | `existsNote` |
+| `objects` | [↗](../../okf/entities/objects.md) | `listObjects` | `getObject` | `createObject` | `updateObject` | `deleteObject` | `existsObject` |
+| `opportunities` | [↗](../../okf/entities/opportunities.md) | `listOpportunities` | `getOpportunity` | `createOpportunity` | `updateOpportunity` | `deleteOpportunity` | `existsOpportunity` |
+| `participants` | [↗](../../okf/entities/participants.md) | `listParticipants` | `getParticipant` | `createParticipant` | `updateParticipant` | `deleteParticipant` | `existsParticipant` |
+| `payments` | [↗](../../okf/entities/payments.md) | `listPayments` | `getPayment` | `createPayment` | `updatePayment` | `deletePayment` | `existsPayment` |
+| `permissions` | [↗](../../okf/entities/permissions.md) | `listPermissions` | `getPermission` | — | — | — | `existsPermission` |
+| `pricelists` | [↗](../../okf/entities/pricelists.md) | `listPriceLists` | `getPriceList` | `createPriceList` | `updatePriceList` | `deletePriceList` | `existsPriceList` |
+| `pricelists2accounts` | [↗](../../okf/entities/pricelists2accounts.md) | `listPriceListsToAccounts` | `getPriceListToAccount` | `createPriceListToAccount` | `updatePriceListToAccount` | `deletePriceListToAccount` | `existsPriceListToAccount` |
+| `prices` | [↗](../../okf/entities/prices.md) | `listPrices` | `getPrice` | `createPrice` | `updatePrice` | `deletePrice` | `existsPrice` |
+| `projects` | [↗](../../okf/entities/projects.md) | `listProjects` | `getProject` | `createProject` | `updateProject` | `deleteProject` | `existsProject` |
+| `records` | [↗](../../okf/entities/records.md) | `listRecords` | `getRecord` | `createRecord` | `updateRecord` | `deleteRecord` | `existsRecord` |
+| `relateditems` | [↗](../../okf/entities/relateditems.md) | `listRelatedItems` | `getRelatedItem` | `createRelatedItem` | `updateRelatedItem` | `deleteRelatedItem` | `existsRelatedItem` |
+| `resources` | [↗](../../okf/entities/resources.md) | `listResources` | `getResource` | — | — | — | `existsResource` |
+| `services` | [↗](../../okf/entities/services.md) | `listServices` | `getService` | — | — | — | `existsService` |
+| `stocktransactions` | [↗](../../okf/entities/stocktransactions.md) | `listStockTransactions` | `getStockTransaction` | `createStockTransaction` | `updateStockTransaction` | `deleteStockTransaction` | `existsStockTransaction` |
+| `storages` | [↗](../../okf/entities/storages.md) | `listStorages` | `getStorage` | `createStorage` | `updateStorage` | `deleteStorage` | `existsStorage` |
+| `suppliers` | [↗](../../okf/entities/suppliers.md) | `listSuppliers` | `getSupplier` | `createSupplier` | `updateSupplier` | `deleteSupplier` | `existsSupplier` |
+| `tasks` | [↗](../../okf/entities/tasks.md) | `listTasks` | `getTask` | `createTask` | `updateTask` | `deleteTask` | `existsTask` |
+| `tickets` | [↗](../../okf/entities/tickets.md) | `listTickets` | `getTicket` | `createTicket` | `updateTicket` | `deleteTicket` | `existsTicket` |
+| `transactions` | [↗](../../okf/entities/transactions.md) | `listTransactions` | `getTransaction` | `createTransaction` | `updateTransaction` | `deleteTransaction` | `existsTransaction` |
+| `users` | [↗](../../okf/entities/users.md) | `listUsers` | `getUser` | — | — | — | `existsUser` |
+| `weblets` | [↗](../../okf/entities/weblets.md) | `listWeblets` | `getWeblet` | — | — | — | `existsWeblet` |
+<!-- okf:generated:end -->
 
-When in doubt, look up the operationId in `src/generated/operations.js` (or `openapi/api.json`) rather
-than constructing it from the noun.
+When in doubt, read the entity's OKF concept (linked above) or look the operationId up in
+`openapi/api.json` rather than constructing it from the noun.
 
 ## API-Backed Entities
 

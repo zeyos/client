@@ -203,11 +203,33 @@ A scenario that passes in harness mode but fails `--bare-skill` (typically with 
 }
 ```
 
-`pi` inherits the harness's `childEnv` (`ZEYOS_BASE_URL`, `ZEYOS_TOKEN`, `ZEYOS_REPO_ROOT`),
-so the `zeyos` CLI it shells out to is authenticated the same way. Combine with
-`--bare-skill` to test the skills the way you actually run them in
+`pi` inherits the harness's `childEnv` (`ZEYOS_BASE_URL`, `ZEYOS_TOKEN`, `ZEYOS_REPO_ROOT`,
+`ZEYOS_SKILL_ROOT`, `ZEYOS_OKF_ROOT`), so the `zeyos` CLI it shells out to is authenticated
+the same way. Combine with `--bare-skill` to test the skills the way you actually run them in
 `…/bell/agent`. Keep `agentProtocol.allowInstances` set to `["demo"]` — `pi` holds the same
 full-access token and the same safety caveats in §8 apply.
+
+### 5.4 Knowledge context: measuring and refining OKF
+
+The `--context skills|okf|both` flag (default `skills`) chooses which knowledge the agent is
+pointed at. `okf`/`both` expose the OKF bundle via `ZEYOS_OKF_ROOT` and add a prompt pointer
+(mirroring the skill pointer), so a run measures whether OKF-as-context lifts pass rates:
+
+```bash
+npm run test:agent-protocol -- --context okf  --scenario b03-billing-transaction-count
+npm run test:agent-loop      -- --context skills,okf,both --read-only --agents opencode
+```
+
+The loop sweeps the axis and reports per-context pass rates, so the scorecard shows which
+skill **and** which OKF concept is weak.
+
+**Refinement loop (`refine-okf.mjs`).** `npm run okf:refine` improves a concept's *curated*
+notes (never the generated managed block): a proposer model drafts a revision, the harness
+validates that every field it cites exists on the entity (against `client.schema`, so the
+model can't invent columns), a held-out judge (`judge.mjs` `judgeOkfRevision`) approves only
+accurate/useful revisions, and `--apply` writes the accepted notes. Feed it a scorecard
+(`--scorecard <path>`) to target the concepts behind weak scenarios, closing the loop with
+the measurement above.
 
 ---
 

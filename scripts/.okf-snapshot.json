@@ -1,0 +1,6500 @@
+{
+  "snapshot": "19d7df6ae9aa",
+  "model": {
+    "accounts": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "fork",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "forks"
+          }
+        },
+        {
+          "name": "ownergroup",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "groups"
+          }
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "assigneduser",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "users"
+          }
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "contact",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "contacts"
+          }
+        },
+        {
+          "name": "visibility",
+          "type": "smallint",
+          "enum": {
+            "0": "REGULAR",
+            "1": "ARCHIVED",
+            "2": "DELETED"
+          },
+          "fk": null
+        },
+        {
+          "name": "lastname",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "firstname",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "type",
+          "type": "smallint",
+          "enum": {
+            "0": "PROSPECT",
+            "1": "CUSTOMER",
+            "2": "SUPPLIER",
+            "3": "CUSTOMERANDSUPPLIER",
+            "4": "COMPETITOR",
+            "5": "EMPLOYEE"
+          },
+          "fk": null
+        },
+        {
+          "name": "customernum",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "suppliernum",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "taxid",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "currency",
+          "type": "character varying(3)",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "locked",
+          "type": "smallint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "excludetax",
+          "type": "smallint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "actionsteps": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "fork",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "forks"
+          }
+        },
+        {
+          "name": "owneruser",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "users"
+          }
+        },
+        {
+          "name": "ownergroup",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "groups"
+          }
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "assigneduser",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "users"
+          }
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "task",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "tasks"
+          }
+        },
+        {
+          "name": "ticket",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "tickets"
+          }
+        },
+        {
+          "name": "account",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "accounts"
+          }
+        },
+        {
+          "name": "transaction",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "transactions"
+          }
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "actionnum",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "date",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "duedate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "status",
+          "type": "smallint",
+          "enum": {
+            "0": "DRAFT",
+            "1": "COMPLETED",
+            "2": "CANCELLED",
+            "3": "BOOKED"
+          },
+          "fk": null
+        },
+        {
+          "name": "effort",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "addresses": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "account",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "accounts"
+          }
+        },
+        {
+          "name": "contact",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "contacts"
+          }
+        },
+        {
+          "name": "type",
+          "type": "smallint",
+          "enum": {
+            "0": "BILLING_SHIPPING",
+            "1": "BILLING_BILLING",
+            "2": "PROCUREMENT_SHIPPING",
+            "3": "PROCUREMENT_BILLING",
+            "4": "COLLECTION",
+            "5": "BILLING_SELLER",
+            "6": "PROCUREMENT_SELLER"
+          },
+          "fk": null
+        },
+        {
+          "name": "default",
+          "type": "smallint",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "applicationassets": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "application",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "applications"
+          }
+        },
+        {
+          "name": "binfile",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "binfiles"
+          }
+        },
+        {
+          "name": "filename",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "mimetype",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "applications": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "activity",
+          "type": "smallint",
+          "enum": {
+            "0": "ACTIVE",
+            "1": "DEACTIVATED",
+            "2": "DELETED"
+          },
+          "fk": null
+        },
+        {
+          "name": "readmebinfile",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "binfiles"
+          }
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "identifier",
+          "type": "character varying(200)",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "vendor",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "restricted",
+          "type": "smallint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "callbackurls",
+          "type": "text[]",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "settingscodebinfile",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "binfiles"
+          }
+        },
+        {
+          "name": "usersettingscodebinfile",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "binfiles"
+          }
+        },
+        {
+          "name": "secret",
+          "type": "bytea",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "defaultsettings",
+          "type": "json",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "settings",
+          "type": "json",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "appointments": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "fork",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "forks"
+          }
+        },
+        {
+          "name": "owneruser",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "users"
+          }
+        },
+        {
+          "name": "ownergroup",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "groups"
+          }
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "assigneduser",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "users"
+          }
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "davserver",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "davservers"
+          }
+        },
+        {
+          "name": "visibility",
+          "type": "smallint",
+          "enum": {
+            "0": "REGULAR",
+            "1": "ARCHIVED",
+            "2": "DELETED"
+          },
+          "fk": null
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "location",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "color",
+          "type": "character varying(6)",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "datefrom",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "dateto",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "recurrence",
+          "type": "smallint",
+          "enum": {
+            "0": "DAY",
+            "1": "WORKDAY",
+            "2": "WEEK",
+            "3": "MONTH",
+            "4": "YEAR"
+          },
+          "fk": null
+        },
+        {
+          "name": "interval",
+          "type": "smallint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "maxoccurrences",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "daterecurrence",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "associations": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "entity1",
+          "type": "t_entity",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "entity2",
+          "type": "t_entity",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "index1",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "index2",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "relation",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "meta",
+          "type": "json",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "binfiles": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "size",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "hash",
+          "type": "bytea",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "campaigns": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "fork",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "forks"
+          }
+        },
+        {
+          "name": "ownergroup",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "groups"
+          }
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "assigneduser",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "users"
+          }
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "visibility",
+          "type": "smallint",
+          "enum": {
+            "0": "REGULAR",
+            "1": "ARCHIVED",
+            "2": "DELETED"
+          },
+          "fk": null
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "datefrom",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "dateto",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "status",
+          "type": "smallint",
+          "enum": {
+            "0": "DRAFT",
+            "1": "NOTSTARTED",
+            "2": "AWAITINGAPPROVAL",
+            "3": "APPROVED",
+            "4": "DISMISSED",
+            "5": "ACTIVE",
+            "6": "INACTIVE",
+            "7": "INEVALUATION",
+            "8": "CANCELLED",
+            "9": "CLOSED"
+          },
+          "fk": null
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "categories": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "fork",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "forks"
+          }
+        },
+        {
+          "name": "owneruser",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "users"
+          }
+        },
+        {
+          "name": "ownergroup",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "groups"
+          }
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "entity",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "channels": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "owneruser",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "users"
+          }
+        },
+        {
+          "name": "ownergroup",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "groups"
+          }
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "activity",
+          "type": "smallint",
+          "enum": {
+            "0": "ACTIVE",
+            "1": "DEACTIVATED",
+            "2": "DELETED"
+          },
+          "fk": null
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "comments": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "record",
+          "type": "bigint",
+          "enum": null,
+          "fk": {
+            "table": "records"
+          }
+        },
+        {
+          "name": "date",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "sender",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "text",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "meta",
+          "type": "json",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "components": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "item",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "items"
+          }
+        },
+        {
+          "name": "component",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "items"
+          }
+        },
+        {
+          "name": "amount",
+          "type": "double precision",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "price",
+          "type": "double precision",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "fixed",
+          "type": "smallint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "order",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "contacts": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "fork",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "forks"
+          }
+        },
+        {
+          "name": "owneruser",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "users"
+          }
+        },
+        {
+          "name": "ownergroup",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "groups"
+          }
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "assigneduser",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "users"
+          }
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "davserver",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "davservers"
+          }
+        },
+        {
+          "name": "picbinfile",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "binfiles"
+          }
+        },
+        {
+          "name": "visibility",
+          "type": "smallint",
+          "enum": {
+            "0": "REGULAR",
+            "1": "ARCHIVED",
+            "2": "DELETED"
+          },
+          "fk": null
+        },
+        {
+          "name": "lastname",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "firstname",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "type",
+          "type": "smallint",
+          "enum": {
+            "0": "COMPANY",
+            "1": "PERSON"
+          },
+          "fk": null
+        },
+        {
+          "name": "title",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "company",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "position",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "department",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "address",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "postalcode",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "city",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "region",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "country",
+          "type": "character varying(2)",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "phone",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "phone2",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "cell",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "fax",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "email",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "email2",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "website",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "birthdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "contacts2contacts": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "contact1",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "contacts"
+          }
+        },
+        {
+          "name": "contact2",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "contacts"
+          }
+        }
+      ]
+    },
+    "contracts": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "fork",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "forks"
+          }
+        },
+        {
+          "name": "ownergroup",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "groups"
+          }
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "assigneduser",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "users"
+          }
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "account",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "accounts"
+          }
+        },
+        {
+          "name": "visibility",
+          "type": "smallint",
+          "enum": {
+            "0": "REGULAR",
+            "1": "ARCHIVED",
+            "2": "DELETED"
+          },
+          "fk": null
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "contractnum",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "date",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "datefrom",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "dateto",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "datecancel",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "status",
+          "type": "smallint",
+          "enum": {
+            "0": "DRAFT",
+            "1": "AWAITINGAPPROVAL",
+            "2": "APPROVED",
+            "3": "DISMISSED",
+            "4": "ACTIVE",
+            "5": "INACTIVE",
+            "6": "EXPIRED",
+            "7": "CANCELLED",
+            "8": "CLOSED"
+          },
+          "fk": null
+        },
+        {
+          "name": "currency",
+          "type": "character varying(3)",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "exchangerate",
+          "type": "double precision",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "billingcycle",
+          "type": "smallint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastbilling",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "contractitems",
+          "type": "json",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "billingitems",
+          "type": "json",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "procurementitems",
+          "type": "json",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "autobilling",
+          "type": "json",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "couponcodes": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "coupon",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "coupons"
+          }
+        },
+        {
+          "name": "transaction",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "transactions"
+          }
+        },
+        {
+          "name": "flag",
+          "type": "smallint",
+          "enum": {
+            "0": "BOOKED",
+            "1": "RESERVED",
+            "2": "CANCELLED"
+          },
+          "fk": null
+        },
+        {
+          "name": "date",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "code",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "value",
+          "type": "double precision",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "datefrom",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "dateto",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "coupons": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "fork",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "forks"
+          }
+        },
+        {
+          "name": "ownergroup",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "groups"
+          }
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "activity",
+          "type": "smallint",
+          "enum": {
+            "0": "ACTIVE",
+            "1": "DEACTIVATED",
+            "2": "DELETED"
+          },
+          "fk": null
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "type",
+          "type": "smallint",
+          "enum": {
+            "0": "PROMOTION",
+            "1": "INDIVIDUAL"
+          },
+          "fk": null
+        },
+        {
+          "name": "code",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "value",
+          "type": "double precision",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "taxrate",
+          "type": "double precision",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "neutral",
+          "type": "smallint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "datefrom",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "dateto",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "foreigntaxrates",
+          "type": "json",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "customfields": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "activity",
+          "type": "smallint",
+          "enum": {
+            "0": "ACTIVE",
+            "1": "DEACTIVATED",
+            "2": "DELETED"
+          },
+          "fk": null
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "identifier",
+          "type": "character varying(200)",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "context",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "source",
+          "type": "smallint",
+          "enum": {
+            "0": "EXTDATA",
+            "1": "TAGS",
+            "2": "INTERNAL"
+          },
+          "fk": null
+        },
+        {
+          "name": "reference",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "indexed",
+          "type": "smallint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "type",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "entity",
+          "type": "t_entity",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "options",
+          "type": "json",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "langaliases",
+          "type": "json",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "pattern",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "davservers": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "owneruser",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "users"
+          }
+        },
+        {
+          "name": "ownergroup",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "groups"
+          }
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "recipientuser",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "users"
+          }
+        },
+        {
+          "name": "recipientgroup",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "groups"
+          }
+        },
+        {
+          "name": "activity",
+          "type": "smallint",
+          "enum": {
+            "0": "ACTIVE",
+            "1": "DEACTIVATED",
+            "2": "DELETED"
+          },
+          "fk": null
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "type",
+          "type": "smallint",
+          "enum": {
+            "0": "CONTACTS",
+            "1": "TASKS",
+            "2": "APPOINTMENTS"
+          },
+          "fk": null
+        },
+        {
+          "name": "url",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "username",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "ctag",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "synctoken",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "password",
+          "type": "bytea",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "devices": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "fork",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "forks"
+          }
+        },
+        {
+          "name": "ownergroup",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "groups"
+          }
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "item",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "items"
+          }
+        },
+        {
+          "name": "contract",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "contracts"
+          }
+        },
+        {
+          "name": "visibility",
+          "type": "smallint",
+          "enum": {
+            "0": "REGULAR",
+            "1": "ARCHIVED",
+            "2": "DELETED"
+          },
+          "fk": null
+        },
+        {
+          "name": "serialnum",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "chargenum",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "expdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "documents": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "fork",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "forks"
+          }
+        },
+        {
+          "name": "owneruser",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "users"
+          }
+        },
+        {
+          "name": "ownergroup",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "groups"
+          }
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "assigneduser",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "users"
+          }
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "binfile",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "binfiles"
+          }
+        },
+        {
+          "name": "visibility",
+          "type": "smallint",
+          "enum": {
+            "0": "REGULAR",
+            "1": "ARCHIVED",
+            "2": "DELETED"
+          },
+          "fk": null
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "documentnum",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "status",
+          "type": "smallint",
+          "enum": {
+            "0": "DRAFT",
+            "1": "FEEDBACKREQUIRED",
+            "2": "INREVISION",
+            "3": "AWAITINGAPPROVAL",
+            "4": "FINAL",
+            "5": "OBSOLETE"
+          },
+          "fk": null
+        },
+        {
+          "name": "filename",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "mimetype",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "public",
+          "type": "smallint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "dunning": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "fork",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "forks"
+          }
+        },
+        {
+          "name": "ownergroup",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "groups"
+          }
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "assigneduser",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "users"
+          }
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "account",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "accounts"
+          }
+        },
+        {
+          "name": "dunningnum",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "type",
+          "type": "smallint",
+          "enum": {
+            "0": "LISTING",
+            "1": "REMINDER",
+            "2": "NOTICE"
+          },
+          "fk": null
+        },
+        {
+          "name": "date",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "duedate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "status",
+          "type": "smallint",
+          "enum": {
+            "0": "DRAFT",
+            "1": "BOOKED",
+            "2": "CANCELLED",
+            "3": "CLOSED"
+          },
+          "fk": null
+        },
+        {
+          "name": "fee",
+          "type": "double precision",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "recipient",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "address",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "postalcode",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "city",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "region",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "country",
+          "type": "character varying(2)",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "dunning2transactions": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "dunning",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "dunning"
+          }
+        },
+        {
+          "name": "transaction",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "transactions"
+          }
+        }
+      ]
+    },
+    "entities2channels": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "entity",
+          "type": "t_entity",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "index",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "channel",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "channels"
+          }
+        }
+      ]
+    },
+    "events": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "fork",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "forks"
+          }
+        },
+        {
+          "name": "owneruser",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "users"
+          }
+        },
+        {
+          "name": "ownergroup",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "groups"
+          }
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "entity",
+          "type": "t_entity",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "index",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "color",
+          "type": "character varying(6)",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "datefrom",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "dateto",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "meta",
+          "type": "json",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "feedservers": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "owneruser",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "users"
+          }
+        },
+        {
+          "name": "ownergroup",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "groups"
+          }
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "recipientuser",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "users"
+          }
+        },
+        {
+          "name": "recipientgroup",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "groups"
+          }
+        },
+        {
+          "name": "channel",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "channels"
+          }
+        },
+        {
+          "name": "activity",
+          "type": "smallint",
+          "enum": {
+            "0": "ACTIVE",
+            "1": "DEACTIVATED",
+            "2": "DELETED"
+          },
+          "fk": null
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "url",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "username",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "notify",
+          "type": "smallint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "etag",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "password",
+          "type": "bytea",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "files": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "record",
+          "type": "bigint",
+          "enum": null,
+          "fk": {
+            "table": "records"
+          }
+        },
+        {
+          "name": "comment",
+          "type": "bigint",
+          "enum": null,
+          "fk": {
+            "table": "comments"
+          }
+        },
+        {
+          "name": "binfile",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "binfiles"
+          }
+        },
+        {
+          "name": "filename",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "mimetype",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "follows": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "users"
+          }
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "entity",
+          "type": "t_entity",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "index",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "forks": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "group",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "groups"
+          }
+        },
+        {
+          "name": "activity",
+          "type": "smallint",
+          "enum": {
+            "0": "ACTIVE",
+            "1": "DEACTIVATED",
+            "2": "DELETED"
+          },
+          "fk": null
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "identifier",
+          "type": "character varying(200)",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "module",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "color",
+          "type": "character varying(6)",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "langaliases",
+          "type": "json",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "settings",
+          "type": "json",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "groups": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "leader",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "users"
+          }
+        },
+        {
+          "name": "activity",
+          "type": "smallint",
+          "enum": {
+            "0": "ACTIVE",
+            "1": "DEACTIVATED",
+            "2": "DELETED"
+          },
+          "fk": null
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "groups2users": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "group",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "groups"
+          }
+        },
+        {
+          "name": "user",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "users"
+          }
+        },
+        {
+          "name": "writable",
+          "type": "smallint",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "invitations": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "appointment",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "appointments"
+          }
+        },
+        {
+          "name": "contact",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "contacts"
+          }
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "email",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "flag",
+          "type": "smallint",
+          "enum": {
+            "0": "UNANSWERED",
+            "1": "CONFIRMED",
+            "2": "REJECTED"
+          },
+          "fk": null
+        }
+      ]
+    },
+    "items": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "fork",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "forks"
+          }
+        },
+        {
+          "name": "ownergroup",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "groups"
+          }
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "model",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "items"
+          }
+        },
+        {
+          "name": "picbinfile",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "binfiles"
+          }
+        },
+        {
+          "name": "visibility",
+          "type": "smallint",
+          "enum": {
+            "0": "REGULAR",
+            "1": "ARCHIVED",
+            "2": "DELETED"
+          },
+          "fk": null
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "manufacturer",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "itemnum",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "barcode",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "type",
+          "type": "smallint",
+          "enum": {
+            "0": "SIMPLE",
+            "1": "SERIALS",
+            "2": "CHARGES",
+            "3": "SERIALSANDCHARGES",
+            "4": "SET",
+            "5": "CONTAINER",
+            "6": "NOSTOCK",
+            "7": "MODEL"
+          },
+          "fk": null
+        },
+        {
+          "name": "forcestock",
+          "type": "smallint",
+          "enum": {
+            "0": "STORAGE",
+            "1": "LOCATION"
+          },
+          "fk": null
+        },
+        {
+          "name": "applicability",
+          "type": "smallint",
+          "enum": {
+            "0": "ALWAYS",
+            "1": "NEVER",
+            "2": "BILLINGONLY",
+            "3": "PROCUREMENTONLY"
+          },
+          "fk": null
+        },
+        {
+          "name": "unit",
+          "type": "character varying(3)",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "sellingprice",
+          "type": "double precision",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "purchaseprice",
+          "type": "double precision",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "taxrate",
+          "type": "double precision",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "weight",
+          "type": "double precision",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "classcode",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "tariffcode",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "origin",
+          "type": "character varying(2)",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "foreigntaxrates",
+          "type": "json",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "ledgers": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "fork",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "forks"
+          }
+        },
+        {
+          "name": "ownergroup",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "groups"
+          }
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "visibility",
+          "type": "smallint",
+          "enum": {
+            "0": "REGULAR",
+            "1": "ARCHIVED",
+            "2": "DELETED"
+          },
+          "fk": null
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "likes": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "users"
+          }
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "record",
+          "type": "bigint",
+          "enum": null,
+          "fk": {
+            "table": "records"
+          }
+        }
+      ]
+    },
+    "links": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "fork",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "forks"
+          }
+        },
+        {
+          "name": "owneruser",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "users"
+          }
+        },
+        {
+          "name": "ownergroup",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "groups"
+          }
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "assigneduser",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "users"
+          }
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "visibility",
+          "type": "smallint",
+          "enum": {
+            "0": "REGULAR",
+            "1": "ARCHIVED",
+            "2": "DELETED"
+          },
+          "fk": null
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "url",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "expdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "username",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "password",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "visits",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "password_encrypted",
+          "type": "bytea",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "otpsecret",
+          "type": "bytea",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "mailinglists": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "fork",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "forks"
+          }
+        },
+        {
+          "name": "owneruser",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "users"
+          }
+        },
+        {
+          "name": "ownergroup",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "groups"
+          }
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "assigneduser",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "users"
+          }
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "campaign",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "campaigns"
+          }
+        },
+        {
+          "name": "visibility",
+          "type": "smallint",
+          "enum": {
+            "0": "REGULAR",
+            "1": "ARCHIVED",
+            "2": "DELETED"
+          },
+          "fk": null
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "sender",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "mailingrecipients": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "message",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "messages"
+          }
+        },
+        {
+          "name": "participant",
+          "type": "bigint",
+          "enum": null,
+          "fk": {
+            "table": "participants"
+          }
+        },
+        {
+          "name": "email",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "mailservers": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "owneruser",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "users"
+          }
+        },
+        {
+          "name": "ownergroup",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "groups"
+          }
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "recipientuser",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "users"
+          }
+        },
+        {
+          "name": "recipientgroup",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "groups"
+          }
+        },
+        {
+          "name": "autoreplybinfile",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "binfiles"
+          }
+        },
+        {
+          "name": "signaturebinfile",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "binfiles"
+          }
+        },
+        {
+          "name": "activity",
+          "type": "smallint",
+          "enum": {
+            "0": "ACTIVE",
+            "1": "DEACTIVATED",
+            "2": "DELETED"
+          },
+          "fk": null
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "sender",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "serverin",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "usernamein",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "serverout",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "usernameout",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "ticketing",
+          "type": "json",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "folders",
+          "type": "json",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "passwordin",
+          "type": "bytea",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "passwordout",
+          "type": "bytea",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "messagereads": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "users"
+          }
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "message",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "messages"
+          }
+        }
+      ]
+    },
+    "messages": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "fork",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "forks"
+          }
+        },
+        {
+          "name": "owneruser",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "users"
+          }
+        },
+        {
+          "name": "ownergroup",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "groups"
+          }
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "mailserver",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "mailservers"
+          }
+        },
+        {
+          "name": "ticket",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "tickets"
+          }
+        },
+        {
+          "name": "opportunity",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "opportunities"
+          }
+        },
+        {
+          "name": "mailinglist",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "mailinglists"
+          }
+        },
+        {
+          "name": "reference",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "messages"
+          }
+        },
+        {
+          "name": "binfile",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "binfiles"
+          }
+        },
+        {
+          "name": "mailbox",
+          "type": "smallint",
+          "enum": {
+            "0": "INBOX",
+            "1": "DRAFTS",
+            "2": "SENT",
+            "3": "TEMPLATES",
+            "4": "MAILINGS",
+            "5": "ARCHIVE",
+            "6": "TRASH",
+            "7": "JUNK"
+          },
+          "fk": null
+        },
+        {
+          "name": "verified",
+          "type": "smallint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "date",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "subject",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "sender",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "sender_email",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "sender_name",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "to",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "to_email",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "to_name",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "to_count",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "cc",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "bcc",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "contenttype",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "text",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "attachments",
+          "type": "text[]",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "senddate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "senderror",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "messageid",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "notes": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "fork",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "forks"
+          }
+        },
+        {
+          "name": "owneruser",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "users"
+          }
+        },
+        {
+          "name": "ownergroup",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "groups"
+          }
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "assigneduser",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "users"
+          }
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "binfile",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "binfiles"
+          }
+        },
+        {
+          "name": "visibility",
+          "type": "smallint",
+          "enum": {
+            "0": "REGULAR",
+            "1": "ARCHIVED",
+            "2": "DELETED"
+          },
+          "fk": null
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "status",
+          "type": "smallint",
+          "enum": {
+            "0": "DRAFT",
+            "1": "FEEDBACKREQUIRED",
+            "2": "INREVISION",
+            "3": "AWAITINGAPPROVAL",
+            "4": "FINAL",
+            "5": "OBSOLETE"
+          },
+          "fk": null
+        },
+        {
+          "name": "contenttype",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "text",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "attachments",
+          "type": "text[]",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "objects": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "fork",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "forks"
+          }
+        },
+        {
+          "name": "owneruser",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "users"
+          }
+        },
+        {
+          "name": "ownergroup",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "groups"
+          }
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "assigneduser",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "users"
+          }
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "binfile",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "binfiles"
+          }
+        },
+        {
+          "name": "visibility",
+          "type": "smallint",
+          "enum": {
+            "0": "REGULAR",
+            "1": "ARCHIVED",
+            "2": "DELETED"
+          },
+          "fk": null
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "entity",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "date",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "data",
+          "type": "json",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "opportunities": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "fork",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "forks"
+          }
+        },
+        {
+          "name": "ownergroup",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "groups"
+          }
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "assigneduser",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "users"
+          }
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "account",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "accounts"
+          }
+        },
+        {
+          "name": "contact",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "contacts"
+          }
+        },
+        {
+          "name": "campaign",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "campaigns"
+          }
+        },
+        {
+          "name": "visibility",
+          "type": "smallint",
+          "enum": {
+            "0": "REGULAR",
+            "1": "ARCHIVED",
+            "2": "DELETED"
+          },
+          "fk": null
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "opportunitynum",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "date",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "duedate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "status",
+          "type": "smallint",
+          "enum": {
+            "0": "UNEVALUATED",
+            "1": "ELIGIBLE",
+            "2": "FEEDBACKREQUIRED",
+            "3": "INNEGOTIATION",
+            "4": "OFFERED",
+            "5": "ACCEPTED",
+            "6": "REJECTED"
+          },
+          "fk": null
+        },
+        {
+          "name": "priority",
+          "type": "smallint",
+          "enum": {
+            "0": "LOWEST",
+            "1": "LOW",
+            "2": "MEDIUM",
+            "3": "HIGH",
+            "4": "HIGHEST"
+          },
+          "fk": null
+        },
+        {
+          "name": "probability",
+          "type": "smallint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "worstcase",
+          "type": "double precision",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "mostlikely",
+          "type": "double precision",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "upside",
+          "type": "double precision",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "participants": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "mailinglist",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "mailinglists"
+          }
+        },
+        {
+          "name": "campaign",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "campaigns"
+          }
+        },
+        {
+          "name": "contact",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "contacts"
+          }
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "phone",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "email",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "payments": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "fork",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "forks"
+          }
+        },
+        {
+          "name": "ownergroup",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "groups"
+          }
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "assigneduser",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "users"
+          }
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "ledger",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "ledgers"
+          }
+        },
+        {
+          "name": "transaction",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "transactions"
+          }
+        },
+        {
+          "name": "account",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "accounts"
+          }
+        },
+        {
+          "name": "date",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "subject",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "status",
+          "type": "smallint",
+          "enum": {
+            "0": "DRAFT",
+            "1": "COMPLETED",
+            "2": "CANCELLED",
+            "3": "BOOKED"
+          },
+          "fk": null
+        },
+        {
+          "name": "amount",
+          "type": "double precision",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "autoadvance",
+          "type": "smallint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "permissions": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "group",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "groups"
+          }
+        },
+        {
+          "name": "fork",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "forks"
+          }
+        },
+        {
+          "name": "application",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "applications"
+          }
+        },
+        {
+          "name": "identifier",
+          "type": "character varying(200)",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "writable",
+          "type": "smallint",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "pricelists": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "fork",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "forks"
+          }
+        },
+        {
+          "name": "ownergroup",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "groups"
+          }
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "activity",
+          "type": "smallint",
+          "enum": {
+            "0": "ACTIVE",
+            "1": "DEACTIVATED",
+            "2": "DELETED"
+          },
+          "fk": null
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "type",
+          "type": "smallint",
+          "enum": {
+            "0": "BILLING_MIN",
+            "1": "BILLING_MAX",
+            "2": "PROCUREMENT_MIN",
+            "3": "PROCUREMENT_MAX",
+            "4": "PRODUCTION_MIN",
+            "5": "PRODUCTION_MAX"
+          },
+          "fk": null
+        },
+        {
+          "name": "currency",
+          "type": "character varying(3)",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "discount",
+          "type": "double precision",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "datefrom",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "dateto",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "applytoall",
+          "type": "smallint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "pricelists2accounts": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "pricelist",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "pricelists"
+          }
+        },
+        {
+          "name": "account",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "accounts"
+          }
+        }
+      ]
+    },
+    "prices": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "item",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "items"
+          }
+        },
+        {
+          "name": "pricelist",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "pricelists"
+          }
+        },
+        {
+          "name": "price",
+          "type": "double precision",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "rebate",
+          "type": "double precision",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "discount",
+          "type": "double precision",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "minamount",
+          "type": "double precision",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "costprice",
+          "type": "double precision",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "projects": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "fork",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "forks"
+          }
+        },
+        {
+          "name": "owneruser",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "users"
+          }
+        },
+        {
+          "name": "ownergroup",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "groups"
+          }
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "assigneduser",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "users"
+          }
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "account",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "accounts"
+          }
+        },
+        {
+          "name": "visibility",
+          "type": "smallint",
+          "enum": {
+            "0": "REGULAR",
+            "1": "ARCHIVED",
+            "2": "DELETED"
+          },
+          "fk": null
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "projectnum",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "status",
+          "type": "smallint",
+          "enum": {
+            "0": "DRAFT",
+            "1": "NOTSTARTED",
+            "2": "AWAITINGAPPROVAL",
+            "3": "APPROVED",
+            "4": "DISMISSED",
+            "5": "ACTIVE",
+            "6": "INACTIVE",
+            "7": "TESTING",
+            "8": "CANCELLED",
+            "9": "COMPLETED",
+            "10": "FAILED",
+            "11": "BOOKED"
+          },
+          "fk": null
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "records": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "fork",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "forks"
+          }
+        },
+        {
+          "name": "owneruser",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "users"
+          }
+        },
+        {
+          "name": "ownergroup",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "groups"
+          }
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "assigneduser",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "users"
+          }
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "entity",
+          "type": "t_entity",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "index",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "channel",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "channels"
+          }
+        },
+        {
+          "name": "flag",
+          "type": "smallint",
+          "enum": {
+            "0": "REGULAR",
+            "1": "ASSOCONLY",
+            "2": "MINDLOGONLY",
+            "3": "MONITOR",
+            "4": "FEED"
+          },
+          "fk": null
+        },
+        {
+          "name": "date",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "stickydate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "sender",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "location",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "text",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "meta",
+          "type": "json",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "relateditems": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "item",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "items"
+          }
+        },
+        {
+          "name": "relateditem",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "items"
+          }
+        },
+        {
+          "name": "relation",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "resources": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "application",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "applications"
+          }
+        },
+        {
+          "name": "activity",
+          "type": "smallint",
+          "enum": {
+            "0": "ACTIVE",
+            "1": "DEACTIVATED",
+            "2": "DELETED"
+          },
+          "fk": null
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "identifier",
+          "type": "character varying(200)",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "mimetype",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "public",
+          "type": "smallint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "binfile",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "binfiles"
+          }
+        }
+      ]
+    },
+    "services": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "application",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "applications"
+          }
+        },
+        {
+          "name": "activity",
+          "type": "smallint",
+          "enum": {
+            "0": "ACTIVE",
+            "1": "DEACTIVATED",
+            "2": "DELETED"
+          },
+          "fk": null
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "identifier",
+          "type": "character varying(200)",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "type",
+          "type": "smallint",
+          "enum": {
+            "0": "TIMING",
+            "1": "REMOTECALL",
+            "2": "AFTER_CREATION",
+            "3": "BEFORE_MODIFICATION",
+            "4": "AFTER_MODIFICATION",
+            "5": "AFTER_CREATION_MODIFICATION",
+            "6": "BEFORE_DELETION",
+            "7": "AFTER_DELETION"
+          },
+          "fk": null
+        },
+        {
+          "name": "entity",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "schedule",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "interval",
+          "type": "smallint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "mimetype",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "binfile",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "binfiles"
+          }
+        },
+        {
+          "name": "url",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "accesskey",
+          "type": "bytea",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "stocktransactions": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "item",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "items"
+          }
+        },
+        {
+          "name": "storage",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "storages"
+          }
+        },
+        {
+          "name": "transaction",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "transactions"
+          }
+        },
+        {
+          "name": "transfer",
+          "type": "bigint",
+          "enum": null,
+          "fk": {
+            "table": "stocktransactions"
+          }
+        },
+        {
+          "name": "flag",
+          "type": "smallint",
+          "enum": {
+            "0": "BOOKED",
+            "1": "RESERVED",
+            "2": "CANCELLED"
+          },
+          "fk": null
+        },
+        {
+          "name": "date",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "chargenum",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "location",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "reference",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "amount",
+          "type": "double precision",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "sellingprice",
+          "type": "double precision",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "purchaseprice",
+          "type": "double precision",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "serials",
+          "type": "text[]",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "subtransactions",
+          "type": "bigint[]",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "storages": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "fork",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "forks"
+          }
+        },
+        {
+          "name": "ownergroup",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "groups"
+          }
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "visibility",
+          "type": "smallint",
+          "enum": {
+            "0": "REGULAR",
+            "1": "ARCHIVED",
+            "2": "DELETED"
+          },
+          "fk": null
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "suppliers": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "item",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "items"
+          }
+        },
+        {
+          "name": "account",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "accounts"
+          }
+        },
+        {
+          "name": "itemnum",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "price",
+          "type": "double precision",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "taxrate",
+          "type": "double precision",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "minamount",
+          "type": "double precision",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "deliverytime",
+          "type": "smallint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "stock",
+          "type": "double precision",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "tasks": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "fork",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "forks"
+          }
+        },
+        {
+          "name": "owneruser",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "users"
+          }
+        },
+        {
+          "name": "ownergroup",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "groups"
+          }
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "assigneduser",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "users"
+          }
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "davserver",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "davservers"
+          }
+        },
+        {
+          "name": "ticket",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "tickets"
+          }
+        },
+        {
+          "name": "project",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "projects"
+          }
+        },
+        {
+          "name": "visibility",
+          "type": "smallint",
+          "enum": {
+            "0": "REGULAR",
+            "1": "ARCHIVED",
+            "2": "DELETED"
+          },
+          "fk": null
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "tasknum",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "datefrom",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "duedate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "status",
+          "type": "smallint",
+          "enum": {
+            "0": "NOTSTARTED",
+            "1": "AWAITINGACCEPTANCE",
+            "2": "ACCEPTED",
+            "3": "REJECTED",
+            "4": "ACTIVE",
+            "5": "INACTIVE",
+            "6": "FEEDBACKREQUIRED",
+            "7": "TESTING",
+            "8": "CANCELLED",
+            "9": "COMPLETED",
+            "10": "FAILED",
+            "11": "BOOKED"
+          },
+          "fk": null
+        },
+        {
+          "name": "priority",
+          "type": "smallint",
+          "enum": {
+            "0": "LOWEST",
+            "1": "LOW",
+            "2": "MEDIUM",
+            "3": "HIGH",
+            "4": "HIGHEST"
+          },
+          "fk": null
+        },
+        {
+          "name": "projectedeffort",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "tickets": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "fork",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "forks"
+          }
+        },
+        {
+          "name": "ownergroup",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "groups"
+          }
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "assigneduser",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "users"
+          }
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "account",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "accounts"
+          }
+        },
+        {
+          "name": "project",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "projects"
+          }
+        },
+        {
+          "name": "visibility",
+          "type": "smallint",
+          "enum": {
+            "0": "REGULAR",
+            "1": "ARCHIVED",
+            "2": "DELETED"
+          },
+          "fk": null
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "ticketnum",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "date",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "duedate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "status",
+          "type": "smallint",
+          "enum": {
+            "0": "NOTSTARTED",
+            "1": "AWAITINGACCEPTANCE",
+            "2": "ACCEPTED",
+            "3": "REJECTED",
+            "4": "ACTIVE",
+            "5": "INACTIVE",
+            "6": "FEEDBACKREQUIRED",
+            "7": "TESTING",
+            "8": "CANCELLED",
+            "9": "COMPLETED",
+            "10": "FAILED",
+            "11": "BOOKED"
+          },
+          "fk": null
+        },
+        {
+          "name": "priority",
+          "type": "smallint",
+          "enum": {
+            "0": "LOWEST",
+            "1": "LOW",
+            "2": "MEDIUM",
+            "3": "HIGH",
+            "4": "HIGHEST"
+          },
+          "fk": null
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "billingitems",
+          "type": "json",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "procurementitems",
+          "type": "json",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "transactions": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "fork",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "forks"
+          }
+        },
+        {
+          "name": "ownergroup",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "groups"
+          }
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "assigneduser",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "users"
+          }
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "account",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "accounts"
+          }
+        },
+        {
+          "name": "item",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "items"
+          }
+        },
+        {
+          "name": "contract",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "contracts"
+          }
+        },
+        {
+          "name": "transactionnum",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "type",
+          "type": "smallint",
+          "enum": {
+            "0": "BILLING_QUOTE",
+            "1": "BILLING_ORDER",
+            "2": "BILLING_DELIVERY",
+            "3": "BILLING_INVOICE",
+            "4": "BILLING_CREDIT",
+            "5": "PROCUREMENT_REQUEST",
+            "6": "PROCUREMENT_ORDER",
+            "7": "PROCUREMENT_DELIVERY",
+            "8": "PROCUREMENT_INVOICE",
+            "9": "PROCUREMENT_CREDIT",
+            "10": "PRODUCTION_FABRICATION",
+            "11": "PRODUCTION_DISASSEMBLY"
+          },
+          "fk": null
+        },
+        {
+          "name": "date",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "duedate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "status",
+          "type": "smallint",
+          "enum": {
+            "0": "DRAFT",
+            "1": "BOOKED",
+            "2": "HOLD",
+            "3": "CANCELLED",
+            "4": "CLOSED",
+            "5": "PARTLYORDERED",
+            "6": "PARTLYORDERED_CANCELLED",
+            "7": "PARTLYORDERED_CLOSED",
+            "8": "ORDERED",
+            "9": "PARTLYDELIVERED",
+            "10": "PARTLYDELIVERED_CANCELLED",
+            "11": "PARTLYDELIVERED_CLOSED",
+            "12": "DELIVERED",
+            "13": "PARTLYINVOICED",
+            "14": "PARTLYINVOICED_CANCELLED",
+            "15": "PARTLYINVOICED_CLOSED",
+            "16": "INVOICED",
+            "17": "PARTLYPAID",
+            "18": "PARTLYPAID_CANCELLED",
+            "19": "PARTLYPAID_CLOSED",
+            "20": "PAID",
+            "21": "OVERPAID",
+            "22": "PROCESSED",
+            "23": "PROCESSED_CANCELLED"
+          },
+          "fk": null
+        },
+        {
+          "name": "calculation",
+          "type": "smallint",
+          "enum": {
+            "0": "NET",
+            "1": "GROSS",
+            "2": "EXACT",
+            "3": "LEGACY",
+            "4": "EXTERNAL"
+          },
+          "fk": null
+        },
+        {
+          "name": "productionfactor",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "currency",
+          "type": "character varying(3)",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "exchangerate",
+          "type": "double precision",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "taxid",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "shippingrecipient",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "shippingaddress",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "shippingpostalcode",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "shippingcity",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "shippingregion",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "shippingcountry",
+          "type": "character varying(2)",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "billingrecipient",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "billingaddress",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "billingpostalcode",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "billingcity",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "billingregion",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "billingcountry",
+          "type": "character varying(2)",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "sellertaxid",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "sellername",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "selleraddress",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "sellerpostalcode",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "sellercity",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "sellerregion",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "sellercountry",
+          "type": "character varying(2)",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "discount",
+          "type": "double precision",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "netamount",
+          "type": "double precision",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "tax",
+          "type": "double precision",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "margin",
+          "type": "double precision",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "weight",
+          "type": "double precision",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "items",
+          "type": "json",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "users": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "contact",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "contacts"
+          }
+        },
+        {
+          "name": "activity",
+          "type": "smallint",
+          "enum": {
+            "0": "ACTIVE",
+            "1": "DEACTIVATED",
+            "2": "DELETED"
+          },
+          "fk": null
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "email",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "nopublic",
+          "type": "smallint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "apionly",
+          "type": "smallint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "expdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "password",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "resetlogintoken",
+          "type": "bytea",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "persistentlogintoken",
+          "type": "bytea",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "signature",
+          "type": "bytea",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "otpsecret",
+          "type": "bytea",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "settings",
+          "type": "json",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    },
+    "weblets": {
+      "fields": [
+        {
+          "name": "ID",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creator",
+          "type": "integer",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "creationdate",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "lastmodified",
+          "type": "bigint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "application",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "applications"
+          }
+        },
+        {
+          "name": "activity",
+          "type": "smallint",
+          "enum": {
+            "0": "ACTIVE",
+            "1": "DEACTIVATED",
+            "2": "DELETED"
+          },
+          "fk": null
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "identifier",
+          "type": "character varying(200)",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "view",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "type",
+          "type": "smallint",
+          "enum": {
+            "0": "INTEGRATED",
+            "1": "STANDALONE",
+            "2": "DETACHED",
+            "3": "POPUP_FRAMED",
+            "4": "POPUP_PLAIN",
+            "5": "EMBEDDED_FRAMED",
+            "6": "EMBEDDED_COLLAPSED",
+            "7": "EMBEDDED_PLAIN"
+          },
+          "fk": null
+        },
+        {
+          "name": "width",
+          "type": "smallint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "height",
+          "type": "smallint",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "svgpath",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "color",
+          "type": "character varying(6)",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "mimetype",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "langaliases",
+          "type": "json",
+          "enum": null,
+          "fk": null
+        },
+        {
+          "name": "binfile",
+          "type": "integer",
+          "enum": null,
+          "fk": {
+            "table": "binfiles"
+          }
+        },
+        {
+          "name": "url",
+          "type": "text",
+          "enum": null,
+          "fk": null
+        }
+      ]
+    }
+  }
+}

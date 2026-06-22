@@ -72,7 +72,11 @@ function parseArgs(argv) {
     runId: null,
     bareSkill: false,
     allModels: false,
-    readOnly: false
+    readOnly: false,
+    // Knowledge context offered to the agent: skills (default), okf (the OKF
+    // bundle only), or both. Lets the loop measure whether OKF-as-context lifts
+    // pass rates and which concepts correlate with failures.
+    context: 'skills'
   };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
@@ -87,6 +91,10 @@ function parseArgs(argv) {
     else if (a === '--models') opts.models = argv[++i].split(',').map((s) => s.trim()).filter(Boolean);
     else if (a === '--config') opts.config = argv[++i];
     else if (a === '--run-id') opts.runId = argv[++i];
+    else if (a === '--context') opts.context = argv[++i];
+  }
+  if (!['skills', 'okf', 'both'].includes(opts.context)) {
+    fail(`--context must be one of skills|okf|both (got "${opts.context}").`);
   }
   return opts;
 }
@@ -226,6 +234,7 @@ async function main() {
   const transientRetries = ap.rotation?.transientRetries ?? 1;
   const canarySet = new Set(ap.rotation?.canaryIds || []);
   const skillRoot = ap.skillRoot ? path.resolve(path.dirname(configPath), ap.skillRoot) : path.join(REPO_ROOT, 'agents');
+  const okfRoot = ap.okfRoot ? path.resolve(path.dirname(configPath), ap.okfRoot) : path.join(REPO_ROOT, 'okf');
 
   // ── scenarios (no credentials needed to load/list) ──
   const all = await walkScenarios(SCENARIO_DIR);
@@ -292,6 +301,7 @@ async function main() {
   console.log(`Instance:  ${instance} (${baseUrl})`);
   console.log(`User ($ME): ${me ?? '(unresolved — $ME scenarios will be skipped/failed)'}`);
   console.log(`Mode:      ${opts.dryRun ? 'DRY RUN (no model, no mutation)' : `LIVE — models: ${models.join(', ')}`}${opts.bareSkill ? ' — BARE-SKILL (no inlined operating contract; tests skill self-containment)' : ''}`);
+  console.log(`Context:   ${opts.context} (knowledge offered to the agent)`);
   console.log(`Scenarios: ${scenarios.length}\n`);
 
   // ── orphan sweep ──
@@ -317,7 +327,8 @@ async function main() {
     ZEYOS_INSTANCE: instance,
     ZEYOS_TOKEN: token.accessToken,
     ZEYOS_REPO_ROOT: REPO_ROOT,
-    ZEYOS_SKILL_ROOT: skillRoot
+    ZEYOS_SKILL_ROOT: skillRoot,
+    ZEYOS_OKF_ROOT: okfRoot
   };
 
   const records = [];
@@ -325,7 +336,7 @@ async function main() {
     const rec = await runScenario({
       scenario, models, runner, childEnv, resultsDir, client, runId, recordPrefix, me,
       transientRetries, isCanary: canarySet.has(scenario.id), judgeModel: ap.judgeModel, noCleanup: opts.noCleanup,
-      bareSkill: opts.bareSkill, allModels: opts.allModels,
+      bareSkill: opts.bareSkill, allModels: opts.allModels, context: opts.context,
       tokenProvider: freshHarnessToken, verifyClientProvider: buildFreshVerifyClient
     });
     records.push(rec);
@@ -343,8 +354,8 @@ async function main() {
 // ── per-scenario rotation engine ────────────────────────────────────────────
 
 async function runScenario(c) {
-  const { scenario, models, runner, childEnv, resultsDir, client, runId, recordPrefix, me, transientRetries, isCanary, judgeModel, noCleanup, bareSkill, allModels, tokenProvider, verifyClientProvider } = c;
-  const prompt = buildPrompt(scenario, { runId, recordPrefix }, { bareSkill });
+  const { scenario, models, runner, childEnv, resultsDir, client, runId, recordPrefix, me, transientRetries, isCanary, judgeModel, noCleanup, bareSkill, allModels, context, tokenProvider, verifyClientProvider } = c;
+  const prompt = buildPrompt(scenario, { runId, recordPrefix }, { bareSkill, context });
   const attempts = [];
 
   for (const model of models) {
@@ -419,11 +430,17 @@ async function runScenario(c) {
 
 function buildPrompt(scenario, ctx, opts = {}) {
   const lines = [];
+  // Knowledge context: which body of guidance the agent is pointed at. `skills`
+  // (default) preserves the original behaviour; `okf` points only at the OKF
+  // bundle; `both` offers each. This is the axis the loop uses to measure OKF.
+  const context = opts.context || 'skills';
+  const useSkill = context === 'skills' || context === 'both';
+  const useOkf = context === 'okf' || context === 'both';
   // Bare-skill mode deliberately omits the inlined operating contract so the only place
   // the agent can learn "you have tools, the CLI is authenticated, act don't plan" is the
   // skill itself — that is the self-containment test. Harness mode inlines AGENTS.md.
   if (!opts.bareSkill && AGENTS_CONTRACT) lines.push(AGENTS_CONTRACT, '', '--- TASK ---', '');
-  if (scenario.skill) {
+  if (scenario.skill && useSkill) {
     // Referenced through ZEYOS_SKILL_ROOT so the harness can test copied baseline or
     // candidate skill folders without rewriting scenario files. Wording avoids
     // to avoid colliding with opencode's own "skill" loader. In bare-skill mode this
@@ -434,6 +451,21 @@ function buildPrompt(scenario, ctx, opts = {}) {
         `${root}/${scenario.skill}/SKILL.md and ${root}/${scenario.skill}/references/workflows.md. ` +
         `If your file-read tool does not expand environment variables, first run ` +
         '`printf "%s\\n" "$ZEYOS_SKILL_ROOT"` in the shell and read the absolute paths it prints.',
+      ''
+    );
+  }
+  if (useOkf) {
+    // Mirrors the skill pointer: the agent reads the OKF bundle for the canonical
+    // data model (entities, foreign keys, enums, indexes, operationIds) and the
+    // curated metrics/playbooks/concepts. Pointing rather than inlining keeps the
+    // prompt small and tests whether having the bundle available helps.
+    const root = opts.okfRootLabel || '$ZEYOS_OKF_ROOT';
+    lines.push(
+      `Consult the ZeyOS OKF knowledge bundle at ${root} for the data model and query rules: ` +
+        `start at ${root}/index.md, then read the relevant ${root}/entities/<name>.md (schema, ` +
+        `foreign keys, enums, indexes, operationIds), ${root}/concepts/*.md, and the matching ` +
+        `${root}/metrics or ${root}/playbooks docs. If your file-read tool does not expand ` +
+        'environment variables, first run `printf "%s\\n" "$ZEYOS_OKF_ROOT"` in the shell.',
       ''
     );
   }

@@ -53,3 +53,53 @@ export async function judgeManual({ judgeModel, rubric, transcript, runner, env,
   const pass = /VERDICT:\s*PASS/i.test(line);
   return { pass, reason: line.replace(/^\s*VERDICT:\s*/i, '').trim() };
 }
+
+const OKF_JUDGE_PREAMBLE = `You are a strict documentation reviewer for a ZeyOS OKF knowledge bundle. You are
+given a concept's CURRENT curated notes and a PROPOSED revision. Approve the revision
+ONLY if it is more accurate and more useful for an agent querying ZeyOS, AND it makes no
+claim that contradicts the entity's generated schema. Reject if it invents fields, enums,
+or operations, adds filler, or drops correct guidance.
+
+Respond with exactly one line:
+VERDICT: PASS <short reason>
+or
+VERDICT: FAIL <short reason>`;
+
+/**
+ * Held-out judge for an OKF curated-notes revision (the refinement loop's gate).
+ * Mirrors judgeManual: the judge model is configured separately and never grades
+ * its own output.
+ * @returns {Promise<{ pass: boolean|null, reason: string }>}
+ */
+export async function judgeOkfRevision({ judgeModel, conceptId, before, after, runner, env, repoRoot, resultsDir }) {
+  if (!judgeModel) return { pass: null, reason: 'no judgeModel configured — needs human review' };
+  const prompt = [
+    OKF_JUDGE_PREAMBLE,
+    '',
+    `CONCEPT: ${conceptId}`,
+    '',
+    '===== CURRENT =====',
+    before || '(empty)',
+    '',
+    '===== PROPOSED =====',
+    after
+  ].join('\n');
+
+  const res = await runAgent({
+    runner,
+    model: judgeModel,
+    prompt,
+    env,
+    repoRoot,
+    resultsDir,
+    scenarioId: `okf-refine__${String(conceptId).replace(/\W+/g, '_')}__JUDGE`
+  });
+
+  const line = String(res.stdout || '')
+    .split(/\r?\n/)
+    .reverse()
+    .find((l) => /^\s*VERDICT:/i.test(l));
+
+  if (!line) return { pass: null, reason: 'judge produced no VERDICT line — needs human review' };
+  return { pass: /VERDICT:\s*PASS/i.test(line), reason: line.replace(/^\s*VERDICT:\s*/i, '').trim() };
+}

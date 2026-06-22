@@ -1,0 +1,9 @@
+{
+  "label": "Open Knowledge Format (OKF)",
+  "position": 7,
+  "collapsed": false,
+  "link": {
+    "type": "generated-index",
+    "description": "The ZeyOS knowledge bundle in Google's Open Knowledge Format — a portable, Git-native Markdown description of the data model that agents and tools consume, how to produce and keep it fresh, and how it ties into the skill-improvement loops."
+  }
+}

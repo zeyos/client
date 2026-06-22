@@ -5,6 +5,8 @@ This folder contains a repo-local skill pack for coding agents that use ZeyOS as
 The source-backed model reference lives in [`shared/zeyos-entity-reference.md`](./shared/zeyos-entity-reference.md) and is derived from [`openapi/dbref.json`](../openapi/dbref.json) and [`openapi/api.json`](../openapi/api.json).
 Cross-platform modeling guidance lives in [`shared/business-app-benchmarks.md`](./shared/business-app-benchmarks.md).
 
+The **canonical** per-entity schema (columns, types, enums, foreign keys, indexes, operationIds) now lives in the [Open Knowledge Format bundle](../okf/entities/index.md) under [`okf/`](../okf/), generated from the same specs; the shared reference's operationId table is generated from it. Cross-cutting query rules and footguns are in [`okf/concepts/`](../okf/concepts/index.md). When a schema fact in a shared reference and in `okf/` disagree, `okf/` wins.
+
 ## Structure
 
 - `shared/` contains cross-domain query rules and entity relationships, including

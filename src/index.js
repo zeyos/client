@@ -1,6 +1,9 @@
 import { createZeyosClient } from './runtime/client.js';
 import { ZeyosApiError, ZeyosValidationError } from './runtime/error.js';
 import { MemoryTokenStore, normalizeTokenSet, tokenResponseToTokenSet } from './runtime/token-store.js';
+import {
+  OKF_VERSION, buildOkf, loadOkfBundle, validateOkfBundle, validateOkfFiles, conceptIdForResource
+} from './runtime/okf.js';
 
 /**
  * @typedef {null|boolean|number|string|JsonValue[]|Record<string, JsonValue>} JsonValue
@@ -83,3 +86,4 @@ export function normalizeCountResult(result) {
 }
 
 export { createZeyosClient, ZeyosApiError, ZeyosValidationError, MemoryTokenStore, normalizeTokenSet, tokenResponseToTokenSet };
+export { OKF_VERSION, buildOkf, loadOkfBundle, validateOkfBundle, validateOkfFiles, conceptIdForResource };

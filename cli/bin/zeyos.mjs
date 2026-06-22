@@ -51,6 +51,7 @@ ${_c.bold('Commands:')}
   ${_c.cyan('describe')} <resource>  Show a resource's fields, types and enums
   ${_c.cyan('doctor')} agent         Check local CLI readiness for coding agents
   ${_c.cyan('skills')} <command>     List / show / install ZeyOS agent skills
+  ${_c.cyan('okf')} <command>        List / show / check / export the OKF knowledge bundle
   ${_c.cyan('profile')} <command>    Manage credential profiles / switch instances
 
 ${_c.bold('Global options:')}
@@ -120,6 +121,8 @@ const OPTIONS = {
   'target':     { type: 'string' },
   'dir':        { type: 'string' },
   'no-logo':    { type: 'boolean' },
+  // okf
+  'out':        { type: 'string' },
   // profile
   'from-current': { type: 'boolean' },
 };
@@ -147,6 +150,7 @@ const COMMANDS = {
   doctor:    '../commands/doctor.mjs',
   skills:    '../commands/skills.mjs',
   skill:     '../commands/skills.mjs',
+  okf:       '../commands/okf.mjs',
   profile:   '../commands/profile.mjs',
   profiles:  '../commands/profile.mjs',
 };
@@ -158,6 +162,7 @@ const COMMANDS = {
 
 const ALWAYS_FLAGS = ['help', 'json', 'yaml', 'no-color', 'profile'];
 const SKILLS_FLAGS = ['target', 'dir', 'global', 'local', 'force', 'yes', 'no-logo'];
+const OKF_FLAGS    = ['dir', 'out', 'force', 'no-logo'];
 const PROFILE_FLAGS = ['base-url', 'client-id', 'secret', 'local', 'from-current'];
 const DELETE_FLAGS = ['force', 'query'];
 const GET_FLAGS    = ['fields', 'extdata', 'tags', 'expand', 'all', 'query'];
@@ -182,6 +187,7 @@ const COMMAND_FLAGS = {
   doctor:    [],
   skills:    SKILLS_FLAGS,
   skill:     SKILLS_FLAGS,
+  okf:       OKF_FLAGS,
   profile:   PROFILE_FLAGS,
   profiles:  PROFILE_FLAGS,
 };

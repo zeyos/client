@@ -2,7 +2,11 @@
 
 Use this file when a question spans more than one business area.
 
-This is the high-level relationship map. For the source-backed inventory, read [zeyos-entity-reference.md](./zeyos-entity-reference.md), which is derived from [../../openapi/dbref.json](../../openapi/dbref.json) and [../../openapi/api.json](../../openapi/api.json).
+This is the high-level relationship map (curated). For the per-entity schema — columns, enums,
+foreign keys, indexes, and operationIds — read the canonical [`okf/entities/`](../../okf/entities/index.md)
+concepts; for cross-cutting query rules read [`okf/concepts/`](../../okf/concepts/index.md). The
+source-backed inventory and the generated operationId table live in
+[zeyos-entity-reference.md](./zeyos-entity-reference.md), derived from [../../openapi/dbref.json](../../openapi/dbref.json) and [../../openapi/api.json](../../openapi/api.json).
 
 The names below are dbref/DB-table nouns used to describe relationships. They are **not** the
 `@zeyos/client` operationIds. Several diverge (e.g. `dunning` -> `listDunningNotices`,

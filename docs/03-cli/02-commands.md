@@ -481,6 +481,34 @@ Skills are copied into `<dir>/<name>/`, with the shared reference files installe
 
 ---
 
+## okf
+
+Work with the [Open Knowledge Format](../06-okf/01-overview.md) bundle that ships with the
+client — a portable Markdown description of the ZeyOS data model (one concept per
+API-backed entity) plus curated metrics, playbooks, and query concepts.
+
+```bash
+zeyos okf list                  # list concepts (type, id, title); --json for automation
+zeyos okf show tickets          # print a concept (bare resource name, or entities/tickets)
+zeyos okf check                 # validate OKF v0.1 conformance (exit non-zero on error)
+zeyos okf export --out ./okf    # copy the shipped bundle into a directory
+zeyos okf build  --out ./okf    # synthesize a bundle from the client's schema
+```
+
+| Subcommand | What it does |
+|-----------|--------------|
+| `list` | List the concepts in the bundle (`--json`/`--yaml` supported). |
+| `show <concept>` | Print one concept doc. Accepts a bare resource (`tickets`) or full id (`entities/tickets`). |
+| `check` | Validate the bundle for OKF v0.1 conformance; exits non-zero on any error (CI-friendly). |
+| `export` | Copy the shipped `okf/` bundle into `--out` (default `./okf`); `--force` to overwrite. |
+| `build` | Synthesize a structural bundle from the client's schema into `--out` (default `./okf`). |
+
+Options: `--dir <path>` reads from an explicit bundle directory (`list`/`show`/`check`);
+`--out <path>` is the write target (`build`/`export`); `--force` overwrites an existing
+target. `export` ships the rich curated bundle; `build` is the lighter runtime projection.
+
+---
+
 ## Command Aliases
 
 | Alias | Equivalent |
