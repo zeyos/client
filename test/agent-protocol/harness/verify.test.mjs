@@ -149,6 +149,65 @@ test('computeSum totals a numeric field after predicates', async () => {
   assert.equal(missing.expected, 75);
 });
 
+test('computeTicketEffortSum includes direct ticket rows and task-linked rows once', async () => {
+  let taskFields = [];
+  let actionstepFields = [];
+  const client = fakeClient({
+    listTasks: async (params) => {
+      taskFields = params.fields;
+      return [
+        { ID: 501, ticket: 2001 },
+        { ID: 502, ticket: 9999 }
+      ];
+    },
+    listActionSteps: async (params) => {
+      actionstepFields = params.fields;
+      return [
+        { ID: 1, ticket: 2001, task: null, status: 1, date: 20, effort: 30 },
+        { ID: 2, ticket: null, task: 501, status: 3, date: 21, effort: 45 },
+        { ID: 3, ticket: 2001, task: 501, status: 1, date: 22, effort: 5 },
+        { ID: 3, ticket: 2001, task: 501, status: 1, date: 22, effort: 5 },
+        { ID: 4, ticket: null, task: 502, status: 1, date: 23, effort: 999 },
+        { ID: 5, ticket: 2001, task: null, status: 2, date: 24, effort: 999 },
+        { ID: 6, ticket: 2001, task: null, status: 1, date: 5, effort: 999 }
+      ];
+    }
+  });
+  const expect = {
+    kind: 'computeTicketEffortSum',
+    ticketId: '$SEED.ticket.ID',
+    actionstepParams: { limit: 10000 },
+    field: 'effort',
+    predicates: [
+      { field: 'status', in: [1, 3] },
+      { field: 'date', gte: 10 },
+      { field: 'date', lte: 30 }
+    ]
+  };
+
+  const good = await evaluateExpect(expect, {
+    ...ctxBase,
+    client,
+    seed: { ticket: { ID: 2001 } },
+    result: '80'
+  });
+  assert.equal(good.pass, true);
+  assert.equal(good.expected, 80);
+  assert.deepEqual([...new Set(taskFields)].sort(), ['ID', 'ticket']);
+  for (const field of ['ID', 'ticket', 'task', 'effort', 'status', 'date']) {
+    assert.ok(actionstepFields.includes(field), `missing actionstep field ${field}`);
+  }
+
+  const directOnly = await evaluateExpect(expect, {
+    ...ctxBase,
+    client,
+    seed: { ticket: { ID: 2001 } },
+    result: '35'
+  });
+  assert.equal(directOnly.pass, false);
+  assert.equal(directOnly.expected, 80);
+});
+
 test('verifyRecord fetches by $RESULT id and checks assertions with token substitution', async () => {
   const client = fakeClient({
     getTicket: async ({ ID }) => ({ ID, name: 'AGENTTEST-run-1 smoke', priority: 4 })

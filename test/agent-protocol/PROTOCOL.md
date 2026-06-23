@@ -277,6 +277,7 @@ All verification runs in the harness via `@zeyos/client`, independent of the mod
 | `verifyNoRecords` | "agent must not create/send X" | `op`, `params`, `predicates` — passes only when no matching records exist |
 | `computeCount` | "how many X match Y" | `op`, `params`, `predicates: [{ field, equals|in|notIn|gte|lte }]` — harness counts, compares to the agent's number |
 | `computeSum` | "what is the total numeric field for X" | `op`, `params`, `field`, `predicates` — harness sums, compares to the agent's number |
+| `computeTicketEffortSum` | ticket time including task-linked entries | `ticketId`, `actionstepParams`, `taskParams`, `field`, `predicates` — sums direct `actionsteps.ticket` plus `actionsteps.task` rows whose `task.ticket` is the ticket |
 | `computeUnansweredTicketMail` | unanswered inbox mail on open tickets | counts inbox messages with no later sent message whose `reference` points back to the inbound message |
 | `computeMembership` | "record X is findable via filter Y" | `listOp`, `listParams` (may use `$RESULT.field`), `idFrom`, `idField`, `expectPresent` |
 | `expectText` | error/refusal/summary text checks | `anyOf`, `allOf`, `failIf` (case-insensitive contains) |

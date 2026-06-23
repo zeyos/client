@@ -33,6 +33,7 @@ Profiles let you store several ZeyOS instances (e.g. `dev`, `prod`, `client-x`) 
 
 ```bash
 # Create profiles (connection params now; tokens via login)
+zeyos profile add                         # interactive wizard
 zeyos profile add dev  --base-url https://zeyos.cms-it.de/dev
 zeyos profile add prod --base-url https://cloud.zeyos.com/acme --client-id app --secret "$SECRET"
 

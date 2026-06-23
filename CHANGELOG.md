@@ -3,6 +3,24 @@
 Notable changes to `@zeyos/client` and `@zeyos/cli`. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## 0.4.1
+
+### `@zeyos/cli` (`zeyos`)
+- `login --port` now validates callback ports before prompting or starting OAuth setup.
+- `whoami` now reports expired or invalid refresh tokens with the platform URL, credential source, OAuth endpoint/status, and the matching re-login command.
+- `profile add` now has an interactive wizard for profile names and OAuth connection parameters when run without explicit connection options.
+- `logout --profile <name>` now reports missing profiles with the same known-profile guidance as other profile-aware commands.
+- `logout --global` now targets the legacy global credentials file directly, so local auth files, project pins, or active profiles cannot shadow an explicit global logout.
+- Expanded offline/mock coverage for CLI list/get/write output behavior, OAuth login flows, logout source selection, token redaction, skill install prompts, and OKF commands.
+
+### `@zeyos/client`
+- Fixed the live OAuth test harness so a saved config containing both `live.url` and `live.instance` prefers the full URL instead of rejecting the harness's own persisted shape.
+- Added regression coverage for saved live config resolution while preserving the explicit `--url` plus `--instance` conflict.
+
+### Agent skills
+- Ticket time summaries now roll up actionstep effort logged on tasks whose `task.ticket` points to the ticket, not only actionsteps directly linked by `actionstep.ticket`.
+- Added agent-protocol regression coverage for direct ticket effort plus task-linked effort, including status/date filtering and actionstep deduplication.
+
 ## 0.4.0
 
 ### Open Knowledge Format (OKF)

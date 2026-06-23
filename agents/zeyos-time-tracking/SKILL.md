@@ -15,6 +15,7 @@ Typical prompts:
 - "Record 2 hours on ticket 812." / "Book 90 minutes against Project Atlas."
 - "Log half an hour for ACME, I was on a call about the renewal."
 - "How much time did I log this week?" / "Summarize my logged hours by account."
+- "Give me a summary of logged ticket time from the last four weeks."
 - "Actually make that 90 minutes, not 60." / "Move that time to ticket 813."
 
 ## Two jobs
@@ -44,5 +45,6 @@ Interactivity here means **act first, then ask only when real data is ambiguous*
 ## Output discipline
 
 - For "my work": state the resolved user and the open-status definition you used, then the list.
+- For ticket time summaries: include both actionsteps directly linked by `actionstep.ticket` and actionsteps linked by `actionstep.task` where `task.ticket` is the summarized ticket; dedupe by actionstep ID before summing.
 - For a logged entry: report the created actionstep id, the attached record (ticket/task/account), the effort in minutes, and the date.
 - Separate what you resolved from what you assumed; call out any account or work-item ambiguity you had to break.

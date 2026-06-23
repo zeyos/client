@@ -1,5 +1,5 @@
-import { execFile } from 'node:child_process';
-import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
+import { execFile, spawn } from 'node:child_process';
+import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
@@ -33,6 +33,26 @@ function cli(args, options = {}) {
         stderr: stderr ?? ''
       });
     });
+  });
+}
+
+function cliWithInput(args, input, options = {}) {
+  return new Promise((resolveResult) => {
+    const child = spawn(process.execPath, [CLI_BIN, ...args], {
+      cwd: options.cwd,
+      env: { ...process.env, NO_COLOR: '1', ...options.env },
+      stdio: ['pipe', 'pipe', 'pipe']
+    });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.setEncoding('utf8');
+    child.stderr.setEncoding('utf8');
+    child.stdout.on('data', (chunk) => { stdout += chunk; });
+    child.stderr.on('data', (chunk) => { stderr += chunk; });
+    child.on('close', (code) => {
+      resolveResult({ code: code ?? 0, stdout, stderr });
+    });
+    child.stdin.end(input);
   });
 }
 
@@ -106,6 +126,34 @@ async function jsonServer(t, handler) {
     baseUrl: `http://127.0.0.1:${port}/dev`,
     requests
   };
+}
+
+async function freePort(t) {
+  const server = createServer((_req, res) => {
+    res.writeHead(404);
+    res.end();
+  });
+  await new Promise((resolveListen, rejectListen) => {
+    server.once('error', rejectListen);
+    server.listen(0, '127.0.0.1', resolveListen);
+  });
+  const { port } = server.address();
+  await new Promise((resolveClose) => server.close(resolveClose));
+  return port;
+}
+
+async function writeFakeBrowserCommand(dir) {
+  const bin = join(dir, 'bin');
+  await mkdir(bin, { recursive: true });
+  const command = process.platform === 'darwin'
+    ? 'open'
+    : process.platform === 'win32'
+      ? 'start'
+      : 'xdg-open';
+  const target = join(bin, command);
+  await writeFile(target, '#!/bin/sh\nexit 0\n', 'utf8');
+  await chmod(target, 0o755);
+  return bin;
 }
 
 test('global help is available without credentials', async () => {
@@ -593,6 +641,255 @@ test('count --json emits a stable object', async (t) => {
   assert.deepEqual(JSON.parse(server.requests[0].body), { count: true });
 });
 
+test('read-only resources reject unsupported write actions before auth', async (t) => {
+  const cwd = await tempDir(t);
+  const result = await cli(['create', 'customfields', '--name', 'Nope'], {
+    cwd,
+    env: isolatedEnv(cwd, NO_CREDENTIALS)
+  });
+
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /Resource "customfields" does not support creation/);
+  assert.doesNotMatch(result.stderr, /Missing required configuration/);
+});
+
+test('list default dry-run includes configured fields and default limit', async (t) => {
+  const cwd = await tempDir(t);
+  const result = await cli(['list', 'tickets', '--query', '--json'], {
+    cwd,
+    env: isolatedEnv(cwd, CREDENTIALS)
+  });
+
+  assert.equal(result.code, 0, result.stderr);
+  const descriptor = JSON.parse(result.stdout);
+  assert.equal(descriptor.operationId, 'listTickets');
+  assert.equal(descriptor.body.limit, 50);
+  assert.equal(descriptor.body.fields.ID, 'ID');
+  assert.equal(descriptor.body.fields.Name, 'name');
+});
+
+test('list --fields JSON object is sent as an alias map', async (t) => {
+  const cwd = await tempDir(t);
+  const result = await cli(
+    ['list', 'tickets', '--fields', '{"Title":"name","Due":"duedate"}', '--query', '--json'],
+    { cwd, env: isolatedEnv(cwd, CREDENTIALS) }
+  );
+
+  assert.equal(result.code, 0, result.stderr);
+  const descriptor = JSON.parse(result.stdout);
+  assert.deepEqual(descriptor.body.fields, { Title: 'name', Due: 'duedate' });
+});
+
+test('list --sort and --offset are reflected in the request body', async (t) => {
+  const cwd = await tempDir(t);
+  const result = await cli(
+    ['list', 'tickets', '--sort', '+name,-lastmodified', '--offset', '25', '--query', '--json'],
+    { cwd, env: isolatedEnv(cwd, CREDENTIALS) }
+  );
+
+  assert.equal(result.code, 0, result.stderr);
+  const descriptor = JSON.parse(result.stdout);
+  assert.deepEqual(descriptor.body.sort, ['+name', '-lastmodified']);
+  assert.equal(descriptor.body.offset, 25);
+});
+
+test('list --extdata and --expand are reflected in the request body', async (t) => {
+  const cwd = await tempDir(t);
+  const result = await cli(
+    ['list', 'tickets', '--extdata', '--expand', 'binfile,items', '--query', '--json'],
+    { cwd, env: isolatedEnv(cwd, CREDENTIALS) }
+  );
+
+  assert.equal(result.code, 0, result.stderr);
+  const descriptor = JSON.parse(result.stdout);
+  assert.equal(descriptor.body.extdata, 1);
+  assert.deepEqual(descriptor.body.expand, ['binfile', 'items']);
+});
+
+test('list table output formats date fields with the configured dateFormat', async (t) => {
+  const cwd = await tempDir(t);
+  const server = await jsonServer(t, (_req, res) => {
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify([{ ID: 1, name: 'Due soon', duedate: 1767312000 }]));
+  });
+
+  await mkdir(join(cwd, '.zeyos'), { recursive: true });
+  await writeFile(join(cwd, '.zeyos', 'auth.json'), JSON.stringify({
+    baseUrl: server.baseUrl,
+    clientId: 'client-id',
+    clientSecret: 'client-secret',
+    accessToken: 'access-token',
+    dateFormat: 'YYYY/MM/DD'
+  }, null, 2));
+
+  const result = await cli(['list', 'tickets', '--fields', 'ID,name,duedate'], {
+    cwd,
+    env: isolatedEnv(cwd, { ...NO_CREDENTIALS, ZEYOS_PROFILE: '' })
+  });
+
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /2026\/01\/02/);
+  assert.equal(server.requests.length, 1);
+});
+
+test('list empty results use a neutral info message', async (t) => {
+  const cwd = await tempDir(t);
+  const server = await jsonServer(t, (_req, res) => {
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify([]));
+  });
+
+  const result = await cli(['list', 'tickets'], {
+    cwd,
+    env: isolatedEnv(cwd, { ...CREDENTIALS, ZEYOS_BASE_URL: server.baseUrl })
+  });
+
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stdout, '');
+  assert.match(result.stderr, /No tickets match/);
+  assert.doesNotMatch(result.stderr, /⚠/);
+});
+
+test('list emits a pagination count hint when the page is truncated', async (t) => {
+  const cwd = await tempDir(t);
+  const server = await jsonServer(t, (_req, res, body) => {
+    const parsed = JSON.parse(body || '{}');
+    res.writeHead(200, { 'content-type': 'application/json' });
+    if (parsed.count) {
+      res.end(JSON.stringify({ count: 5 }));
+    } else {
+      res.end(JSON.stringify([{ ID: 1, name: 'A' }, { ID: 2, name: 'B' }]));
+    }
+  });
+
+  const result = await cli(['list', 'tickets', '--limit', '2', '--json'], {
+    cwd,
+    env: isolatedEnv(cwd, { ...CREDENTIALS, ZEYOS_BASE_URL: server.baseUrl })
+  });
+
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(JSON.parse(result.stdout).length, 2);
+  assert.match(result.stderr, /Showing 1–2 of 5/);
+  assert.match(result.stderr, /zeyos count tickets/);
+  assert.equal(server.requests.length, 2);
+  assert.deepEqual(JSON.parse(server.requests[1].body), { count: true });
+});
+
+test('get --fields JSON object controls record labels in table output', async (t) => {
+  const cwd = await tempDir(t);
+  const server = await jsonServer(t, (_req, res) => {
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ ID: 42, name: 'Labeled ticket', status: 1, duedate: 1767312000 }));
+  });
+
+  const result = await cli(
+    ['get', 'ticket', '42', '--fields', '{"Title":"name","Due":"duedate"}'],
+    { cwd, env: isolatedEnv(cwd, { ...CREDENTIALS, ZEYOS_BASE_URL: server.baseUrl }) }
+  );
+
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /Title\s+Labeled ticket/);
+  assert.match(result.stdout, /Due\s+2026-01-02/);
+  assert.doesNotMatch(result.stdout, /status/);
+});
+
+test('get --all and --expand build the expected query params', async (t) => {
+  const cwd = await tempDir(t);
+  const result = await cli(
+    ['get', 'ticket', '42', '--all', '--expand', 'binfile,data', '--query', '--json'],
+    { cwd, env: isolatedEnv(cwd, CREDENTIALS) }
+  );
+
+  assert.equal(result.code, 0, result.stderr);
+  const descriptor = JSON.parse(result.stdout);
+  assert.deepEqual(descriptor.query, {
+    extdata: 1,
+    tags: 1,
+    positions: 1,
+    binfile: 1,
+    data: 1
+  });
+});
+
+test('delete without --force aborts on a non-yes confirmation without sending the request', async (t) => {
+  const cwd = await tempDir(t);
+  const server = await jsonServer(t, (_req, res) => {
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ ok: true }));
+  });
+
+  const result = await cliWithInput(['delete', 'ticket', '42'], 'n\n', {
+    cwd,
+    env: isolatedEnv(cwd, { ...CREDENTIALS, ZEYOS_BASE_URL: server.baseUrl })
+  });
+
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stderr, /Delete ticket #42\? \[y\/N\]/);
+  assert.match(result.stderr, /Aborted/);
+  assert.equal(server.requests.length, 0);
+});
+
+test('create sends coerced field flags and prints the created record as JSON', async (t) => {
+  const cwd = await tempDir(t);
+  const server = await jsonServer(t, (_req, res, body) => {
+    const payload = JSON.parse(body || '{}');
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ ID: 101, ...payload }));
+  });
+
+  const result = await cli(
+    ['create', 'ticket', '--name', 'Mock create', '--status', '0', '--priority', '3', '--json'],
+    { cwd, env: isolatedEnv(cwd, { ...CREDENTIALS, ZEYOS_BASE_URL: server.baseUrl }) }
+  );
+
+  assert.equal(result.code, 0, result.stderr);
+  assert.deepEqual(JSON.parse(result.stdout), { ID: 101, name: 'Mock create', status: 0, priority: 3 });
+  assert.equal(server.requests.length, 1);
+  assert.equal(server.requests[0].method, 'PUT');
+  assert.match(server.requests[0].url, /\/dev\/api\/v1\/tickets$/);
+  assert.deepEqual(JSON.parse(server.requests[0].body), { name: 'Mock create', status: 0, priority: 3 });
+});
+
+test('edit alias sends coerced update fields to the update endpoint', async (t) => {
+  const cwd = await tempDir(t);
+  const server = await jsonServer(t, (_req, res, body) => {
+    const payload = JSON.parse(body || '{}');
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ ID: 42, ...payload }));
+  });
+
+  const result = await cli(
+    ['edit', 'ticket', '42', '--priority', '1', '--status', '4', '--json'],
+    { cwd, env: isolatedEnv(cwd, { ...CREDENTIALS, ZEYOS_BASE_URL: server.baseUrl }) }
+  );
+
+  assert.equal(result.code, 0, result.stderr);
+  assert.deepEqual(JSON.parse(result.stdout), { ID: 42, priority: 1, status: 4 });
+  assert.equal(server.requests.length, 1);
+  assert.equal(server.requests[0].method, 'PATCH');
+  assert.match(server.requests[0].url, /\/dev\/api\/v1\/tickets\/42$/);
+  assert.deepEqual(JSON.parse(server.requests[0].body), { priority: 1, status: 4 });
+});
+
+test('rm alias with --force sends a delete request without prompting', async (t) => {
+  const cwd = await tempDir(t);
+  const server = await jsonServer(t, (_req, res) => {
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ ok: true }));
+  });
+
+  const result = await cli(['rm', 'ticket', '42', '--force'], {
+    cwd,
+    env: isolatedEnv(cwd, { ...CREDENTIALS, ZEYOS_BASE_URL: server.baseUrl })
+  });
+
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stderr, /Deleted ticket #42/);
+  assert.equal(server.requests.length, 1);
+  assert.equal(server.requests[0].method, 'DELETE');
+  assert.match(server.requests[0].url, /\/dev\/api\/v1\/tickets\/42$/);
+});
+
 test('doctor agent --json reports local readiness without secret values', async (t) => {
   const cwd = await tempDir(t);
   const result = await cli(['doctor', 'agent', '--json'], {
@@ -623,6 +920,76 @@ test('doctor agent --json reports local readiness without secret values', async 
   assert.ok(report.resources.count > 0);
 });
 
+test('whoami --json fetches user info and hides the access token by default', async (t) => {
+  const cwd = await tempDir(t);
+  const server = await jsonServer(t, (_req, res) => {
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ sub: 'user-1', name: 'Test User', updated_at: 1767312000 }));
+  });
+
+  const env = isolatedEnv(cwd, { ...CREDENTIALS, ZEYOS_BASE_URL: server.baseUrl });
+  const hidden = await cli(['whoami', '--json'], { cwd, env });
+  assert.equal(hidden.code, 0, hidden.stderr);
+  assert.deepEqual(JSON.parse(hidden.stdout), { sub: 'user-1', name: 'Test User', updated_at: 1767312000 });
+  assert.doesNotMatch(hidden.stdout, /access-token/);
+
+  const shown = await cli(['whoami', '--show-token', '--json'], { cwd, env });
+  assert.equal(shown.code, 0, shown.stderr);
+  assert.equal(JSON.parse(shown.stdout).accessToken, 'access-token');
+
+  assert.equal(server.requests.length, 2);
+  assert.match(server.requests[0].url, /\/dev\/oauth2\/v1\/userinfo$/);
+  assert.equal(server.requests[0].headers.authorization, 'Bearer access-token');
+});
+
+test('whoami reports invalid refresh tokens with platform and source details', async (t) => {
+  const cwd = await tempDir(t);
+  const server = await jsonServer(t, (req, res) => {
+    if (/\/oauth2\/v1\/userinfo$/.test(req.url)) {
+      res.writeHead(401, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: 'invalid_token' }));
+      return;
+    }
+    if (/\/oauth2\/v1\/token$/.test(req.url)) {
+      res.writeHead(403, { 'content-type': 'text/plain' });
+      res.end('Forbidden: Invalid or expired refresh_token');
+      return;
+    }
+    res.writeHead(500, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ error: 'unexpected request' }));
+  });
+
+  await mkdir(join(cwd, '.zeyos'), { recursive: true });
+  await writeFile(join(cwd, '.zeyos', 'auth.json'), JSON.stringify({
+    baseUrl: server.baseUrl,
+    clientId: 'client-id',
+    clientSecret: 'client-secret',
+    accessToken: 'expired-access-token',
+    refreshToken: 'bad-refresh-token',
+    expiresAt: 1
+  }, null, 2));
+
+  const result = await cli(['whoami'], {
+    cwd,
+    env: isolatedEnv(cwd, { ...NO_CREDENTIALS, ZEYOS_PROFILE: '' })
+  });
+
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /Your stored refresh token is invalid or expired/);
+  assert.match(result.stderr, /Platform URL: http:\/\/127\.0\.0\.1:\d+\/dev/);
+  assert.match(result.stderr, /Credential source: local file .*\.zeyos[/\\]auth\.json/);
+  assert.match(result.stderr, /OAuth endpoint: http:\/\/127\.0\.0\.1:\d+\/dev\/oauth2\/v1\/token/);
+  assert.match(result.stderr, /HTTP status: 403/);
+  assert.match(result.stderr, /OAuth error: Forbidden: Invalid or expired refresh_token/);
+  assert.match(result.stderr, /Next step: zeyos login --force/);
+  assert.doesNotMatch(result.stderr, /Re-authenticate now/);
+  assert.doesNotMatch(result.stderr, /Failed to fetch user info/);
+  const tokenRequest = server.requests.find((request) => /\/dev\/oauth2\/v1\/token$/.test(request.url));
+  assert.ok(server.requests.some((request) => /\/dev\/oauth2\/v1\/userinfo$/.test(request.url)));
+  assert.ok(tokenRequest, 'expected a refresh-token request after userinfo returned 401');
+  assert.match(tokenRequest.body, /grant_type=refresh_token/);
+});
+
 test('--query --json emits a machine-readable request descriptor', async (t) => {
   const cwd = await tempDir(t);
   const result = await cli(['get', 'ticket', '42', '--query', '--json'], {
@@ -649,6 +1016,56 @@ async function writeProfilesFile(home, data) {
   await writeFile(p, JSON.stringify(data, null, 2));
   return p;
 }
+
+async function writeGlobalCredentialsFile(home, data) {
+  const p = join(home, '.config', 'zeyos', 'credentials.json');
+  await mkdir(dirname(p), { recursive: true });
+  await writeFile(p, JSON.stringify(data, null, 2));
+  return p;
+}
+
+test('profile add prompts for name and OAuth config when run without options', async (t) => {
+  const home = await tempDir(t);
+  const cwd = await tempDir(t);
+  const env = isolatedEnv(home, CLEAN_ENV);
+
+  const res = await cliWithInput(
+    ['profile', 'add'],
+    'dev\nhttps://zeyos.example.com/dev\napp-id\nsecret-value\n',
+    { cwd, env }
+  );
+
+  assert.equal(res.code, 0, res.stderr);
+  assert.equal(res.stdout, '');
+  assert.match(res.stderr, /Profile name:/);
+  assert.match(res.stderr, /ZeyOS platform URL:/);
+  assert.match(res.stderr, /Application ID:/);
+  assert.match(res.stderr, /Application secret:/);
+  assert.match(res.stderr, /Created profile "dev"/);
+  assert.match(res.stderr, /zeyos login --profile dev/);
+
+  const reg = JSON.parse((await cli(['profile', 'list', '--json'], { cwd, env })).stdout);
+  assert.equal(reg.active, 'dev');
+  assert.equal(reg.profiles.dev.baseUrl, 'https://zeyos.example.com/dev');
+  assert.equal(reg.profiles.dev.clientId, 'app-id');
+  assert.equal(reg.profiles.dev.clientSecret, 'secret-value');
+  assert.equal(reg.profiles.dev.accessToken, undefined);
+});
+
+test('profile add with explicit fields remains non-interactive', async (t) => {
+  const home = await tempDir(t);
+  const cwd = await tempDir(t);
+  const env = isolatedEnv(home, CLEAN_ENV);
+
+  const res = await cli(['profile', 'add', 'minimal', '--base-url', 'https://zeyos.example.com/minimal'], { cwd, env });
+
+  assert.equal(res.code, 0, res.stderr);
+  assert.doesNotMatch(res.stderr, /Application ID:/);
+  const reg = JSON.parse((await cli(['profile', 'list', '--json'], { cwd, env })).stdout);
+  assert.equal(reg.profiles.minimal.baseUrl, 'https://zeyos.example.com/minimal');
+  assert.equal(reg.profiles.minimal.clientId, undefined);
+  assert.equal(reg.profiles.minimal.clientSecret, undefined);
+});
 
 test('profile add/list/use/remove round-trips through the global registry', async (t) => {
   const home = await tempDir(t);
@@ -725,6 +1142,56 @@ test('an unknown --profile fails loudly with the known profiles listed', async (
   assert.match(res.stderr, /Known profiles: dev/);
 });
 
+test('logout --profile fails loudly when the selected profile is unknown', async (t) => {
+  const home = await tempDir(t);
+  const cwd = await tempDir(t);
+  await writeProfilesFile(home, { active: 'dev', profiles: {
+    dev: { baseUrl: 'https://zeyos.example.com/dev', clientId: 'd', clientSecret: 's', accessToken: 't' }
+  } });
+
+  const res = await cli(['logout', '--profile', 'nope'], { cwd, env: isolatedEnv(home, CLEAN_ENV) });
+  assert.notEqual(res.code, 0);
+  assert.match(res.stderr, /Profile "nope" not found/);
+  assert.match(res.stderr, /Known profiles: dev/);
+});
+
+test('logout --global clears legacy global credentials even when local config exists', async (t) => {
+  const home = await tempDir(t);
+  const cwd = await tempDir(t);
+  const server = await jsonServer(t, (_req, res) => {
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ ok: true }));
+  });
+
+  const globalPath = await writeGlobalCredentialsFile(home, {
+    baseUrl: server.baseUrl,
+    clientId: 'global-client',
+    clientSecret: 'global-secret',
+    accessToken: 'global-token',
+    refreshToken: 'global-refresh'
+  });
+
+  await mkdir(join(cwd, '.zeyos'), { recursive: true });
+  await writeFile(join(cwd, '.zeyos', 'auth.json'), JSON.stringify({
+    baseUrl: 'https://zeyos.example.com/local',
+    clientId: 'local-client',
+    clientSecret: 'local-secret'
+  }, null, 2));
+
+  const res = await cli(['logout', '--global'], { cwd, env: isolatedEnv(home, CLEAN_ENV) });
+  assert.equal(res.code, 0, res.stderr);
+  assert.match(res.stderr, /Logged out \(global credentials\)/);
+
+  const saved = JSON.parse(await readFile(globalPath, 'utf8'));
+  assert.equal(saved.baseUrl, server.baseUrl);
+  assert.equal(saved.clientId, 'global-client');
+  assert.equal(saved.clientSecret, 'global-secret');
+  assert.equal(saved.accessToken, undefined);
+  assert.equal(saved.refreshToken, undefined);
+  assert.equal(server.requests.length, 1);
+  assert.match(server.requests[0].url, /\/dev\/oauth2\/v1\/revoke$/);
+});
+
 test('login reports "already logged in" per-profile when the token is still valid', async (t) => {
   const home = await tempDir(t);
   const cwd = await tempDir(t);
@@ -735,6 +1202,245 @@ test('login reports "already logged in" per-profile when the token is still vali
   const res = await cli(['login', '--profile', 'dev'], { cwd, env: isolatedEnv(home, CLEAN_ENV) });
   assert.equal(res.code, 0);
   assert.match(`${res.stdout}${res.stderr}`, /Already logged in \(profile "dev"\)/);
+});
+
+test('login prompts for missing OAuth config before manual code exchange', async (t) => {
+  const home = await tempDir(t);
+  const cwd = await tempDir(t);
+  const callbackPort = await freePort(t);
+  const server = await jsonServer(t, (_req, res) => {
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({
+      token_type: 'Bearer',
+      access_token: 'prompt-access',
+      refresh_token: 'prompt-refresh',
+      expires_in: 3600
+    }));
+  });
+
+  const child = spawn(process.execPath, [
+    CLI_BIN,
+    'login',
+    '--manual',
+    '--port', String(callbackPort)
+  ], {
+    cwd,
+    env: isolatedEnv(home, CLEAN_ENV),
+    stdio: ['pipe', 'pipe', 'pipe']
+  });
+
+  t.after(() => {
+    if (child.exitCode == null) child.kill('SIGTERM');
+  });
+
+  let stdout = '';
+  let stderr = '';
+  child.stdout.setEncoding('utf8');
+  child.stderr.setEncoding('utf8');
+  child.stdout.on('data', (chunk) => { stdout += chunk; });
+  child.stderr.on('data', (chunk) => { stderr += chunk; });
+
+  const waitForStderr = (pattern) => new Promise((resolveMatch, rejectMatch) => {
+    const check = () => {
+      if (!pattern.test(stderr)) return false;
+      clearTimeout(timer);
+      child.stderr.off('data', onData);
+      resolveMatch();
+      return true;
+    };
+    const onData = () => { check(); };
+    const timer = setTimeout(() => {
+      child.stderr.off('data', onData);
+      rejectMatch(new Error(`Timed out waiting for ${pattern}. stderr:\n${stderr}`));
+    }, 5000);
+    child.stderr.on('data', onData);
+    check();
+  });
+
+  await waitForStderr(/ZeyOS platform URL:/);
+  child.stdin.write(`${server.baseUrl}\n`);
+
+  await waitForStderr(/Application ID:/);
+  child.stdin.write('prompt-client\n');
+
+  await waitForStderr(/Application secret:/);
+  child.stdin.write('prompt-secret\n');
+
+  await waitForStderr(/Paste the authorization code:/);
+  child.stdin.end('prompt-code\n');
+
+  const code = await new Promise((resolveClose) => {
+    child.on('close', (exitCode) => resolveClose(exitCode));
+  });
+
+  assert.equal(code, 0, stderr);
+  assert.equal(stdout, '');
+  assert.match(stderr, new RegExp(`http://127\\.0\\.0\\.1:${callbackPort}/callback`));
+  assert.ok(
+    stderr.indexOf('Add this callback URL') < stderr.indexOf('Application ID:'),
+    'callback URL guidance should be shown before prompting for app credentials'
+  );
+  assert.match(stderr, /Logged in successfully/);
+
+  assert.equal(server.requests.length, 1);
+  assert.match(server.requests[0].url, /\/dev\/oauth2\/v1\/token$/);
+  const body = new URLSearchParams(server.requests[0].body);
+  assert.equal(body.get('grant_type'), 'authorization_code');
+  assert.equal(body.get('code'), 'prompt-code');
+
+  const saved = JSON.parse(await readFile(join(cwd, '.zeyos', 'auth.json'), 'utf8'));
+  assert.equal(saved.baseUrl, server.baseUrl);
+  assert.equal(saved.clientId, 'prompt-client');
+  assert.equal(saved.clientSecret, 'prompt-secret');
+  assert.equal(saved.accessToken, 'prompt-access');
+  assert.equal(saved.refreshToken, 'prompt-refresh');
+});
+
+test('login --manual exchanges the pasted code and stores tokens', async (t) => {
+  const home = await tempDir(t);
+  const cwd = await tempDir(t);
+  const server = await jsonServer(t, (_req, res) => {
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({
+      token_type: 'Bearer',
+      access_token: 'manual-access',
+      refresh_token: 'manual-refresh',
+      expires_in: 3600,
+      refresh_token_expires_in: 7200
+    }));
+  });
+
+  const res = await cliWithInput([
+    'login',
+    '--base-url', server.baseUrl,
+    '--client-id', 'client-id',
+    '--secret', 'client-secret',
+    '--manual'
+  ], 'auth-code\n', {
+    cwd,
+    env: isolatedEnv(home, CLEAN_ENV)
+  });
+
+  assert.equal(res.code, 0, res.stderr);
+  assert.match(res.stderr, /Paste the authorization code:/);
+  assert.match(res.stderr, /Logged in successfully/);
+
+  assert.equal(server.requests.length, 1);
+  assert.match(server.requests[0].url, /\/dev\/oauth2\/v1\/token$/);
+  assert.equal(server.requests[0].method, 'POST');
+  assert.match(server.requests[0].headers.authorization, /^Basic\s+/);
+  const body = new URLSearchParams(server.requests[0].body);
+  assert.equal(body.get('grant_type'), 'authorization_code');
+  assert.equal(body.get('code'), 'auth-code');
+
+  const saved = JSON.parse(await readFile(join(cwd, '.zeyos', 'auth.json'), 'utf8'));
+  assert.equal(saved.baseUrl, server.baseUrl);
+  assert.equal(saved.clientId, 'client-id');
+  assert.equal(saved.clientSecret, 'client-secret');
+  assert.equal(saved.accessToken, 'manual-access');
+  assert.equal(saved.refreshToken, 'manual-refresh');
+});
+
+test('login browser callback flow captures the redirect code and stores tokens', async (t) => {
+  const home = await tempDir(t);
+  const cwd = await tempDir(t);
+  const openerRoot = await tempDir(t);
+  const fakeBin = await writeFakeBrowserCommand(openerRoot);
+  const callbackPort = await freePort(t);
+  const server = await jsonServer(t, (_req, res) => {
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({
+      token_type: 'Bearer',
+      access_token: 'browser-access',
+      refresh_token: 'browser-refresh',
+      expires_in: 3600
+    }));
+  });
+
+  const env = isolatedEnv(home, {
+    ...CLEAN_ENV,
+    PATH: `${fakeBin}:${process.env.PATH || ''}`
+  });
+
+  const child = spawn(process.execPath, [
+    CLI_BIN,
+    'login',
+    '--base-url', server.baseUrl,
+    '--client-id', 'browser-client',
+    '--secret', 'browser-secret',
+    '--port', String(callbackPort)
+  ], {
+    cwd,
+    env,
+    stdio: ['ignore', 'pipe', 'pipe']
+  });
+
+  t.after(() => {
+    if (child.exitCode == null) child.kill('SIGTERM');
+  });
+
+  let stdout = '';
+  let stderr = '';
+  child.stdout.setEncoding('utf8');
+  child.stderr.setEncoding('utf8');
+  child.stdout.on('data', (chunk) => { stdout += chunk; });
+  child.stderr.on('data', (chunk) => { stderr += chunk; });
+
+  const state = await new Promise((resolveState, rejectState) => {
+    const timer = setTimeout(() => rejectState(new Error(`Timed out waiting for authorization URL. stderr:\n${stderr}`)), 5000);
+    child.stderr.on('data', () => {
+      const match = stderr.match(/https?:\/\/[^\s]+\/oauth2\/v1\/authorize\?[^\s]+/);
+      if (!match) return;
+      clearTimeout(timer);
+      resolveState(new URL(match[0]).searchParams.get('state'));
+    });
+  });
+
+  assert.ok(state, 'authorization URL should contain an OAuth state');
+
+  let callbackResponse;
+  for (let attempt = 0; attempt < 50; attempt++) {
+    try {
+      callbackResponse = await fetch(`http://127.0.0.1:${callbackPort}/callback?code=browser-code&state=${encodeURIComponent(state)}`);
+      break;
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+  }
+
+  assert.ok(callbackResponse, 'callback server did not accept a redirect request');
+  assert.equal(callbackResponse.status, 200);
+
+  const code = await new Promise((resolveClose) => {
+    child.on('close', (exitCode) => resolveClose(exitCode));
+  });
+
+  assert.equal(code, 0, stderr);
+  assert.equal(stdout, '');
+  assert.match(stderr, /Starting local callback server and opening browser/);
+  assert.match(stderr, /Logged in successfully/);
+
+  assert.equal(server.requests.length, 1);
+  assert.match(server.requests[0].url, /\/dev\/oauth2\/v1\/token$/);
+  const body = new URLSearchParams(server.requests[0].body);
+  assert.equal(body.get('grant_type'), 'authorization_code');
+  assert.equal(body.get('code'), 'browser-code');
+
+  const saved = JSON.parse(await readFile(join(cwd, '.zeyos', 'auth.json'), 'utf8'));
+  assert.equal(saved.baseUrl, server.baseUrl);
+  assert.equal(saved.clientId, 'browser-client');
+  assert.equal(saved.clientSecret, 'browser-secret');
+  assert.equal(saved.accessToken, 'browser-access');
+  assert.equal(saved.refreshToken, 'browser-refresh');
+});
+
+test('login rejects an invalid callback port before prompting', async (t) => {
+  const home = await tempDir(t);
+  const cwd = await tempDir(t);
+  const res = await cli(['login', '--port', 'not-a-port'], { cwd, env: isolatedEnv(home, CLEAN_ENV) });
+
+  assert.equal(res.code, 1);
+  assert.match(res.stderr, /--port must be an integer between 1 and 65535/);
 });
 
 test('okf list works without credentials and supports JSON', async () => {

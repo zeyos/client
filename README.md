@@ -105,6 +105,10 @@ zeyos whoami        # confirm you're authenticated
 - `--force` re-authenticates even if a token is already stored; `--clean` discards the saved config and re-prompts for everything.
 
 Tokens auto-refresh on use, and the refreshed token is written back to whichever config file you logged into. **Add `.zeyos/auth.json` to your `.gitignore`** — it holds credentials and tokens.
+If a stored refresh token is invalid or expired, interactive `zeyos whoami` shows
+where the stale credential came from and asks whether to re-authenticate.
+Non-interactive and machine-readable runs print the corresponding `zeyos login --force`
+command instead of prompting.
 
 ### Option 2 — Programmatic OAuth (authorization-code flow)
 

@@ -1,0 +1,49 @@
+{
+  "id": "b20-ticket-effort-includes-task-time",
+  "layer": "b",
+  "title": "Summarize ticket effort including time logged on ticket tasks",
+  "skill": "zeyos-work-management",
+  "interface": "either",
+  "mutates": true,
+  "tags": ["work-management", "time-tracking", "tickets", "tasks", "actionsteps", "effort", "aggregate", "time-window", "seeded-write"],
+  "seed": [
+    { "op": "createTicket", "as": "ticket", "data": { "name": "{recordPrefix}-{runId} ticket effort rollup", "status": 4, "priority": 3, "visibility": 0 } },
+    { "op": "createTask", "as": "task", "data": { "ticket": "$SEED.ticket.ID", "name": "{recordPrefix}-{runId} completed ticket task", "status": 9, "priority": 2, "visibility": 0 } },
+    { "op": "createTicket", "as": "otherTicket", "data": { "name": "{recordPrefix}-{runId} other effort ticket", "status": 4, "priority": 1, "visibility": 0 } },
+    { "op": "createTask", "as": "otherTask", "data": { "ticket": "$SEED.otherTicket.ID", "name": "{recordPrefix}-{runId} other ticket task", "status": 9, "priority": 1, "visibility": 0 } },
+    { "op": "createActionStep", "as": "direct", "data": { "ticket": "$SEED.ticket.ID", "name": "{recordPrefix}-{runId} direct ticket effort", "status": 1, "date": 1893500000, "effort": 30 } },
+    { "op": "createActionStep", "as": "viaTask", "data": { "task": "$SEED.task.ID", "name": "{recordPrefix}-{runId} task ticket effort", "status": 3, "date": 1893600000, "effort": 45 } },
+    { "op": "createActionStep", "as": "cancelled", "data": { "task": "$SEED.task.ID", "name": "{recordPrefix}-{runId} cancelled ticket effort", "status": 2, "date": 1893550000, "effort": 999 } },
+    { "op": "createActionStep", "as": "before", "data": { "ticket": "$SEED.ticket.ID", "name": "{recordPrefix}-{runId} before-window ticket effort", "status": 1, "date": 1893000000, "effort": 500 } },
+    { "op": "createActionStep", "as": "other", "data": { "task": "$SEED.otherTask.ID", "name": "{recordPrefix}-{runId} other ticket effort", "status": 1, "date": 1893600000, "effort": 200 } }
+  ],
+  "prompt": "Using the work-management skill, find the ticket named exactly \"{recordPrefix}-{runId} ticket effort rollup\". What is the total logged ticket time in minutes between Unix timestamps 1893456000 and 1893715200 inclusive? Count COMPLETED (1) and BOOKED (3) actionsteps directly linked to that ticket, and also actionsteps logged on tasks whose `task.ticket` is that ticket, even if the task is already completed. Ignore CANCELLED actionsteps, entries outside the window, and time on other tickets. Output just the total number of minutes on the RESULT line, e.g. `RESULT: 75`.",
+  "expect": {
+    "kind": "computeTicketEffortSum",
+    "ticketId": "$SEED.ticket.ID",
+    "actionstepParams": {
+      "filters": {
+        "status": { "IN": [1, 3] },
+        "date": { ">=": 1893456000, "<=": 1893715200 }
+      },
+      "limit": 10000
+    },
+    "field": "effort",
+    "predicates": [
+      { "field": "status", "in": [1, 3] },
+      { "field": "date", "gte": 1893456000 },
+      { "field": "date", "lte": 1893715200 }
+    ]
+  },
+  "cleanup": [
+    { "op": "deleteActionStep", "idFrom": "$SEED.direct.ID" },
+    { "op": "deleteActionStep", "idFrom": "$SEED.viaTask.ID" },
+    { "op": "deleteActionStep", "idFrom": "$SEED.cancelled.ID" },
+    { "op": "deleteActionStep", "idFrom": "$SEED.before.ID" },
+    { "op": "deleteActionStep", "idFrom": "$SEED.other.ID" },
+    { "op": "deleteTask", "idFrom": "$SEED.task.ID" },
+    { "op": "deleteTask", "idFrom": "$SEED.otherTask.ID" },
+    { "op": "deleteTicket", "idFrom": "$SEED.ticket.ID" },
+    { "op": "deleteTicket", "idFrom": "$SEED.otherTicket.ID" }
+  ]
+}

@@ -49,6 +49,10 @@ export async function run(values) {
   const profileName = values.profile || null;
   const scope = values.global ? 'global' : 'local';
   const port  = values.port ? Number(values.port) : DEFAULT_CALLBACK_PORT;
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    error('--port must be an integer between 1 and 65535.');
+    process.exit(1);
+  }
   const redirectUri = callbackUri(port);
 
   // Persist either into a named profile or the legacy local/global credential file.

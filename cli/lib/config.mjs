@@ -325,6 +325,11 @@ export function localConfigPath() { return _findLocalPath(); }
 export function globalConfigPath() { return GLOBAL_FILE; }
 export function profilesConfigPath() { return PROFILES_FILE; }
 
+/** Read the legacy global credentials file directly, without applying the cascade. */
+export function loadGlobalConfig() {
+  return _readGlobal();
+}
+
 // ── Internals ────────────────────────────────────────────────────────────────
 
 function _fromEnv() {

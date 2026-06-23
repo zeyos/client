@@ -193,3 +193,19 @@ test('work-management workflow documents actionstep operation IDs and effort sem
     assert.ok(content.includes(expected), `work-management workflow missing: ${expected}`);
   }
 });
+
+test('time-summary workflows roll task-linked actionsteps up to tickets', () => {
+  const files = [
+    'agents/zeyos-work-management/SKILL.md',
+    'agents/zeyos-work-management/references/workflows.md',
+    'agents/zeyos-time-tracking/SKILL.md',
+    'agents/zeyos-time-tracking/references/workflows.md'
+  ];
+
+  for (const relativeFile of files) {
+    const content = readFileSync(path.join(ROOT, relativeFile), 'utf8');
+    for (const expected of ['task.ticket', 'actionstep', 'ticket', 'dedupe']) {
+      assert.ok(content.includes(expected), `${relativeFile} missing ticket task-time rollup guidance: ${expected}`);
+    }
+  }
+});

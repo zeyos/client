@@ -356,6 +356,8 @@ export async function evaluateExpect(expect, ctx) {
       return evalComputeCount(expect, ctx);
     case 'computeSum':
       return evalComputeSum(expect, ctx);
+    case 'computeTicketEffortSum':
+      return evalComputeTicketEffortSum(expect, ctx);
     case 'computeUnansweredTicketMail':
       return evalComputeUnansweredTicketMail(expect, ctx);
     case 'computeMembership':
@@ -505,6 +507,81 @@ async function evalComputeSum(expect, ctx) {
     detail: pass
       ? `sum matched (${expected})`
       : `agent said ${JSON.stringify(ctx.result)}, ground truth sum = ${expected}`
+  };
+}
+
+async function evalComputeTicketEffortSum(expect, ctx) {
+  const ticketId = resolveParams(expect.ticketId, ctx);
+  if (ticketId == null || ticketId === '') {
+    return { pass: false, detail: `could not resolve ticketId for computeTicketEffortSum (${expect.ticketId})` };
+  }
+
+  const field = expect.field || 'effort';
+  const predicates = expect.predicates || [];
+  const taskOp = expect.taskOp || 'listTasks';
+  const actionstepOp = expect.actionstepOp || 'listActionSteps';
+
+  const taskParamsSpec = expect.taskParams || {
+    filters: { ticket: ticketId },
+    limit: 10000
+  };
+  const taskParams = ensureFieldList(resolveParams({ ...taskParamsSpec }, ctx), ['ID', 'ticket']);
+  if (containsUndefined(taskParams)) {
+    return { pass: false, detail: `could not resolve computeTicketEffortSum task params for ${taskOp}` };
+  }
+
+  const actionstepParams = ensureFieldList(
+    resolveParams({ ...(expect.actionstepParams || expect.params || { limit: 10000 }) }, ctx),
+    ['ID', 'ticket', 'task', field, ...predicates.map((p) => p.field)]
+  );
+  if (containsUndefined(actionstepParams)) {
+    return { pass: false, detail: `could not resolve computeTicketEffortSum actionstep params for ${actionstepOp}` };
+  }
+
+  let tasks;
+  let actionsteps;
+  try {
+    [tasks, actionsteps] = await Promise.all([
+      listAll(ctx.client, taskOp, taskParams),
+      listAll(ctx.client, actionstepOp, actionstepParams)
+    ]);
+  } catch (err) {
+    return { pass: false, detail: `compute ticket effort failed: ${err.message || err}` };
+  }
+
+  const taskIds = new Set(
+    tasks
+      .filter((task) => looseEq(task?.ticket, ticketId))
+      .map((task) => String(task.ID ?? task.id))
+      .filter((id) => id !== 'undefined')
+  );
+
+  const included = new Map();
+  for (const row of actionsteps) {
+    const directTicket = row?.ticket != null && looseEq(row.ticket, ticketId);
+    const taskTicket = row?.task != null && taskIds.has(String(row.task));
+    if (!directTicket && !taskTicket) continue;
+    if (!predicates.every((p) => matchesPredicate(row, p))) continue;
+    included.set(String(row.ID ?? row.id), row);
+  }
+
+  const rawSum = [...included.values()].reduce((sum, row) => {
+    const n = Number(row?.[field] ?? 0);
+    return sum + (Number.isFinite(n) ? n : 0);
+  }, 0);
+  const divisor = Number(expect.divisor || 1);
+  const expected = divisor && divisor !== 1 ? rawSum / divisor : rawSum;
+  const tolerance = Number(expect.tolerance ?? 0);
+  const raw = coerceResult(ctx.result);
+  const agent = typeof raw === 'number' ? raw : NaN;
+  const pass = Number.isFinite(agent) && Math.abs(agent - expected) <= tolerance;
+  return {
+    pass,
+    expected,
+    actual: Number.isFinite(agent) ? agent : ctx.result,
+    detail: pass
+      ? `ticket effort sum matched (${expected})`
+      : `agent said ${JSON.stringify(ctx.result)}, ground truth ticket effort sum = ${expected}`
   };
 }
 
@@ -684,6 +761,22 @@ function ensureFields(params, predicates) {
   if (params.fields) return params;
   const fields = new Set(['ID']);
   for (const p of predicates) fields.add(p.field);
+  return { ...params, fields: [...fields] };
+}
+
+function ensureFieldList(params, requiredFields) {
+  const required = requiredFields.filter(Boolean);
+  if (required.length === 0) return params;
+
+  if (!params.fields) {
+    return { ...params, fields: [...new Set(required)] };
+  }
+
+  const current = Array.isArray(params.fields)
+    ? params.fields
+    : String(params.fields).split(',').map((field) => field.trim()).filter(Boolean);
+  const fields = new Set(current);
+  for (const field of required) fields.add(field);
   return { ...params, fields: [...fields] };
 }
 

@@ -9,6 +9,7 @@ import readline from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
 
 import { createZeyosClient, normalizeTokenSet } from '../src/index.js';
+import { resolveLiveConfig } from './lib/live-test-config.mjs';
 
 function isObject(value) {
   return value != null && typeof value === 'object' && !Array.isArray(value);
@@ -496,16 +497,13 @@ const CONFIG_PATH = path.join(ROOT, 'config.test.json');
 const { known, passthrough } = parseArgs(process.argv.slice(2));
 const loadedConfig = await loadTestConfig(CONFIG_PATH);
 const liveConfig = isObject(loadedConfig.live) ? loadedConfig.live : {};
-
-let url = known.url ?? process.env.npm_config_url ?? null;
-let instance = known.instance ?? process.env.npm_config_instance ?? null;
-const clientIdArg = known.clientId ?? process.env.npm_config_client_id ?? process.env.ZEYOS_CLIENT_ID ?? liveConfig.clientId ?? null;
-const clientSecretArg = known.clientSecret ?? process.env.npm_config_client_secret ?? process.env.ZEYOS_CLIENT_SECRET ?? liveConfig.clientSecret ?? null;
-
-if (known.live && !url && !instance) {
-  url = liveConfig.url ?? null;
-  instance = liveConfig.instance ?? null;
-}
+const {
+  url,
+  instance,
+  clientIdArg,
+  clientSecretArg,
+  port
+} = resolveLiveConfig({ known, liveConfig, env: process.env });
 
 const hasUrl = Boolean(url);
 const hasInstance = Boolean(instance);
@@ -516,7 +514,6 @@ if (hasUrl && hasInstance) {
 }
 
 const wantsLiveOAuth = hasUrl || hasInstance;
-const port = known.port ?? process.env.npm_config_port ?? (wantsLiveOAuth ? liveConfig.port ?? null : null);
 
 if (known.live && !wantsLiveOAuth) {
   console.error('--live requires live.url or live.instance in config.test.json (or explicit --url/--instance).');

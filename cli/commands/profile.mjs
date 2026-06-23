@@ -14,6 +14,7 @@
  * the credentials currently in effect (including tokens) into the new profile.
  */
 
+import { createInterface } from 'node:readline';
 import {
   listProfiles, getProfile, upsertProfile, removeProfile,
   setActiveProfile, writeLocalPin, readLocalPin,
@@ -31,7 +32,7 @@ Commands:
   current                    Show which profile is in effect, and why
   use <name>                 Make <name> the active profile (global)
   use <name> --local         Pin <name> to the current project (.zeyos/profile)
-  add <name> [options]       Create or update a profile
+  add [<name>] [options]     Create or update a profile; prompts when run without connection options
   remove <name>              Delete a profile
 
 Add options:
@@ -45,6 +46,7 @@ Global options:
   -h, --help                 Show this help
 
 Examples:
+  zeyos profile add                         # prompt for name and connection params
   zeyos profile add dev  --base-url https://zeyos.cms-it.de/dev
   zeyos profile add prod --from-current
   zeyos profile use prod
@@ -147,30 +149,42 @@ function cmdUse(values, name) {
 
 // ── add ────────────────────────────────────────────────────────────────────────
 
-function cmdAdd(values, name) {
-  if (!name) fail('Usage: zeyos profile add <name> [--base-url <url>] [--client-id <id>] [--secret <secret>] | --from-current');
+async function cmdAdd(values, name) {
+  let promptSession = null;
+  const ask = (question, opts) => {
+    promptSession ??= createPromptSession();
+    return promptSession.ask(question, opts);
+  };
 
-  let updates = {};
-  if (values['from-current']) {
-    const cfg = loadConfigWithSource().config; // whatever is in effect right now
-    for (const k of ['baseUrl', 'instance', 'clientId', 'clientSecret', 'accessToken', 'refreshToken', 'expiresAt', 'refreshTokenExpiresAt']) {
-      if (cfg[k] != null) updates[k] = cfg[k];
-    }
-    if (!updates.baseUrl) fail('Nothing to snapshot: no credentials are currently in effect.');
-  } else {
-    if (values['base-url'])  updates.baseUrl      = values['base-url'];
-    if (values['client-id']) updates.clientId     = values['client-id'];
-    if (values.secret)       updates.clientSecret = values.secret;
-    if (Object.keys(updates).length === 0) {
-      fail('Provide at least --base-url (and ideally --client-id/--secret), or use --from-current.');
-    }
-  }
+  try {
+    const profileName = name || await ask('Profile name');
+    if (!profileName) fail('Profile name is required.');
 
-  const existed = Boolean(getProfile(name));
-  upsertProfile(name, updates);
-  success(`${existed ? 'Updated' : 'Created'} profile "${name}".`);
-  if (!updates.accessToken) {
-    info(`Finish authenticating with:  zeyos login --profile ${name}`);
+    let updates = {};
+    if (values['from-current']) {
+      const cfg = loadConfigWithSource().config; // whatever is in effect right now
+      for (const k of ['baseUrl', 'instance', 'clientId', 'clientSecret', 'accessToken', 'refreshToken', 'expiresAt', 'refreshTokenExpiresAt']) {
+        if (cfg[k] != null) updates[k] = cfg[k];
+      }
+      if (!updates.baseUrl) fail('Nothing to snapshot: no credentials are currently in effect.');
+    } else {
+      if (values['base-url'])  updates.baseUrl      = values['base-url'];
+      if (values['client-id']) updates.clientId     = values['client-id'];
+      if (values.secret)       updates.clientSecret = values.secret;
+
+      if (Object.keys(updates).length === 0) {
+        updates = await promptProfileCredentials(profileName, ask);
+      }
+    }
+
+    const existed = Boolean(getProfile(profileName));
+    upsertProfile(profileName, updates);
+    success(`${existed ? 'Updated' : 'Created'} profile "${profileName}".`);
+    if (!updates.accessToken) {
+      info(`Finish authenticating with:  zeyos login --profile ${profileName}`);
+    }
+  } finally {
+    promptSession?.close();
   }
 }
 
@@ -208,4 +222,85 @@ function failUnknown(name) {
 function fail(message) {
   error(message);
   process.exit(1);
+}
+
+async function promptProfileCredentials(name, ask) {
+  const existing = getProfile(name) || {};
+
+  info(`Creating profile "${name}".`);
+  info('This stores the platform and OAuth app credentials; tokens are added by login.');
+  console.error('');
+
+  const baseUrl = await ask('ZeyOS platform URL', { currentValue: existing.baseUrl });
+  const clientId = await ask('Application ID', { currentValue: existing.clientId });
+  const clientSecret = await ask('Application secret', { currentValue: existing.clientSecret, secret: true });
+
+  if (!baseUrl || !clientId || !clientSecret) {
+    fail('ZeyOS URL, application ID and secret are all required.');
+  }
+
+  return { baseUrl, clientId, clientSecret };
+}
+
+function createPromptSession() {
+  const rl = createInterface({ input: process.stdin, output: process.stderr, terminal: process.stdin.isTTY && process.stderr.isTTY });
+  const originalWrite = rl._writeToOutput.bind(rl);
+  let hiddenPrompt = null;
+  let closed = false;
+  const queuedLines = [];
+  const waitingResolvers = [];
+
+  rl.on('line', (line) => {
+    const resolve = waitingResolvers.shift();
+    if (resolve) {
+      resolve(line);
+    } else {
+      queuedLines.push(line);
+    }
+  });
+
+  rl.on('close', () => {
+    closed = true;
+    let resolve;
+    while ((resolve = waitingResolvers.shift())) {
+      resolve('');
+    }
+  });
+
+  rl._writeToOutput = (value) => {
+    if (!hiddenPrompt || String(value).includes(hiddenPrompt) || value === '\n' || value === '\r\n') {
+      originalWrite(value);
+    }
+  };
+
+  const readLine = () => {
+    if (queuedLines.length) {
+      return Promise.resolve(queuedLines.shift());
+    }
+    if (closed) {
+      return Promise.resolve('');
+    }
+    return new Promise(resolve => {
+      waitingResolvers.push(resolve);
+    });
+  };
+
+  return {
+    ask(question, opts = {}) {
+      const currentValue = opts.currentValue || '';
+      const defaultLabel = opts.secret && currentValue ? 'stored, press Enter to keep' : currentValue;
+      const prompt = defaultLabel ? `${question} [${defaultLabel}]` : question;
+      hiddenPrompt = opts.secret && process.stdin.isTTY && process.stderr.isTTY ? prompt : null;
+      process.stderr.write(`${prompt}: `);
+
+      return readLine()
+        .then(answer => {
+          hiddenPrompt = null;
+          return answer.trim() || currentValue || '';
+        });
+    },
+    close() {
+      rl.close();
+    }
+  };
 }

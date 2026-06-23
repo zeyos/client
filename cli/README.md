@@ -47,6 +47,9 @@ zeyos whoami --json
 ```
 
 `whoami` does not print access tokens by default. Use `zeyos whoami --show-token --json` only when you intentionally need to pass a token to another local tool.
+If a stored refresh token has expired, interactive `whoami` offers to re-authenticate
+and then retries the user lookup. In `--json`/`--yaml` or non-interactive runs, it
+prints a diagnostic plus the matching `zeyos login --force` command instead.
 
 Inspect the CLI-supported resource registry:
 

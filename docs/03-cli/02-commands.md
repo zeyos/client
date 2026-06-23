@@ -100,6 +100,11 @@ zeyos whoami --json
 zeyos whoami --show-token --json   # explicitly include the current access token
 ```
 
+If the stored refresh token is invalid or expired, interactive text-mode `whoami`
+prints the credential source and asks whether to re-authenticate immediately. In
+`--json`, `--yaml`, or non-interactive runs, it exits with the same diagnostic and
+prints the matching `zeyos login --force` command instead of prompting.
+
 ---
 
 ## profile
@@ -116,12 +121,13 @@ zeyos profile <list|current|use|add|remove> [options]
 | `profile current` | Show which profile resolves right now, and why (flag/env/pin/active) |
 | `profile use <name>` | Make `<name>` the active profile (global) |
 | `profile use <name> --local` | Pin `<name>` to the current project (`.zeyos/profile`) |
-| `profile add <name> [opts]` | Create/update a profile (`--base-url`, `--client-id`, `--secret`, or `--from-current`) |
+| `profile add [<name>] [opts]` | Create/update a profile; prompts for missing values when run without options |
 | `profile remove <name>` | Delete a profile |
 
 **Examples:**
 
 ```bash
+zeyos profile add                         # prompt for name, URL, app ID, secret
 zeyos profile add dev  --base-url https://zeyos.cms-it.de/dev
 zeyos profile add prod --from-current        # snapshot current credentials
 zeyos login --profile prod                   # authenticate into & activate a profile

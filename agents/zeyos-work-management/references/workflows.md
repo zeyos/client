@@ -160,6 +160,7 @@ zeyos count actionsteps --filter '{"ticket":812,"status":0}' --json
 Use this for prompts like:
 
 - "How many minutes were booked on ticket 812 last week?"
+- "Give me a summary of logged ticket time from the last four weeks."
 - "Summarize completed actionstep effort for this account."
 - "Which user logged effort against this project?"
 
@@ -169,7 +170,44 @@ Recommended approach:
 2. Query `actionsteps` with fields `ID`, `date`, `status`, `effort`, and the relevant FK (`ticket`, `task`, `account`, or `transaction`).
 3. Include statuses `1` COMPLETED and `3` BOOKED for time-entry totals unless the user asks for drafts/open follow-ups.
 4. Sum `effort` as minutes; convert to hours only if the user asked for hours.
-5. Keep task/ticket assignment separate from effort totals.
+5. For ticket-level totals, roll task time up to the ticket:
+   - direct ticket time is `actionsteps.ticket = <ticketId>`
+   - task ticket time is `actionsteps.task = <taskId>` where `tasks.ticket = <ticketId>`
+   - fetch tasks by `ticket` for a named ticket, or resolve every referenced `actionstep.task` to `task.ticket` for a period-wide ticket summary
+   - do not filter tasks by status when resolving historical time; a completed task can still carry valid logged time
+   - dedupe by `actionsteps.ID` before summing in case a row has both `ticket` and `task`
+6. Keep task/ticket assignment separate from effort totals.
+
+Ticket-specific client example:
+
+```js
+const [directRows, tasks] = await Promise.all([
+  client.api.listActionSteps({
+    fields: ['ID', 'date', 'status', 'effort', 'ticket', 'task', 'assigneduser'],
+    filters: { ticket: ticketId, status: { IN: [1, 3] }, date: { '>=': start, '<=': end } },
+    limit: 10000,
+  }),
+  client.api.listTasks({
+    fields: ['ID', 'ticket', 'name'],
+    filters: { ticket: ticketId },
+    limit: 10000,
+  }),
+]);
+
+const taskIds = tasks.map((task) => task.ID);
+const taskRows = taskIds.length
+  ? await client.api.listActionSteps({
+      fields: ['ID', 'date', 'status', 'effort', 'ticket', 'task', 'assigneduser'],
+      filters: { task: { IN: taskIds }, status: { IN: [1, 3] }, date: { '>=': start, '<=': end } },
+      limit: 10000,
+    })
+  : [];
+
+const uniqueRows = new Map();
+for (const row of [...directRows, ...taskRows]) uniqueRows.set(String(row.ID), row);
+const totalMinutes = [...uniqueRows.values()]
+  .reduce((sum, row) => sum + (Number(row.effort) || 0), 0);
+```
 
 ## Pattern: Create Follow-Up Work
 

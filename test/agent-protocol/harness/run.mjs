@@ -493,7 +493,12 @@ function summarizeAttempts(attempts) {
 async function dryRun(scenarios, client, me) {
   for (const s of scenarios) {
     const head = `  ${s.layer}  ${s.id}  [${s.expect.kind}]  ${s.mutates ? '(mutates)' : '(read-only)'}`;
-    if (s.expect.kind === 'computeCount' || s.expect.kind === 'computeSum' || s.expect.kind === 'computeUnansweredTicketMail') {
+    if (
+      s.expect.kind === 'computeCount' ||
+      s.expect.kind === 'computeSum' ||
+      s.expect.kind === 'computeTicketEffortSum' ||
+      s.expect.kind === 'computeUnansweredTicketMail'
+    ) {
       try {
         const ev = await evaluateExpect(s.expect, { client, result: null, runId: 'dryrun', recordPrefix: 'AGENTTEST', me });
         if (ev.expected !== undefined) {

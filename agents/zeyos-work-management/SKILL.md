@@ -30,9 +30,10 @@ Typical prompts:
 4. Follow relationships only after the primary record set is clear.
 5. Treat "worked on" as a proxy unless actionstep effort/date evidence exists. Assignment and timestamps show involvement; `actionsteps.effort` on `COMPLETED` or `BOOKED` records is stronger time-entry evidence.
 6. Distinguish direct project assignment from project inference through linked tickets.
-7. When the question is really about account or transaction follow-up, check `actionsteps` before inventing a new task.
-8. For mutations, preview the affected record first and update with an explicit PATCH body.
-9. Escalate from the CLI to `@zeyos/client` if the workflow needs unsupported joins, additional request control, or correlation across multiple list responses.
+7. For logged ticket-time summaries, include actionsteps directly linked to the ticket and actionsteps linked to tasks whose `task.ticket` is that ticket; dedupe actionstep IDs before summing.
+8. When the question is really about account or transaction follow-up, check `actionsteps` before inventing a new task.
+9. For mutations, preview the affected record first and update with an explicit PATCH body.
+10. Escalate from the CLI to `@zeyos/client` if the workflow needs unsupported joins, additional request control, or correlation across multiple list responses.
 
 ## Destructive Operations
 

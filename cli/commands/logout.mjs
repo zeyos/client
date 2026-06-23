@@ -10,8 +10,8 @@
  */
 
 import { createZeyosClient, MemoryTokenStore } from '@zeyos/client';
-import { loadConfigWithSource, clearTokens, clearTokensForSource } from '../lib/config.mjs';
-import { success, warn, info }                 from '../lib/output.mjs';
+import { loadConfigWithSource, loadGlobalConfig, clearTokensForSource, listProfiles } from '../lib/config.mjs';
+import { success, warn, info, error }          from '../lib/output.mjs';
 
 export const USAGE = `\
 Usage: zeyos logout [options]
@@ -25,7 +25,23 @@ Options:
 `;
 
 export async function run(values) {
-  const { config, source } = loadConfigWithSource({ profile: values.profile });
+  let config;
+  let source;
+
+  if (values.global) {
+    config = loadGlobalConfig();
+    source = { kind: 'global' };
+  } else {
+    const loaded = loadConfigWithSource({ profile: values.profile });
+    if (loaded.profile?.missing) {
+      const names = Object.keys(listProfiles().profiles);
+      const known = names.length ? `Known profiles: ${names.join(', ')}.` : 'No profiles defined yet.';
+      error(`Profile "${loaded.profile.name}" not found (selected via ${loaded.profile.origin}). ${known}`);
+      process.exit(1);
+    }
+    config = loaded.config;
+    source = loaded.source;
+  }
 
   if (!config.accessToken) {
     warn('Not currently logged in.');
@@ -58,11 +74,7 @@ export async function run(values) {
     }
   }
 
-  if (values.global) {
-    clearTokens('global');
-  } else {
-    clearTokensForSource(source);
-  }
+  clearTokensForSource(source);
   const where = source?.kind === 'profile' ? `profile "${source.name}"` : (values.global ? 'global credentials' : 'local credentials');
   success(`Logged out (${where}).`);
 }
