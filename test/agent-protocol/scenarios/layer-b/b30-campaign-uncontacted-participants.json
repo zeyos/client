@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 2,
+  "id": "b30-campaign-uncontacted-participants",
+  "layer": "b",
+  "title": "Campaign participants with no recorded sent-mailing recipient (anti-join, CSV)",
+  "suite": ["regression", "campaign"],
+  "tags": ["campaign", "anti-join", "csv", "mailingrecipients"],
+  "knowledge": { "primarySkill": "zeyos-campaign-and-outreach", "okfConcepts": ["playbooks/campaign-recipient-coverage"] },
+  "interface": { "preferred": "either" },
+  "effects": { "fixtureMutates": true, "agentMode": "read-only" },
+  "preconditions": [
+    { "kind": "fixtureRecipeValid", "op": "createCampaign", "data": { "name": "{recordPrefix}-{runId} probe-camp", "datefrom": 1893456000, "visibility": 0, "ownergroup": "$MYGROUP" } }
+  ],
+  "seed": [
+    { "op": "createCampaign", "as": "campaign", "data": { "name": "{recordPrefix}-{runId} camp", "datefrom": 1893456000, "visibility": 0, "ownergroup": "$MYGROUP" } },
+    { "op": "createParticipant", "as": "p1", "data": { "campaign": "$SEED.campaign.ID", "name": "{recordPrefix}-{runId} p1", "email": "p1@example.test" } },
+    { "op": "createParticipant", "as": "p2", "data": { "campaign": "$SEED.campaign.ID", "name": "{recordPrefix}-{runId} p2", "email": "p2@example.test" } },
+    { "op": "createParticipant", "as": "p3", "data": { "campaign": "$SEED.campaign.ID", "name": "{recordPrefix}-{runId} p3", "email": "p3@example.test" } },
+    { "op": "createParticipant", "as": "p4", "data": { "campaign": "$SEED.campaign.ID", "name": "{recordPrefix}-{runId} p4", "email": "p4@example.test" } },
+    { "op": "createMessage", "as": "sent", "data": { "mailbox": 4, "verified": 1, "date": 1893456000, "subject": "{recordPrefix}-{runId} mailing-sent", "contenttype": "text/plain", "text": "sent mailing" } },
+    { "op": "createMailingRecipient", "as": "r1", "data": { "message": "$SEED.sent.ID", "participant": "$SEED.p1.ID", "email": "p1@example.test" } },
+    { "op": "createMailingRecipient", "as": "r2", "data": { "message": "$SEED.sent.ID", "participant": "$SEED.p2.ID", "email": "p2@example.test" } },
+    { "op": "createMessage", "as": "draft", "data": { "mailbox": 1, "verified": 0, "date": 1893456000, "subject": "{recordPrefix}-{runId} mailing-draft", "contenttype": "text/plain", "text": "draft mailing" } },
+    { "op": "createMailingRecipient", "as": "r3", "data": { "message": "$SEED.draft.ID", "participant": "$SEED.p3.ID", "email": "p3@example.test" } }
+  ],
+  "turns": [
+    {
+      "id": "answer",
+      "prompt": "For the campaign named exactly \"{recordPrefix}-{runId} camp\", export the participants that have NO recorded recipient entry for the sent mailing (subject \"{recordPrefix}-{runId} mailing-sent\"). A draft mailing does not count. Write a CSV with header participant_id,email,reason and use the reason \"no recorded mailing recipient\" (not \"never contacted\"). End with `RESULT_FILE: out/uncontacted.csv`.",
+      "result": { "mode": "file", "format": "csv", "path": "out/uncontacted.csv" },
+      "expect": {
+        "kind": "all",
+        "expectations": [
+          { "kind": "verifyFile", "headers": ["participant_id", "email", "reason"], "rowCount": 2 },
+          {
+            "kind": "computeProjection",
+            "sources": {
+              "parts": { "op": "listParticipants", "params": { "filters": { "campaign": "$SEED.campaign.ID" }, "fields": ["ID", "email"], "limit": 1000 } },
+              "recips": { "op": "listMailingRecipients", "params": { "filters": { "message": "$SEED.sent.ID" }, "fields": ["participant"], "limit": 1000 } }
+            },
+            "pipeline": [
+              { "from": { "source": "parts" } },
+              { "antiJoin": { "source": "recips", "on": { "left": "ID", "right": "participant" } } },
+              { "derive": { "pid": { "concat": ["ID"] } } },
+              { "project": { "value": "pid" } }
+            ],
+            "compareTo": "$RESULT[*].participant_id",
+            "comparator": "set"
+          }
+        ]
+      }
+    }
+  ],
+  "cleanup": "auto",
+  "coverage": { "entities": ["campaigns", "participants", "mailingrecipients", "messages"], "operations": ["listParticipants", "listMailingRecipients"], "formats": ["csv"], "rules": ["R-022"] }
+}

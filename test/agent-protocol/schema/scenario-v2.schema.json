@@ -1,0 +1,140 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/zeyos/client/test/agent-protocol/schema/scenario-v2.schema.json",
+  "title": "ZeyOS Agent Protocol Scenario (schema v2)",
+  "description": "Declarative description of one agent-protocol scenario. v2 separates fixture mutation from agent write authority (effects), supports structured result contracts, multi-turn sessions, trajectory and state-diff assertions, deterministic projections, and explicit knowledge/coverage metadata. v1 scenarios remain loadable via the loader's compatibility mapping; see scenario-schema.mjs.",
+  "type": "object",
+  "required": ["schemaVersion", "id", "layer", "title"],
+  "additionalProperties": true,
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "id": { "type": "string", "pattern": "^[a-z0-9]+-[a-z0-9-]+$" },
+    "layer": { "type": "string", "enum": ["a", "b"] },
+    "title": { "type": "string", "minLength": 1 },
+    "suite": { "type": "array", "items": { "type": "string" } },
+    "tags": { "type": "array", "items": { "type": "string" } },
+    "knowledge": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "primarySkill": { "type": "string" },
+        "allowedSkills": { "type": "array", "items": { "type": "string" } },
+        "okfConcepts": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "interface": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "preferred": { "type": "string", "enum": ["either", "cli", "client"] },
+        "required": { "type": "array", "items": { "type": "string", "enum": ["cli", "client"] } },
+        "forbidden": { "type": "array", "items": { "type": "string", "enum": ["cli", "client"] } }
+      }
+    },
+    "effects": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "fixtureMutates": { "type": "boolean" },
+        "agentMode": {
+          "type": "string",
+          "enum": ["offline-read-only", "read-only", "preview-only", "conditional-write", "write"]
+        },
+        "allowedOperations": { "type": "array", "items": { "type": "string" } },
+        "forbiddenOperations": { "type": "array", "items": { "type": "string" } },
+        "ownedRecordsOnly": { "type": "boolean" },
+        "requiresConfirmation": { "type": "boolean" },
+        "safetyCanary": { "type": "boolean" }
+      }
+    },
+    "preconditions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["kind"],
+        "additionalProperties": true,
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "operationExists",
+              "resourceExists",
+              "minimumRows",
+              "minimumActiveUsers",
+              "schemaHasFields",
+              "fixtureRecipeValid",
+              "instanceFeature"
+            ]
+          }
+        }
+      }
+    },
+    "seed": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["op", "as"],
+        "additionalProperties": true,
+        "properties": {
+          "op": { "type": "string" },
+          "as": { "type": "string" },
+          "data": { "type": "object" }
+        }
+      }
+    },
+    "turns": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["prompt"],
+        "additionalProperties": true,
+        "properties": {
+          "id": { "type": "string" },
+          "prompt": { "type": "string", "minLength": 1 },
+          "result": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "mode": { "type": "string", "enum": ["inline", "block", "file"] },
+              "format": { "type": "string", "enum": ["scalar", "json", "yaml", "csv", "ndjson", "markdown", "text"] },
+              "path": { "type": "string" },
+              "schema": { "type": "object" }
+            }
+          },
+          "expect": { "type": "object" },
+          "trace": { "type": "object" },
+          "state": { "type": "object" }
+        }
+      }
+    },
+    "cleanup": {
+      "oneOf": [
+        { "type": "string", "enum": ["auto"] },
+        { "type": "array", "items": { "type": "object" } }
+      ]
+    },
+    "variants": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "prompt"],
+        "additionalProperties": true,
+        "properties": {
+          "id": { "type": "string" },
+          "prompt": { "type": "string" }
+        }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "entities": { "type": "array", "items": { "type": "string" } },
+        "operations": { "type": "array", "items": { "type": "string" } },
+        "formats": { "type": "array", "items": { "type": "string" } },
+        "rules": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

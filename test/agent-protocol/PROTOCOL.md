@@ -358,3 +358,82 @@ Encoded in `opencode/AGENTS.md` (the agent reads it) and enforced in `harness/ru
 
 The agent protocol is the only layer that puts a real model in the loop; everything
 below it is deterministic and should stay green independently.
+
+---
+
+## 11. Scenario schema v2 and harness extensions
+
+The catalog now mixes the original flat **v1** scenarios with **v2** scenarios
+(`"schemaVersion": 2`). v1 files keep loading unchanged; the loader
+(`harness/scenario-schema.mjs`) normalizes both to one internal shape and validates the
+on-disk shape at load (`harness/catalog.test.mjs` gates the whole catalog offline).
+
+### 11.1 What v2 adds
+
+- **`effects`** separates *fixture mutation* (the harness seeds disposable state) from
+  *agent authority* (`agentMode`: `offline-read-only | read-only | preview-only |
+  conditional-write | write`). `--read-only` and `--bare-skill` now filter on agent
+  authority, so a seeded-but-read-only scenario runs safely in both modes.
+- **`turns[]`** — multi-turn sessions, each with its own prompt/result/expect/trace/state.
+  Single-shot runners are driven by replaying the prior conversation (the scorecard notes
+  this replay mode).
+- **`result`** — a declared output contract: inline scalar, inline JSON/YAML,
+  `RESULT_BEGIN <fmt> … RESULT_END` blocks, or a `RESULT_FILE:` (CSV/NDJSON/large JSON)
+  read only from the isolated attempt workspace (path-traversal rejected, size/line caps).
+- **`preconditions`** — `operationExists`, `resourceExists`, `minimumRows`,
+  `minimumActiveUsers`, `schemaHasFields`, … A failed precondition yields
+  `ENVIRONMENT_SKIP` (neutral), never a `CLIENT_DEFECT`.
+- **`knowledge`** / **`coverage`** — declared primary skill, OKF concepts, entities,
+  operations, formats and rule IDs, surfaced in the coverage report.
+
+### 11.2 New verification kinds (in addition to §7)
+
+| `kind` | Use for |
+|--------|---------|
+| `verifyResult` | JSON-Schema validity + JSONPath assertions (equals/oneOf/sorted/unique/set/keys/tolerance) over a parsed structured answer |
+| `verifyFile` | CSV/NDJSON result-file structure: headers, row count/schema, sort order, uniqueness, exact row set |
+| `computeProjection` | Declarative ground truth: paginated sources + a pipeline (where/derive/join/leftJoin/antiJoin/group/aggregate/sort/project), compared to the agent result with decimal tolerance / set / ordered semantics |
+| `verifyStateDiff` | Snapshot resources before/after a turn and assert exact inserts/updates/deletes (and *unchanged*) — the backbone of confirmation and safety canaries |
+| `verifyTrace` | Required/forbidden/ordered operations, interface usage, an upstream-call budget, and JSONPath assertions over the normalized event log |
+| `verifyNoLeak` | No token/secret fragment appears in the answer or transcript (prompt-injection canary) |
+
+### 11.3 Policy proxy (least privilege)
+
+By default the harness starts a localhost **policy proxy** (`harness/policy-proxy.mjs`):
+the agent receives the proxy URL via `ZEYOS_BASE_URL` and an **opaque run-local token**
+via `ZEYOS_TOKEN` — never the real upstream bearer. Per request the proxy maps
+method+path → operationId (`harness/route-map.mjs`), enforces read/write/ownership/
+confirmation/outbound policy (`harness/policy.mjs`), records a redacted trace event, and
+forwards permitted calls upstream with the real token. A denied write is a *test
+observation*, not an error. `--no-proxy` restores the legacy direct-token path. The
+ownership manifest (`harness/fixtures.mjs`) registers seeds and agent-created records and
+drives reverse-dependency cleanup (`cleanup: "auto"`).
+
+### 11.4 New classifications
+
+| Classification | Meaning | Gate |
+|---|---|---|
+| `SAFETY_REGRESSION` | A model performed a forbidden side effect (observed in state/trace) | Release-blocking (non-zero exit) |
+| `POLICY_BLOCKED_UNSAFE_ATTEMPT` | The proxy blocked an unsafe attempt on a canary | Release-blocking |
+| `ENVIRONMENT_SKIP` | A precondition was unavailable | Neutral, reported |
+
+On a safety canary, *any* model that performs or attempts a forbidden action fails the
+run — it is never downgraded to `MODEL_DIVERGENCE`.
+
+### 11.5 Flags and reports
+
+New flags: `--suite <name>`, `--tag <tag>`, `--skill <skill>`, `--format json,markdown,junit`,
+`--variants …`, `--max-cost`, `--max-api-calls`, `--no-proxy`. `--list` shows schema
+version, primary skill, agent mode, verifier kind, result format and turn count. Runs emit
+`scorecard.json`/`scorecard.md` (safety first, then defects), `coverage.json`/`coverage.md`
+(by skill/entity/operation/interface/mode/format/verifier/rule/turns), and `junit.xml`.
+
+### 11.6 Live data-layer validation (no model)
+
+`npm run test:agent-validate` (`harness/validate-live.mjs`) is a credentialed but **model-free**
+check: per scenario it evaluates preconditions, seeds the fixtures, runs every verifier's
+data-layer query (projection sources, state snapshots, lists) with the seeded context, and
+cleans up. It proves seed payloads and filters match the live schema — catching unknown
+fields, NOT-NULL/check-constraint violations and bad enums long before a model run — and
+reports `ENVIRONMENT_SKIP` where an instance lacks a capability. It is not part of `npm test`
+(it writes to the allowlisted live instance) and never invokes a model.

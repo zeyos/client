@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 2,
+  "id": "b21-customer-360-structured",
+  "layer": "b",
+  "title": "Deterministic Customer 360 packet across CRM, work and billing",
+  "suite": ["regression", "account-intelligence"],
+  "tags": ["account-intelligence", "customer-360", "join", "structured-output"],
+  "knowledge": { "primarySkill": "zeyos-account-intelligence", "allowedSkills": ["zeyos", "zeyos-account-intelligence"], "okfConcepts": ["playbooks/customer-360", "entities/accounts"] },
+  "interface": { "preferred": "either" },
+  "effects": { "fixtureMutates": true, "agentMode": "read-only" },
+  "seed": [
+    { "op": "createContact", "as": "contact", "data": { "lastname": "{recordPrefix}-{runId} Contact", "firstname": "Dana", "email": "dana+360@example.test" } },
+    { "op": "createAccount", "as": "account", "data": { "lastname": "{recordPrefix}-{runId} 360 GmbH", "firstname": "", "type": 1, "currency": "EUR", "visibility": 0, "contact": "$SEED.contact.ID" } },
+    { "op": "createAddress", "as": "billing", "data": { "account": "$SEED.account.ID", "contact": "$SEED.contact.ID", "type": 1, "default": 1 } },
+    { "op": "createOpportunity", "as": "opp", "data": { "name": "{recordPrefix}-{runId} 360 opp", "account": "$SEED.account.ID", "status": 4, "visibility": 0 } },
+    { "op": "createContract", "as": "contract", "data": { "name": "{recordPrefix}-{runId} 360 contract", "account": "$SEED.account.ID", "status": 4, "currency": "EUR", "visibility": 0 } },
+    { "op": "createTicket", "as": "ticket", "data": { "name": "{recordPrefix}-{runId} 360 ticket", "account": "$SEED.account.ID", "status": 4, "priority": 3, "visibility": 0 } },
+    { "op": "createTransaction", "as": "invoice", "data": { "account": "$SEED.account.ID", "transactionnum": "{recordPrefix}-{runId} 360 inv", "type": 3, "date": 1893456000, "netamount": 100.00, "currency": "EUR", "status": 1 } },
+    { "op": "createPayment", "as": "payment", "data": { "account": "$SEED.account.ID", "date": 1893456000, "amount": 100.00, "status": 1 } }
+  ],
+  "turns": [
+    {
+      "id": "answer",
+      "prompt": "Give me a Customer 360 for the account named exactly \"{recordPrefix}-{runId} 360 GmbH\". Separate the layers and return JSON with keys: account ({id,name}), openPipeline (array of open opportunity IDs), activeContracts (array of active contract IDs), openTickets (array of open ticket IDs), and billing ({invoiceNet:<number>, cashReceived:<number>, currency:\"EUR\"}). Do not treat an opportunity as a contract.",
+      "result": { "mode": "inline", "format": "json", "schema": { "type": "object", "required": ["account", "openPipeline", "activeContracts", "openTickets", "billing"], "properties": { "billing": { "type": "object", "required": ["invoiceNet", "currency"] } } } },
+      "expect": {
+        "kind": "all",
+        "expectations": [
+          { "kind": "computeProjection", "sources": { "t": { "op": "listTickets", "params": { "filters": { "account": "$SEED.account.ID", "visibility": 0 }, "fields": ["ID"], "limit": 1000 } } }, "pipeline": [{ "project": { "value": "ID" } }], "compareTo": "$RESULT.openTickets", "comparator": "set" },
+          { "kind": "computeProjection", "sources": { "o": { "op": "listOpportunities", "params": { "filters": { "account": "$SEED.account.ID", "visibility": 0 }, "fields": ["ID", "status"], "limit": 1000 } } }, "pipeline": [{ "where": { "field": "status", "notIn": [5, 6] } }, { "project": { "value": "ID" } }], "compareTo": "$RESULT.openPipeline", "comparator": "set" },
+          { "kind": "computeProjection", "sources": { "x": { "op": "listTransactions", "params": { "filters": { "account": "$SEED.account.ID", "type": 3 }, "fields": ["ID", "netamount"], "limit": 1000 } } }, "pipeline": [{ "aggregate": { "net": { "sum": "netamount" } } }], "select": "$.net", "compareTo": "$RESULT.billing.invoiceNet", "tolerance": 0.005 }
+        ]
+      }
+    }
+  ],
+  "cleanup": "auto",
+  "coverage": { "entities": ["accounts", "contacts", "addresses", "opportunities", "contracts", "tickets", "transactions", "payments"], "operations": ["listTickets", "listOpportunities", "listTransactions"], "formats": ["json"], "rules": ["R-003", "R-016"] }
+}

@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 2,
+  "id": "a10-query-preview-no-write",
+  "layer": "a",
+  "title": "Request preview (--query/dryRun) resolves a write without sending it",
+  "suite": ["smoke", "regression"],
+  "tags": ["preview", "dry-run", "no-write", "tickets"],
+  "knowledge": { "primarySkill": "zeyos", "okfConcepts": ["concepts/confirmation-and-side-effects"] },
+  "interface": { "preferred": "either" },
+  "effects": { "fixtureMutates": false, "agentMode": "preview-only", "allowedOperations": [], "forbiddenOperations": ["createTicket"] },
+  "turns": [
+    {
+      "id": "answer",
+      "prompt": "Prepare (but do NOT send) the request that would create a ticket named exactly \"{recordPrefix}-{runId} preview-only\". Resolve the request with a dry-run/preview so nothing is created, and report the resolved request as a JSON object with keys method, url, body and sent. Set sent to false.",
+      "result": { "mode": "inline", "format": "json", "schema": { "type": "object", "required": ["method", "url", "body", "sent"], "properties": { "method": { "type": "string" }, "url": { "type": "string" }, "sent": { "const": false } } } },
+      "expect": {
+        "kind": "all",
+        "expectations": [
+          { "kind": "verifyResult", "schema": { "type": "object", "required": ["method", "url", "body", "sent"], "properties": { "sent": { "const": false } } }, "assertions": [{ "path": "$.method", "oneOf": ["PUT", "POST"] }] },
+          { "kind": "verifyNoRecords", "op": "listTickets", "params": { "filters": { "name": "{recordPrefix}-{runId} preview-only", "visibility": 0 }, "limit": 100 }, "predicates": [] },
+          { "kind": "verifyTrace", "forbid": [{ "operation": "createTicket" }] }
+        ]
+      }
+    }
+  ],
+  "cleanup": "auto",
+  "coverage": { "entities": ["tickets"], "operations": [], "formats": ["json"], "rules": ["R-001", "R-010"] }
+}

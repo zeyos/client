@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 2,
+  "id": "a20-operationid-suggestion",
+  "layer": "a",
+  "title": "Unknown operation listDunning yields a did-you-mean suggestion, not a TypeError",
+  "suite": ["regression"],
+  "tags": ["schema", "operationid", "suggestion", "dunning"],
+  "knowledge": { "primarySkill": "zeyos-platform-and-schema", "okfConcepts": ["concepts/operationid-vocabulary"] },
+  "interface": { "preferred": "client", "required": ["client"] },
+  "effects": { "fixtureMutates": false, "agentMode": "offline-read-only" },
+  "turns": [
+    {
+      "id": "answer",
+      "prompt": "Intentionally reference the wrong client operation \"listDunning\". Use the client's schema validation / did-you-mean facility to discover the correct operation rather than calling a non-existent method. Return {\"requested\": \"listDunning\", \"suggested\": \"<the real operationId>\"}.",
+      "result": { "mode": "inline", "format": "json", "schema": { "type": "object", "required": ["requested", "suggested"] } },
+      "expect": {
+        "kind": "verifyResult",
+        "assertions": [{ "path": "$.requested", "equals": "listDunning" }, { "path": "$.suggested", "equals": "listDunningNotices" }]
+      }
+    }
+  ],
+  "cleanup": "auto",
+  "coverage": { "entities": ["dunning"], "operations": [], "formats": ["json"], "rules": ["R-015"] }
+}

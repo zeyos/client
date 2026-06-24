@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 2,
+  "id": "a11-json-yaml-parity",
+  "layer": "a",
+  "title": "JSON and YAML output parse to equivalent canonical values",
+  "suite": ["regression"],
+  "tags": ["output-format", "json", "yaml", "tickets"],
+  "knowledge": { "primarySkill": "zeyos", "okfConcepts": ["concepts/dates-unix-seconds"] },
+  "interface": { "preferred": "cli" },
+  "effects": { "fixtureMutates": true, "agentMode": "read-only" },
+  "seed": [
+    { "op": "createTicket", "as": "ticket", "data": { "name": "{recordPrefix}-{runId} yes", "status": 4, "priority": 3, "visibility": 0, "duedate": 1893456000 } }
+  ],
+  "turns": [
+    {
+      "id": "answer",
+      "prompt": "Fetch the seeded ticket named exactly \"{recordPrefix}-{runId} yes\" once as JSON and once as YAML. Parse both and report a JSON object with keys ticketId (its numeric ID), same (true if the canonical values are identical across the two formats), and rawDuedate (the duedate exactly as returned, a Unix timestamp in seconds).",
+      "result": { "mode": "inline", "format": "json", "schema": { "type": "object", "required": ["ticketId", "same", "rawDuedate"] } },
+      "expect": {
+        "kind": "all",
+        "expectations": [
+          { "kind": "verifyResult", "assertions": [{ "path": "$.same", "equals": true }, { "path": "$.rawDuedate", "equals": 1893456000 }] },
+          { "kind": "verifyRecord", "op": "getTicket", "idFrom": "$RESULT.ticketId", "assert": [{ "path": "name", "equals": "{recordPrefix}-{runId} yes" }, { "path": "duedate", "equals": 1893456000 }] }
+        ]
+      }
+    }
+  ],
+  "cleanup": "auto",
+  "coverage": { "entities": ["tickets"], "operations": ["getTicket"], "formats": ["json", "yaml"], "rules": ["R-014", "R-022"] }
+}

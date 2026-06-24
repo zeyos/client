@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 2,
+  "id": "a12-aliased-related-fields",
+  "layer": "a",
+  "title": "Aliased field selection and first-degree dot-notation relation",
+  "suite": ["regression"],
+  "tags": ["fields", "alias", "join", "dot-notation", "unicode"],
+  "knowledge": { "primarySkill": "zeyos", "okfConcepts": ["entities/accounts", "entities/contacts"] },
+  "interface": { "preferred": "either" },
+  "effects": { "fixtureMutates": true, "agentMode": "read-only" },
+  "seed": [
+    { "op": "createContact", "as": "contact", "data": { "lastname": "Müller", "firstname": "Anja", "email": "qa+agent@example.test" } },
+    { "op": "createAccount", "as": "account", "data": { "lastname": "{recordPrefix}-{runId} Müller GmbH", "firstname": "", "type": 1, "currency": "EUR", "visibility": 0, "contact": "$SEED.contact.ID" } }
+  ],
+  "turns": [
+    {
+      "id": "answer",
+      "prompt": "For the account named exactly \"{recordPrefix}-{runId} Müller GmbH\", return a JSON object with the account's name under the key \"Customer\" and its primary contact email under the key \"Primary email\". Use the account's canonical contact relation to read the email; do not guess it.",
+      "result": { "mode": "inline", "format": "json", "schema": { "type": "object", "required": ["Customer", "Primary email"] } },
+      "expect": {
+        "kind": "all",
+        "expectations": [
+          { "kind": "verifyResult", "assertions": [
+            { "path": "$", "keys": ["Customer", "Primary email"] },
+            { "path": "$['Primary email']", "equals": "qa+agent@example.test" },
+            { "path": "$.Customer", "matches": "Müller" }
+          ] },
+          { "kind": "verifyTrace", "require": [{ "operation": "listAccounts", "min": 1 }] }
+        ]
+      }
+    }
+  ],
+  "cleanup": "auto",
+  "coverage": { "entities": ["accounts", "contacts"], "operations": ["listAccounts"], "formats": ["json"], "rules": ["R-003", "R-022"] }
+}

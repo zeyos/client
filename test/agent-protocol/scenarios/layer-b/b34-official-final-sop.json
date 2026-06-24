@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 2,
+  "id": "b34-official-final-sop",
+  "layer": "b",
+  "title": "Current official SOP is the FINAL document, not the newest obsolete one",
+  "suite": ["regression", "document", "new-skill"],
+  "tags": ["document", "status", "official-vs-latest"],
+  "knowledge": { "primarySkill": "zeyos-document-and-approval", "okfConcepts": ["playbooks/document-approval", "concepts/official-versus-latest"] },
+  "interface": { "preferred": "either" },
+  "effects": { "fixtureMutates": true, "agentMode": "read-only" },
+  "seed": [
+    { "op": "createNote", "as": "note", "data": { "name": "{recordPrefix}-{runId} onboarding draft", "status": 0, "contenttype": "text/plain", "text": "draft onboarding notes", "visibility": 0 } },
+    { "op": "createDocument", "as": "final", "data": { "name": "{recordPrefix}-{runId} onboarding SOP", "status": 4, "filename": "onboarding-sop-v1.pdf", "mimetype": "application/pdf", "visibility": 0 } },
+    { "op": "createDocument", "as": "obsolete", "data": { "name": "{recordPrefix}-{runId} onboarding SOP", "status": 5, "filename": "onboarding-sop-v0.pdf", "mimetype": "application/pdf", "visibility": 0 } }
+  ],
+  "turns": [
+    {
+      "id": "answer",
+      "prompt": "Which artifact is the CURRENT official onboarding SOP among items named like \"{recordPrefix}-{runId} onboarding%\"? Prefer formal documents with FINAL status over a newer OBSOLETE document and over a draft note. Return {\"sourceType\":\"document\", \"id\":<id>, \"status\":<status>, \"name\":\"...\", \"filename\":\"...\", \"selectionReason\":\"...\"}.",
+      "result": { "mode": "inline", "format": "json", "schema": { "type": "object", "required": ["sourceType", "id", "status", "selectionReason"] } },
+      "expect": {
+        "kind": "all",
+        "expectations": [
+          { "kind": "verifyResult", "assertions": [{ "path": "$.sourceType", "equals": "document" }, { "path": "$.status", "equals": 4 }] },
+          { "kind": "computeProjection", "sources": { "d": { "op": "listDocuments", "params": { "filters": { "visibility": 0, "status": 4, "name": { "~~*": "{recordPrefix}-{runId} onboarding%" } }, "fields": ["ID"], "limit": 100 } } }, "pipeline": [{ "project": { "value": "ID" } }], "compareTo": "$RESULT.id" }
+        ]
+      }
+    }
+  ],
+  "cleanup": "auto",
+  "coverage": { "entities": ["documents", "notes"], "operations": ["listDocuments"], "formats": ["json"], "rules": ["R-018"] }
+}

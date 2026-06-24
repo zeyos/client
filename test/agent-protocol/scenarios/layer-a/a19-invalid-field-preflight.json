@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 2,
+  "id": "a19-invalid-field-preflight",
+  "layer": "a",
+  "title": "Unknown filter field (visibility on transactions) is caught before any HTTP call",
+  "suite": ["regression"],
+  "tags": ["schema", "validation", "preflight", "transactions"],
+  "knowledge": { "primarySkill": "zeyos-platform-and-schema", "okfConcepts": ["concepts/visibility-column", "entities/transactions"] },
+  "interface": { "preferred": "client", "required": ["client"] },
+  "effects": { "fixtureMutates": false, "agentMode": "offline-read-only" },
+  "turns": [
+    {
+      "id": "answer",
+      "prompt": "Using the client's local schema validation, check a transaction-list request whose filters include \"visibility\": 0 — which transactions does not support. Do NOT send the request. Return a JSON object {\"valid\": false, \"field\": \"<offending field>\", \"correction\": \"<what to do instead>\"}.",
+      "result": { "mode": "inline", "format": "json", "schema": { "type": "object", "required": ["valid", "field", "correction"], "properties": { "valid": { "const": false } } } },
+      "expect": {
+        "kind": "all",
+        "expectations": [
+          { "kind": "verifyResult", "assertions": [{ "path": "$.valid", "equals": false }, { "path": "$.field", "matches": "visibility" }] },
+          { "kind": "verifyTrace", "maxUpstreamRequests": 0, "forbid": [{ "operation": "listTransactions" }] }
+        ]
+      }
+    }
+  ],
+  "cleanup": "auto",
+  "coverage": { "entities": ["transactions"], "operations": [], "formats": ["json"], "rules": ["R-012", "R-015"] }
+}

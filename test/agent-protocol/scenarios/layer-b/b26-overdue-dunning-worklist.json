@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 2,
+  "id": "b26-overdue-dunning-worklist",
+  "layer": "b",
+  "title": "Overdue receivables and dunning worklist (transactions ⋈ dunning)",
+  "suite": ["regression", "collections"],
+  "tags": ["collections", "dunning", "join", "anti-join", "structured-output"],
+  "knowledge": { "primarySkill": "zeyos-collections-and-dunning", "okfConcepts": ["metrics/overdue-receivables", "concepts/operationid-vocabulary"] },
+  "interface": { "preferred": "either" },
+  "effects": { "fixtureMutates": true, "agentMode": "read-only" },
+  "seed": [
+    { "op": "createAccount", "as": "account", "data": { "lastname": "{recordPrefix}-{runId} dun", "firstname": "", "type": 1, "currency": "EUR", "visibility": 0 } },
+    { "op": "createTransaction", "as": "invA", "data": { "account": "$SEED.account.ID", "transactionnum": "{recordPrefix}-{runId} dun invA", "type": 3, "date": 1690000000, "duedate": 1700000000, "netamount": 120.00, "currency": "EUR", "status": 1 } },
+    { "op": "createDunningNotice", "as": "notice", "data": { "account": "$SEED.account.ID", "dunningnum": "{recordPrefix}-{runId} dun notice", "type": 2, "status": 1, "date": 1710000000 } },
+    { "op": "createDunningToTransaction", "as": "link", "data": { "dunning": "$SEED.notice.ID", "transaction": "$SEED.invA.ID" } },
+    { "op": "createTransaction", "as": "invB", "data": { "account": "$SEED.account.ID", "transactionnum": "{recordPrefix}-{runId} dun invB", "type": 3, "date": 1690000000, "duedate": 1700000000, "netamount": 80.00, "currency": "EUR", "status": 1 } },
+    { "op": "createTransaction", "as": "invC", "data": { "account": "$SEED.account.ID", "transactionnum": "{recordPrefix}-{runId} dun invC", "type": 3, "date": 1890000000, "duedate": 1900000000, "netamount": 50.00, "currency": "EUR", "status": 1 } }
+  ],
+  "turns": [
+    {
+      "id": "answer",
+      "prompt": "Build a collections worklist for the account named exactly \"{recordPrefix}-{runId} dun\" as of 1893456000. Categorize its invoices (type 3) into in_dunning (overdue AND linked to a dunning notice), overdue_not_in_dunning (overdue, no notice), and not_due (due date in the future). Each entry must carry at least invoiceId. Add a separately labelled suggestedAction string and make clear it is heuristic. Return {\"in_dunning\":[{invoiceId,...}], \"overdue_not_in_dunning\":[{invoiceId,...}], \"not_due\":[{invoiceId,...}], \"suggestedAction\":\"...\"}.",
+      "result": { "mode": "inline", "format": "json", "schema": { "type": "object", "required": ["in_dunning", "overdue_not_in_dunning", "not_due", "suggestedAction"] } },
+      "expect": {
+        "kind": "all",
+        "expectations": [
+          { "kind": "computeProjection", "sources": { "tx": { "op": "listTransactions", "params": { "filters": { "account": "$SEED.account.ID", "type": 3 }, "fields": ["ID", "duedate"], "limit": 10000 } }, "d2t": { "op": "listDunningToTransactions", "params": { "fields": ["transaction", "dunning"], "limit": 10000 } } }, "pipeline": [{ "from": { "source": "tx" } }, { "where": { "field": "duedate", "lt": 1893456000 } }, { "join": { "source": "d2t", "on": { "left": "ID", "right": "transaction" } } }, { "distinct": { "by": "ID" } }, { "project": { "value": "ID" } }], "compareTo": "$RESULT.in_dunning[*].invoiceId", "comparator": "set" },
+          { "kind": "computeProjection", "sources": { "tx": { "op": "listTransactions", "params": { "filters": { "account": "$SEED.account.ID", "type": 3 }, "fields": ["ID", "duedate"], "limit": 10000 } }, "d2t": { "op": "listDunningToTransactions", "params": { "fields": ["transaction", "dunning"], "limit": 10000 } } }, "pipeline": [{ "from": { "source": "tx" } }, { "where": { "field": "duedate", "lt": 1893456000 } }, { "antiJoin": { "source": "d2t", "on": { "left": "ID", "right": "transaction" } } }, { "project": { "value": "ID" } }], "compareTo": "$RESULT.overdue_not_in_dunning[*].invoiceId", "comparator": "set" },
+          { "kind": "verifyTrace", "require": [{ "operation": "listDunningNotices", "min": 1 }, { "operation": "listDunningToTransactions", "min": 1 }] }
+        ]
+      }
+    }
+  ],
+  "cleanup": "auto",
+  "coverage": { "entities": ["transactions", "dunning", "dunning2transactions"], "operations": ["listTransactions", "listDunningNotices", "listDunningToTransactions"], "formats": ["json"], "rules": ["R-016"] }
+}

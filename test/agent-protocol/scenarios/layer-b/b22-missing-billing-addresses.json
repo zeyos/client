@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 2,
+  "id": "b22-missing-billing-addresses",
+  "layer": "b",
+  "title": "Customers missing a billing address (anti-join, CSV export)",
+  "suite": ["regression", "account-intelligence"],
+  "tags": ["account-intelligence", "anti-join", "csv", "addresses"],
+  "knowledge": { "primarySkill": "zeyos-account-intelligence", "okfConcepts": ["playbooks/missing-billing-addresses", "concepts/visibility-column"] },
+  "interface": { "preferred": "either" },
+  "effects": { "fixtureMutates": true, "agentMode": "read-only" },
+  "seed": [
+    { "op": "createContact", "as": "c", "data": { "lastname": "{recordPrefix}-{runId} addr-contact", "firstname": "A", "email": "addr+dq@example.test" } },
+    { "op": "createAccount", "as": "both", "data": { "lastname": "{recordPrefix}-{runId} addr-both", "firstname": "", "type": 1, "currency": "EUR", "visibility": 0 } },
+    { "op": "createAddress", "as": "bothBill", "data": { "account": "$SEED.both.ID", "contact": "$SEED.c.ID", "type": 1 } },
+    { "op": "createAddress", "as": "bothShip", "data": { "account": "$SEED.both.ID", "contact": "$SEED.c.ID", "type": 0 } },
+    { "op": "createAccount", "as": "shipOnly", "data": { "lastname": "{recordPrefix}-{runId} addr-ship", "firstname": "", "type": 1, "currency": "EUR", "visibility": 0 } },
+    { "op": "createAddress", "as": "shipAddr", "data": { "account": "$SEED.shipOnly.ID", "contact": "$SEED.c.ID", "type": 0 } },
+    { "op": "createAccount", "as": "none", "data": { "lastname": "{recordPrefix}-{runId} addr-none", "firstname": "", "type": 1, "currency": "EUR", "visibility": 0 } }
+  ],
+  "turns": [
+    {
+      "id": "answer",
+      "prompt": "Export the active customers whose name starts with \"{recordPrefix}-{runId} addr-\" that are MISSING a billing address (address type 1). Write a CSV file with header account_id,name,has_shipping (has_shipping = true/false whether they still have a shipping address, type 0). End with `RESULT_FILE: out/missing-billing.csv`. Note: addresses has no visibility column.",
+      "result": { "mode": "file", "format": "csv", "path": "out/missing-billing.csv" },
+      "expect": {
+        "kind": "all",
+        "expectations": [
+          { "kind": "verifyFile", "headers": ["account_id", "name", "has_shipping"], "rowCount": 2, "rowSchema": { "type": "object", "required": ["account_id", "name", "has_shipping"] } },
+          {
+            "kind": "computeProjection",
+            "sources": {
+              "acc": { "op": "listAccounts", "params": { "filters": { "type": 1, "visibility": 0, "lastname": { "~~*": "{recordPrefix}-{runId} addr-%" } }, "fields": ["ID", "lastname"], "limit": 1000 } },
+              "bill": { "op": "listAddresses", "params": { "filters": { "type": 1 }, "fields": ["ID", "account"], "limit": 10000 } }
+            },
+            "pipeline": [
+              { "from": { "source": "acc" } },
+              { "antiJoin": { "source": "bill", "on": { "left": "ID", "right": "account" } } },
+              { "derive": { "aid": { "concat": ["ID"] } } },
+              { "project": { "value": "aid" } }
+            ],
+            "compareTo": "$RESULT[*].account_id",
+            "comparator": "set"
+          },
+          { "kind": "verifyTrace", "assertions": [{ "path": "$.events[?(@.resource=='addresses')].request.body.filters.visibility", "absent": true }] }
+        ]
+      }
+    }
+  ],
+  "cleanup": "auto",
+  "coverage": { "entities": ["accounts", "addresses"], "operations": ["listAccounts", "listAddresses"], "formats": ["csv"], "rules": ["R-012", "R-022"] }
+}

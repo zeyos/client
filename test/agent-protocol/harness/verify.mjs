@@ -16,6 +16,14 @@ import {
   tokenResponseToTokenSet
 } from '../../../src/index.js';
 
+// New v2 verifiers live in focused modules and are dispatched from evaluateExpect below.
+// They share query-util.mjs (pagination/param-resolution) with the legacy kinds but do
+// not import verify.mjs, so there is no cycle.
+import { computeProjection } from './projection.mjs';
+import { verifyResult, verifyFile } from './result-verify.mjs';
+import { verifyStateDiff } from './statediff.mjs';
+import { verifyTrace, verifyNoLeak } from './trace.mjs';
+
 // ── Token / client ────────────────────────────────────────────────────────────
 
 const nowSeconds = () => Math.floor(Date.now() / 1000);
@@ -186,6 +194,22 @@ export async function resolveCurrentUserId(client) {
   }
 }
 
+/**
+ * Resolve a group the harness user belongs to (`$MYGROUP`). Some creates (e.g.
+ * `createCampaign`) require an explicit `ownergroup`; this lets a seed set a valid one
+ * portably instead of hardcoding an instance-specific group id. Best-effort → null.
+ */
+export async function resolveCurrentUserGroup(client, me) {
+  if (me == null) return null;
+  try {
+    const rows = normalizeListResult(await client.api.listGroupsToUsers({ filters: { user: me }, fields: ['ID', 'group'], limit: 50 })).data;
+    const group = rows.map((r) => r.group).find((g) => g != null);
+    return group == null ? null : String(group);
+  } catch {
+    return null;
+  }
+}
+
 // ── Result parsing ──────────────────────────────────────────────────────────
 
 /**
@@ -255,6 +279,7 @@ function resolveParams(params, ctx) {
   const resolve = (v) => {
     if (typeof v === 'string') {
       if (v === '$ME') return ctx.me;
+      if (v === '$MYGROUP') return ctx.myGroup;
       if (v === '$RESULT') return result;
       if (v.startsWith('$RESULT.')) {
         const key = v.slice('$RESULT.'.length);
@@ -337,6 +362,82 @@ async function listAll(client, op, params = {}) {
   return all;
 }
 
+// ── Preconditions (spec §7.4) ────────────────────────────────────────────────
+
+/**
+ * Evaluate a scenario's deterministic preconditions. A failed precondition yields an
+ * ENVIRONMENT_SKIP (the demo instance lacks the data/feature/operation the scenario
+ * needs) — never a CLIENT_DEFECT. Returns `{ ok: boolean, skipReason: string|null }`.
+ */
+export async function evaluatePreconditions(preconditions, ctx) {
+  for (const p of preconditions || []) {
+    try {
+      const res = await evaluatePrecondition(p, ctx);
+      if (!res.ok) return { ok: false, skipReason: res.reason };
+    } catch (err) {
+      return { ok: false, skipReason: `precondition ${p.kind} errored: ${err.message || err}` };
+    }
+  }
+  return { ok: true, skipReason: null };
+}
+
+async function evaluatePrecondition(p, ctx) {
+  const client = ctx.client;
+  switch (p.kind) {
+    case 'operationExists':
+      return { ok: typeof client.api?.[p.operation] === 'function', reason: `operation ${p.operation} not on the client` };
+    case 'resourceExists': {
+      let ok = false;
+      try { ok = Boolean(client.schema?.describe?.(p.resource)); } catch { ok = false; }
+      return { ok, reason: `resource ${p.resource} not in the schema` };
+    }
+    case 'schemaHasFields': {
+      let desc; try { desc = client.schema?.describe?.(p.resource); } catch { desc = null; }
+      const fields = new Set(Object.keys(desc?.fields || desc || {}));
+      const missing = (p.fields || []).filter((f) => !fields.has(f));
+      return { ok: missing.length === 0, reason: `${p.resource} missing fields: ${missing.join(', ')}` };
+    }
+    case 'minimumRows': {
+      // A precondition only needs "are there >= min rows?" — one bounded page, never the
+      // full paginator (paging on a tiny limit would loop forever against a server/fake
+      // that ignores offset).
+      const min = p.min ?? 1;
+      const params = { ...resolveParams(p.params || {}, ctx), limit: Math.max(min, 1) };
+      const rows = normalizeListResult(await client.api[p.op](params)).data;
+      return { ok: rows.length >= min, reason: `${p.op} returned ${rows.length} rows (< ${min})` };
+    }
+    case 'minimumActiveUsers': {
+      const min = p.min ?? 1;
+      const params = { fields: ['ID'], ...(p.params || {}), limit: Math.max(min, 1) };
+      const rows = normalizeListResult(await client.api[p.op || 'listUsers'](params)).data;
+      return { ok: rows.length >= min, reason: `only ${rows.length} users (< ${min})` };
+    }
+    case 'fixtureRecipeValid': {
+      // Probe that a create recipe actually works on this instance (some instances block
+      // or mis-configure specific tables — e.g. a broken item enhancement or a junction
+      // ACL). Create, then best-effort delete; a failure is an ENVIRONMENT_SKIP, not a defect.
+      if (!p.op || typeof client.api[p.op] !== 'function') return { ok: false, reason: `recipe op ${p.op} missing` };
+      let rec;
+      try {
+        rec = await client.api[p.op](resolveParams(p.data || {}, ctx));
+      } catch (err) {
+        return { ok: false, reason: `recipe ${p.op} not creatable here: ${String(err.message || err).split('\n')[0].slice(0, 120)}` };
+      }
+      const id = rec?.ID ?? rec?.id;
+      const del = p.op.replace(/^create/, 'delete');
+      if (id != null && typeof client.api[del] === 'function') {
+        try { await client.api[del]({ ID: id }); } catch { /* best effort */ }
+      }
+      return { ok: true, reason: null };
+    }
+    // Features we cannot determine deterministically default to "available"; the scenario
+    // itself will still fail loudly if the feature is genuinely absent.
+    case 'instanceFeature':
+    default:
+      return { ok: true, reason: null };
+  }
+}
+
 // ── Public evaluation API ──────────────────────────────────────────────────────
 
 /**
@@ -366,6 +467,19 @@ export async function evaluateExpect(expect, ctx) {
       return evalVerifySurvival(expect, ctx);
     case 'expectText':
       return evalExpectText(expect, ctx);
+    // ── v2 verifiers (delegated to focused modules) ──
+    case 'computeProjection':
+      return computeProjection(expect, ctx);
+    case 'verifyResult':
+      return verifyResult(expect, ctx);
+    case 'verifyFile':
+      return verifyFile(expect, ctx);
+    case 'verifyStateDiff':
+      return verifyStateDiff(expect, ctx);
+    case 'verifyTrace':
+      return verifyTrace(expect, ctx);
+    case 'verifyNoLeak':
+      return verifyNoLeak(expect, ctx);
     case 'manual':
       return { pass: null, manual: true, rubric: expect.rubric, detail: 'manual review required' };
     default:

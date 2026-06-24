@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 2,
+  "id": "b44-procurement-supplier-performance",
+  "layer": "b",
+  "title": "Supplier performance scorecard over procurement transactions (CSV)",
+  "suite": ["regression", "procurement", "new-skill"],
+  "tags": ["procurement", "grouping", "csv", "transactions"],
+  "knowledge": { "primarySkill": "zeyos-procurement-and-supplier-performance", "okfConcepts": ["playbooks/supplier-scorecard", "metrics/supplier-delivery-performance"] },
+  "interface": { "preferred": "either" },
+  "effects": { "fixtureMutates": true, "agentMode": "read-only" },
+  "seed": [
+    { "op": "createAccount", "as": "supA", "data": { "lastname": "{recordPrefix}-{runId} proc-A", "firstname": "", "type": 2, "currency": "EUR", "visibility": 0 } },
+    { "op": "createAccount", "as": "supB", "data": { "lastname": "{recordPrefix}-{runId} proc-B", "firstname": "", "type": 2, "currency": "EUR", "visibility": 0 } },
+    { "op": "createTransaction", "as": "aOrd", "data": { "account": "$SEED.supA.ID", "transactionnum": "{recordPrefix}-{runId} proc A ord", "type": 6, "date": 1893456000, "duedate": 1893715200, "netamount": 100.00, "currency": "EUR", "status": 1 } },
+    { "op": "createTransaction", "as": "aDel", "data": { "account": "$SEED.supA.ID", "transactionnum": "{recordPrefix}-{runId} proc A del", "type": 7, "date": 1893628800, "netamount": 100.00, "currency": "EUR", "status": 1 } },
+    { "op": "createTransaction", "as": "aInv", "data": { "account": "$SEED.supA.ID", "transactionnum": "{recordPrefix}-{runId} proc A inv", "type": 8, "date": 1893715200, "netamount": 110.00, "currency": "EUR", "status": 1 } },
+    { "op": "createTransaction", "as": "bOrd", "data": { "account": "$SEED.supB.ID", "transactionnum": "{recordPrefix}-{runId} proc B ord", "type": 6, "date": 1893456000, "duedate": 1893715200, "netamount": 200.00, "currency": "EUR", "status": 1 } },
+    { "op": "createTransaction", "as": "bInv", "data": { "account": "$SEED.supB.ID", "transactionnum": "{recordPrefix}-{runId} proc B inv", "type": 8, "date": 1893715200, "netamount": 200.00, "currency": "EUR", "status": 1 } }
+  ],
+  "turns": [
+    {
+      "id": "answer",
+      "prompt": "Export a supplier scorecard (CSV) for the seeded procurement transactions whose transactionnum starts with \"{recordPrefix}-{runId} proc\". One row per supplier with header supplier_id,orders,on_time_rate,avg_delivery_days,ordered_value,invoiced_value,price_variance. Use procurement order (type 6), delivery (type 7) and invoice (type 8). Stay in one currency (EUR). End with `RESULT_FILE: out/supplier-scorecard.csv`.",
+      "result": { "mode": "file", "format": "csv", "path": "out/supplier-scorecard.csv" },
+      "expect": {
+        "kind": "all",
+        "expectations": [
+          { "kind": "verifyFile", "headers": ["supplier_id", "orders", "on_time_rate", "avg_delivery_days", "ordered_value", "invoiced_value", "price_variance"], "rowCount": 2, "uniqueBy": "supplier_id" },
+          {
+            "kind": "computeProjection",
+            "sources": { "tx": { "op": "listTransactions", "params": { "filters": { "transactionnum": { "~~*": "{recordPrefix}-{runId} proc%" }, "type": 6 }, "fields": ["ID", "account"], "limit": 1000 } } },
+            "pipeline": [{ "derive": { "aid": { "concat": ["account"] } } }, { "distinct": { "by": "aid" } }, { "project": { "value": "aid" } }],
+            "compareTo": "$RESULT[*].supplier_id",
+            "comparator": "set"
+          }
+        ]
+      }
+    }
+  ],
+  "cleanup": "auto",
+  "coverage": { "entities": ["transactions", "accounts"], "operations": ["listTransactions"], "formats": ["csv"], "rules": ["R-016", "R-019"] }
+}

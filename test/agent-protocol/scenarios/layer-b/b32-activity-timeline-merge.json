@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 2,
+  "id": "b32-activity-timeline-merge",
+  "layer": "b",
+  "title": "Chronological activity timeline across source types (NDJSON)",
+  "suite": ["regression", "collaboration"],
+  "tags": ["collaboration", "timeline", "ndjson", "provenance"],
+  "knowledge": { "primarySkill": "zeyos-collaboration-and-activity", "okfConcepts": ["playbooks/activity-timeline"] },
+  "interface": { "preferred": "either" },
+  "effects": { "fixtureMutates": true, "agentMode": "read-only" },
+  "seed": [
+    { "op": "createTicket", "as": "ticket", "data": { "name": "{recordPrefix}-{runId} timeline", "status": 4, "priority": 3, "visibility": 0 } },
+    { "op": "createTask", "as": "task", "data": { "ticket": "$SEED.ticket.ID", "name": "{recordPrefix}-{runId} tl task", "status": 0, "visibility": 0, "duedate": 1893456000 } },
+    { "op": "createMessage", "as": "message", "data": { "ticket": "$SEED.ticket.ID", "mailbox": 0, "verified": 0, "date": 1893460000, "subject": "{recordPrefix}-{runId} tl mail", "contenttype": "text/plain", "text": "inbound" } },
+    { "op": "createActionStep", "as": "actionstep", "data": { "ticket": "$SEED.ticket.ID", "name": "{recordPrefix}-{runId} tl step", "status": 0, "duedate": 1893470000, "effort": 10 } }
+  ],
+  "turns": [
+    {
+      "id": "answer",
+      "prompt": "Produce a chronological NDJSON timeline for the ticket named exactly \"{recordPrefix}-{runId} timeline\". Merge its linked task, inbound message and actionstep into one stream, one JSON object per line, sorted ascending by timestamp, with keys timestamp, type (one of task|message|actionstep), id and summary. Keep each entry's source type. End with `RESULT_FILE: out/timeline.ndjson`.",
+      "result": { "mode": "file", "format": "ndjson", "path": "out/timeline.ndjson" },
+      "expect": {
+        "kind": "all",
+        "expectations": [
+          { "kind": "verifyFile", "rowCount": 3, "sortBy": { "field": "timestamp", "dir": "asc" }, "rowSchema": { "type": "object", "required": ["timestamp", "type", "id"] } },
+          { "kind": "verifyResult", "assertions": [
+            { "path": "$[?(@.type=='task')]", "present": true },
+            { "path": "$[?(@.type=='message')]", "present": true },
+            { "path": "$[?(@.type=='actionstep')]", "present": true }
+          ] }
+        ]
+      }
+    }
+  ],
+  "cleanup": "auto",
+  "coverage": { "entities": ["tickets", "tasks", "actionsteps", "messages"], "operations": ["listTasks", "listActionSteps", "listMessages"], "formats": ["ndjson"], "rules": ["R-017", "R-022"] }
+}

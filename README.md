@@ -196,7 +196,7 @@ zeyos <command> [options] [args…]
 | Command | What it does | Example |
 |---------|--------------|---------|
 | `login` | OAuth login, stores tokens | `zeyos login --base-url https://cloud.zeyos.com/demo --client-id myapp --secret $S` |
-| `logout` | Revoke session and clear stored tokens | `zeyos logout` |
+| `logout` | Revoke session and clear stored credentials | `zeyos logout` |
 | `whoami` | Show the authenticated user | `zeyos whoami --json` |
 | `list <resource>` | List / query records | `zeyos list tickets --filter '{"status":4}' --sort -lastmodified` |
 | `count <resource>` | Count records (true total) | `zeyos count tickets --filter '{"status":4}'` |
@@ -384,14 +384,19 @@ Bundled skills:
 | Skill | Focus |
 |-------|-------|
 | `zeyos-work-management` | Tickets, tasks, projects, action steps, assignees, workload |
+| `zeyos-time-tracking` | First-person work views and interactive time logging (effort as action steps) |
 | `zeyos-account-intelligence` | Accounts, contacts, addresses, opportunities |
 | `zeyos-billing-insights` | Transactions, invoices, credits, payments, revenue |
 | `zeyos-collections-and-dunning` | Overdue receivables, dunning notices, collection workflows |
 | `zeyos-commerce-and-inventory` | Items, pricing, price lists, stock, suppliers |
+| `zeyos-procurement-and-supplier-performance` | Supplier comparison, procurement orders/deliveries/invoices, lead times |
 | `zeyos-campaign-and-outreach` | Campaigns, mailing lists, outbound mailings |
 | `zeyos-collaboration-and-activity` | Timelines, comments, followers, channels, files, events |
 | `zeyos-mail-operations` | Querying, summarizing, and drafting email/message records |
 | `zeyos-notes-and-sops` | Notes, SOPs, documents, file-backed knowledge |
+| `zeyos-document-and-approval` | Formal document status, approval/finalization gates, note-vs-SOP |
+| `zeyos-calendar-and-scheduling` | Appointments, availability/conflicts, scheduling, invitations |
+| `zeyos-data-quality-and-governance` | Duplicate detection, completeness gaps, safe remediation previews |
 | `zeyos-platform-and-schema` | Platform/admin entities, schema, custom fields |
 
 ### 2. Give the agent the CLI as its tool

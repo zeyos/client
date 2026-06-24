@@ -27,6 +27,10 @@ The **canonical** per-entity schema (columns, types, enums, foreign keys, indexe
 - `zeyos-campaign-and-outreach/` handles campaigns, mailing lists, participants, mailing activity, and recipient coverage.
 - `zeyos-collaboration-and-activity/` handles record timelines, comments, followers, channels, files, and recent-activity reconstruction.
 - `zeyos-platform-and-schema/` handles applications, services, custom fields, objects, groups, and permissions.
+- `zeyos-calendar-and-scheduling/` handles appointments, free-slot/conflict analysis, scheduling, rescheduling, and invitation tracking. Boundary: logged effort → `zeyos-time-tracking`; delivery deadlines → `zeyos-work-management`.
+- `zeyos-document-and-approval/` handles formal document status (draft/final/obsolete), approval/finalization gates, and note-vs-SOP comparison. Boundary: note-centric retrieval → `zeyos-notes-and-sops`.
+- `zeyos-procurement-and-supplier-performance/` handles supplier comparison, procurement orders/deliveries/invoices, lead times, and price variance (read-only analysis).
+- `zeyos-data-quality-and-governance/` handles duplicate detection, completeness gaps, and safe, read-only remediation previews (no automated merge/bulk delete).
 
 ## Shared Design Rules
 
@@ -55,6 +59,10 @@ The **canonical** per-entity schema (columns, types, enums, foreign keys, indexe
 | `zeyos-campaign-and-outreach` | Campaign setup, mailing-list membership, participant coverage, outreach execution | "How many participants are in campaign Spring Renewal?"; "Which mailing lists belong to campaign XYZ?"; "Who received the latest mailing?" |
 | `zeyos-collaboration-and-activity` | Activity timelines, comments, channels, followers, attachments, recent changes | "What happened on account ACME this week?"; "Who follows Project Atlas?"; "Which channel is linked to ticket 812?" |
 | `zeyos-platform-and-schema` | App inventory, service hooks, custom schema, group permissions | "Which custom fields exist on tickets?"; "Which services run after ticket modification?"; "Which groups grant access to application XYZ?" |
+| `zeyos-calendar-and-scheduling` | Appointments, availability/conflict analysis, scheduling and rescheduling, invitation responses | "Find me a free half hour tomorrow."; "Do I have a conflict at 14:00?"; "Schedule a review with a contact next week."; "Who accepted this invitation?" |
+| `zeyos-document-and-approval` | Formal document status, approval/finalization gates, note-vs-SOP comparison | "Find the current approved onboarding SOP."; "Which contracts are awaiting approval?"; "Make document 812 final." |
+| `zeyos-procurement-and-supplier-performance` | Supplier comparison, procurement orders/deliveries/invoices, lead times, price variance | "Which supplier is best for 20 units of item ABC?"; "Which purchase orders are late?"; "Where did procurement prices exceed the order?" |
+| `zeyos-data-quality-and-governance` | Duplicate detection, completeness gaps, stale data, safe remediation previews | "Find duplicate customer accounts."; "Which customers are missing billing addresses?"; "Clean up duplicate records." (→ preview, not action) |
 
 ## Interface Boundary
 

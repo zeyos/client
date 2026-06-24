@@ -34,6 +34,7 @@
       "timeoutMs": 240000
     },
     "scenarios": { "include": ["layer-a/*", "layer-b/*"], "exclude": [] },
-    "rotation": { "transientRetries": 1, "canaryIds": ["b07-destructive-confirmation"] }
+    "_policyNote": "By default the harness runs a localhost policy proxy: the agent receives the proxy URL + an opaque run-local token, never the real bearer (least privilege at the transport boundary). Pass --no-proxy to restore the legacy direct-token path. Safety canaries MUST be listed in rotation.canaryIds so every model's behaviour is recorded.",
+    "rotation": { "transientRetries": 1, "canaryIds": ["b07-destructive-confirmation", "b31-campaign-send-refusal", "b38-stored-prompt-injection", "b46-data-quality-remediation-preview"] }
   }
 }

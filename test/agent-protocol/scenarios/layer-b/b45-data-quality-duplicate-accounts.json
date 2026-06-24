@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 2,
+  "id": "b45-data-quality-duplicate-accounts",
+  "layer": "b",
+  "title": "Duplicate-account candidate detection with explained evidence",
+  "suite": ["regression", "data-quality", "new-skill"],
+  "tags": ["data-quality", "duplicates", "scoring", "ranking"],
+  "knowledge": { "primarySkill": "zeyos-data-quality-and-governance", "allowedSkills": ["zeyos", "zeyos-data-quality-and-governance"], "okfConcepts": ["playbooks/duplicate-account-review", "concepts/null-empty-missing"] },
+  "interface": { "preferred": "either" },
+  "effects": { "fixtureMutates": true, "agentMode": "read-only" },
+  "seed": [
+    { "op": "createContact", "as": "c1", "data": { "lastname": "{recordPrefix}-{runId} c1", "firstname": "A", "email": "shared+dq@example.test" } },
+    { "op": "createContact", "as": "c2", "data": { "lastname": "{recordPrefix}-{runId} c2", "firstname": "B", "email": "shared+dq@example.test" } },
+    { "op": "createAccount", "as": "exact1", "data": { "lastname": "{recordPrefix}-{runId} DupCo", "firstname": "", "type": 1, "currency": "EUR", "visibility": 0 } },
+    { "op": "createAccount", "as": "exact2", "data": { "lastname": "{recordPrefix}-{runId} DupCo", "firstname": "", "type": 1, "currency": "EUR", "visibility": 0 } },
+    { "op": "createAccount", "as": "near1", "data": { "lastname": "{recordPrefix}-{runId} Near Industries", "firstname": "", "type": 1, "currency": "EUR", "visibility": 0 } },
+    { "op": "createAccount", "as": "near2", "data": { "lastname": "{recordPrefix}-{runId} Near Industrie", "firstname": "", "type": 1, "currency": "EUR", "visibility": 0 } },
+    { "op": "createAccount", "as": "email1", "data": { "lastname": "{recordPrefix}-{runId} EmailCo One", "firstname": "", "type": 1, "currency": "EUR", "visibility": 0, "contact": "$SEED.c1.ID" } },
+    { "op": "createAccount", "as": "email2", "data": { "lastname": "{recordPrefix}-{runId} EmailCo Two", "firstname": "", "type": 1, "currency": "EUR", "visibility": 0, "contact": "$SEED.c2.ID" } },
+    { "op": "createAccount", "as": "unique", "data": { "lastname": "{recordPrefix}-{runId} Totally Unique Corp", "firstname": "", "type": 1, "currency": "EUR", "visibility": 0 } }
+  ],
+  "turns": [
+    {
+      "id": "answer",
+      "prompt": "Find likely duplicate customer accounts among those named like \"{recordPrefix}-{runId}%\" and explain the evidence. Do NOT merge or edit anything. Return a JSON array of candidate pairs sorted by score descending: [{accountA, accountB, score, reasons:[...], confidence:\"high|medium|low\"}]. Exact-name and shared-email matches are strong; a near-name-only match is weak; a clearly different account is not a candidate.",
+      "result": { "mode": "inline", "format": "json", "schema": { "type": "array", "minItems": 2, "items": { "type": "object", "required": ["accountA", "accountB", "score", "reasons", "confidence"] } } },
+      "expect": {
+        "kind": "all",
+        "expectations": [
+          { "kind": "verifyResult", "assertions": [
+            { "path": "$[*].score", "sorted": "desc" },
+            { "path": "$[?(@.confidence=='high')]", "present": true },
+            { "path": "$[?(@.confidence=='low')]", "present": true }
+          ] },
+          { "kind": "verifyStateDiff", "snapshot": [{ "as": "acc", "op": "listAccounts", "params": { "filters": { "visibility": 0, "lastname": { "~~*": "{recordPrefix}-{runId}%" } }, "fields": ["ID", "lastname"], "limit": 1000 } }], "expect": { "unchanged": ["acc"] } }
+        ]
+      }
+    }
+  ],
+  "cleanup": "auto",
+  "coverage": { "entities": ["accounts", "contacts"], "operations": ["listAccounts", "listContacts"], "formats": ["json"], "rules": ["R-020"] }
+}

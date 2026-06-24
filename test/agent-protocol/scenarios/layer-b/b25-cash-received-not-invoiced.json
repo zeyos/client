@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 2,
+  "id": "b25-cash-received-not-invoiced",
+  "layer": "b",
+  "title": "Cash received uses payments, not invoices; reconcile linkage forms",
+  "suite": ["regression", "billing"],
+  "tags": ["billing", "payments", "cash-basis", "grouping"],
+  "knowledge": { "primarySkill": "zeyos-billing-insights", "okfConcepts": ["metrics/cash-received", "metrics/invoiced-net-revenue"] },
+  "interface": { "preferred": "either" },
+  "effects": { "fixtureMutates": true, "agentMode": "read-only" },
+  "seed": [
+    { "op": "createAccount", "as": "account", "data": { "lastname": "{recordPrefix}-{runId} cash", "firstname": "", "type": 1, "currency": "EUR", "visibility": 0 } },
+    { "op": "createTransaction", "as": "invoice", "data": { "account": "$SEED.account.ID", "transactionnum": "{recordPrefix}-{runId} cash inv", "type": 3, "date": 1893500000, "netamount": 200.00, "currency": "EUR", "status": 1 } },
+    { "op": "createTransaction", "as": "txForPay", "data": { "account": "$SEED.account.ID", "transactionnum": "{recordPrefix}-{runId} cash txp", "type": 3, "date": 1893500000, "netamount": 60.00, "currency": "EUR", "status": 1 } },
+    { "op": "createPayment", "as": "payLinked", "data": { "transaction": "$SEED.txForPay.ID", "date": 1893510000, "amount": 60.00, "status": 1, "subject": "{recordPrefix}-{runId} pay linked" } },
+    { "op": "createPayment", "as": "payDirect", "data": { "account": "$SEED.account.ID", "date": 1893520000, "amount": 40.00, "status": 1, "subject": "{recordPrefix}-{runId} pay direct" } }
+  ],
+  "turns": [
+    {
+      "id": "answer",
+      "prompt": "For the account named exactly \"{recordPrefix}-{runId} cash\", how much cash was received, and how much of it was transaction-linked versus posted directly on the account? Use payments (not invoices). Return {\"cashReceived\":<number>, \"transactionLinked\":<number>, \"directAccount\":<number>, \"currency\":\"EUR\"}.",
+      "result": { "mode": "inline", "format": "json", "schema": { "type": "object", "required": ["cashReceived", "transactionLinked", "directAccount", "currency"] } },
+      "expect": {
+        "kind": "all",
+        "expectations": [
+          { "kind": "verifyResult", "assertions": [{ "path": "$.cashReceived", "equals": 100.00, "tolerance": 0.005 }, { "path": "$.currency", "equals": "EUR" }] },
+          { "kind": "computeProjection", "sources": { "p": { "op": "listPayments", "params": { "filters": { "account": "$SEED.account.ID" }, "fields": ["ID", "amount"], "limit": 10000 } } }, "pipeline": [{ "aggregate": { "direct": { "sum": "amount" } } }], "select": "$.direct", "compareTo": "$RESULT.directAccount", "tolerance": 0.005 },
+          { "kind": "computeProjection", "sources": { "p": { "op": "listPayments", "params": { "filters": { "transaction": "$SEED.txForPay.ID" }, "fields": ["ID", "amount"], "limit": 10000 } } }, "pipeline": [{ "aggregate": { "linked": { "sum": "amount" } } }], "select": "$.linked", "compareTo": "$RESULT.transactionLinked", "tolerance": 0.005 },
+          { "kind": "verifyTrace", "require": [{ "operation": "listPayments", "min": 1 }] }
+        ]
+      }
+    }
+  ],
+  "cleanup": "auto",
+  "coverage": { "entities": ["payments", "transactions", "accounts"], "operations": ["listPayments"], "formats": ["json"], "rules": ["R-016"] }
+}

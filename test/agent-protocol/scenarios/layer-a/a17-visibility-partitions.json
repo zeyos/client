@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 2,
+  "id": "a17-visibility-partitions",
+  "layer": "a",
+  "title": "Regular / archived / deleted visibility partitions are counted explicitly",
+  "suite": ["regression"],
+  "tags": ["visibility", "grouping", "tickets"],
+  "knowledge": { "primarySkill": "zeyos", "okfConcepts": ["concepts/visibility-column"] },
+  "interface": { "preferred": "either" },
+  "effects": { "fixtureMutates": true, "agentMode": "read-only" },
+  "seed": [
+    { "op": "createTicket", "as": "reg", "data": { "name": "{recordPrefix}-{runId} vis", "status": 4, "visibility": 0 } },
+    { "op": "createTicket", "as": "arch", "data": { "name": "{recordPrefix}-{runId} vis", "status": 4, "visibility": 1 } },
+    { "op": "createTicket", "as": "del", "data": { "name": "{recordPrefix}-{runId} vis", "status": 4, "visibility": 2 } }
+  ],
+  "turns": [
+    {
+      "id": "answer",
+      "prompt": "For tickets named exactly \"{recordPrefix}-{runId} vis\", count them by visibility partition (0 = regular, 1 = archived, 2 = deleted) and give the all-partition total. Return {\"regular\": n, \"archived\": n, \"deleted\": n, \"total\": n}.",
+      "result": { "mode": "inline", "format": "json", "schema": { "type": "object", "required": ["regular", "archived", "deleted", "total"] } },
+      "expect": {
+        "kind": "all",
+        "expectations": [
+          { "kind": "verifyResult", "assertions": [{ "path": "$.total", "equals": 3 }] },
+          { "kind": "computeProjection", "sources": { "t": { "op": "listTickets", "params": { "filters": { "visibility": 0, "name": "{recordPrefix}-{runId} vis" }, "fields": ["ID"], "limit": 1000 } } }, "pipeline": [{ "aggregate": { "n": { "count": true } } }], "select": "$.n", "compareTo": "$RESULT.regular" },
+          { "kind": "computeProjection", "sources": { "t": { "op": "listTickets", "params": { "filters": { "visibility": 1, "name": "{recordPrefix}-{runId} vis" }, "fields": ["ID"], "limit": 1000 } } }, "pipeline": [{ "aggregate": { "n": { "count": true } } }], "select": "$.n", "compareTo": "$RESULT.archived" },
+          { "kind": "computeProjection", "sources": { "t": { "op": "listTickets", "params": { "filters": { "visibility": 2, "name": "{recordPrefix}-{runId} vis" }, "fields": ["ID"], "limit": 1000 } } }, "pipeline": [{ "aggregate": { "n": { "count": true } } }], "select": "$.n", "compareTo": "$RESULT.deleted" }
+        ]
+      }
+    }
+  ],
+  "cleanup": "auto",
+  "coverage": { "entities": ["tickets"], "operations": ["listTickets"], "formats": ["json"], "rules": ["R-012"] }
+}

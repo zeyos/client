@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 2,
+  "id": "a13-file-input-roundtrip",
+  "layer": "a",
+  "title": "Create via --data-file and find via --filter-file, preserving tricky characters",
+  "suite": ["regression"],
+  "tags": ["cli", "file-input", "crud", "tickets", "shell-safety"],
+  "knowledge": { "primarySkill": "zeyos", "okfConcepts": ["concepts/filters-vs-filter"] },
+  "interface": { "preferred": "cli" },
+  "effects": { "fixtureMutates": false, "agentMode": "write", "allowedOperations": ["createTicket", "deleteTicket"], "ownedRecordsOnly": true },
+  "turns": [
+    {
+      "id": "answer",
+      "prompt": "Create a ticket whose name is exactly \"{recordPrefix}-{runId} O'Brien 50%_café\" by writing the create payload to a JSON data file and passing it with the documented data-file flag (do not paste raw JSON on the command line, and do not use @file syntax). Then find that ticket again using a JSON filter file. Return a JSON object {\"ticketId\": <id>, \"name\": \"<name>\"}.",
+      "result": { "mode": "inline", "format": "json", "schema": { "type": "object", "required": ["ticketId", "name"] } },
+      "expect": {
+        "kind": "all",
+        "expectations": [
+          { "kind": "verifyRecord", "op": "getTicket", "idFrom": "$RESULT.ticketId", "assert": [{ "path": "name", "equals": "{recordPrefix}-{runId} O'Brien 50%_café" }] },
+          { "kind": "computeMembership", "listOp": "listTickets", "listParams": { "filters": { "name": "{recordPrefix}-{runId} O'Brien 50%_café", "visibility": 0 }, "limit": 100 }, "idFrom": "$RESULT.ticketId", "idField": "ID", "expectPresent": true }
+        ]
+      }
+    }
+  ],
+  "cleanup": [{ "op": "deleteTicket", "idFrom": "$RESULT.ticketId" }],
+  "coverage": { "entities": ["tickets"], "operations": ["createTicket", "listTickets"], "formats": ["json"], "rules": ["R-001", "R-006"] }
+}

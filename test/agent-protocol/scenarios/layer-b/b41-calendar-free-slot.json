@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 2,
+  "id": "b41-calendar-free-slot",
+  "layer": "b",
+  "title": "Find the only conflict-free 30-minute slot in a window",
+  "suite": ["regression", "calendar", "new-skill"],
+  "tags": ["calendar", "scheduling", "intervals", "timezone"],
+  "knowledge": { "primarySkill": "zeyos-calendar-and-scheduling", "okfConcepts": ["playbooks/calendar-availability", "concepts/calendar-timezones"] },
+  "interface": { "preferred": "either" },
+  "effects": { "fixtureMutates": true, "agentMode": "read-only" },
+  "preconditions": [{ "kind": "operationExists", "operation": "listAppointments" }],
+  "seed": [
+    { "op": "createAppointment", "as": "a1", "data": { "name": "{recordPrefix}-{runId} cal-1", "assigneduser": "$ME", "datefrom": 1893484800, "dateto": 1893486600, "visibility": 0 } },
+    { "op": "createAppointment", "as": "a2", "data": { "name": "{recordPrefix}-{runId} cal-2", "assigneduser": "$ME", "datefrom": 1893488700, "dateto": 1893488700, "visibility": 0 } }
+  ],
+  "turns": [
+    {
+      "id": "answer",
+      "prompt": "Find the only free 30-minute slot for me in the window [1893484800, 1893488700) given my existing appointments. Interpret times in Europe/Berlin and return Unix seconds plus ISO timestamps: {\"timezone\":\"Europe/Berlin\", \"start\":<unix>, \"end\":<unix>, \"startIso\":\"...\", \"endIso\":\"...\"}.",
+      "result": { "mode": "inline", "format": "json", "schema": { "type": "object", "required": ["timezone", "start", "end", "startIso", "endIso"] } },
+      "expect": {
+        "kind": "verifyResult",
+        "assertions": [
+          { "path": "$.start", "equals": 1893486600 },
+          { "path": "$.end", "equals": 1893488700 },
+          { "path": "$.timezone", "matches": "Berlin" }
+        ]
+      }
+    }
+  ],
+  "cleanup": "auto",
+  "coverage": { "entities": ["appointments", "users"], "operations": ["listAppointments"], "formats": ["json"], "rules": ["R-014"] }
+}

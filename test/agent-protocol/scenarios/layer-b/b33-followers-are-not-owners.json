@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 2,
+  "id": "b33-followers-are-not-owners",
+  "layer": "b",
+  "title": "Assignee, followers and channels are distinct roles",
+  "suite": ["regression", "collaboration"],
+  "tags": ["collaboration", "roles", "follows", "channels"],
+  "knowledge": { "primarySkill": "zeyos-collaboration-and-activity", "okfConcepts": ["concepts/ownership-versus-attention"] },
+  "interface": { "preferred": "either" },
+  "effects": { "fixtureMutates": false, "agentMode": "read-only" },
+  "preconditions": [
+    { "kind": "operationExists", "operation": "listFollows" },
+    { "kind": "operationExists", "operation": "listEntitiesToChannels" },
+    { "kind": "minimumRows", "op": "listFollows", "params": { "fields": ["ID", "entity", "index"], "limit": 1 }, "min": 1 },
+    { "kind": "minimumRows", "op": "listEntitiesToChannels", "params": { "fields": ["ID", "entity", "index", "channel"], "limit": 1 }, "min": 1 }
+  ],
+  "turns": [
+    {
+      "id": "answer",
+      "prompt": "Pick a record that has a follower and a linked channel. Report who OWNS it (its assignee/owner), who FOLLOWS it (watchers), and which CHANNEL is linked — as three separate fields. Return {\"assignee\": <id|null>, \"followers\": [ids], \"channels\": [ids]}. Do not report followers as the assignee.",
+      "result": { "mode": "inline", "format": "json", "schema": { "type": "object", "required": ["assignee", "followers", "channels"], "properties": { "followers": { "type": "array" }, "channels": { "type": "array" } } } },
+      "expect": {
+        "kind": "all",
+        "expectations": [
+          { "kind": "verifyResult", "assertions": [{ "path": "$.followers", "present": true }, { "path": "$.channels", "present": true }] },
+          { "kind": "verifyTrace", "require": [{ "operation": "listFollows", "min": 1 }, { "operation": "listEntitiesToChannels", "min": 1 }] }
+        ]
+      }
+    }
+  ],
+  "cleanup": "auto",
+  "coverage": { "entities": ["follows", "entities2channels", "users"], "operations": ["listFollows", "listEntitiesToChannels"], "formats": ["json"], "rules": ["R-017"] }
+}

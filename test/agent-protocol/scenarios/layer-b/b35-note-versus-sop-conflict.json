@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 2,
+  "id": "b35-note-versus-sop-conflict",
+  "layer": "b",
+  "title": "Internal note vs formal SOP conflict is surfaced, not synthesized",
+  "suite": ["regression", "notes"],
+  "tags": ["notes", "documents", "conflict", "authoritative-source"],
+  "knowledge": { "primarySkill": "zeyos-notes-and-sops", "okfConcepts": ["concepts/official-versus-latest"] },
+  "interface": { "preferred": "either" },
+  "effects": { "fixtureMutates": true, "agentMode": "read-only" },
+  "seed": [
+    { "op": "createDocument", "as": "sop", "data": { "name": "{recordPrefix}-{runId} approval SOP", "status": 4, "filename": "approval-sop.txt", "mimetype": "text/plain", "description": "Official SOP: TWO approvals are required before release.", "visibility": 0 } },
+    { "op": "createNote", "as": "note", "data": { "name": "{recordPrefix}-{runId} approval note", "status": 0, "contenttype": "text/plain", "text": "Quick note: ONE approval is enough for release.", "visibility": 0 } }
+  ],
+  "turns": [
+    {
+      "id": "answer",
+      "prompt": "Compare the internal note \"{recordPrefix}-{runId} approval note\" with the official SOP \"{recordPrefix}-{runId} approval SOP\". Retrieve the actual text of both. Tell me where they AGREE and where they CONFLICT, and which source is authoritative. Return {\"agreements\":[...], \"conflicts\":[...], \"authoritativeSource\":{\"type\":\"document\",\"id\":<id>}}.",
+      "result": { "mode": "inline", "format": "json", "schema": { "type": "object", "required": ["agreements", "conflicts", "authoritativeSource"], "properties": { "conflicts": { "type": "array", "minItems": 1 }, "authoritativeSource": { "type": "object", "required": ["type", "id"] } } } },
+      "expect": {
+        "kind": "all",
+        "expectations": [
+          { "kind": "verifyResult", "assertions": [{ "path": "$.authoritativeSource.type", "equals": "document" }, { "path": "$.conflicts", "minCount": 1 }] },
+          { "kind": "computeProjection", "sources": { "d": { "op": "listDocuments", "params": { "filters": { "visibility": 0, "status": 4, "name": "{recordPrefix}-{runId} approval SOP" }, "fields": ["ID"], "limit": 100 } } }, "pipeline": [{ "project": { "value": "ID" } }], "compareTo": "$RESULT.authoritativeSource.id" }
+        ]
+      }
+    }
+  ],
+  "cleanup": "auto",
+  "coverage": { "entities": ["documents", "notes"], "operations": ["listDocuments", "listNotes"], "formats": ["json"], "rules": ["R-018"] }
+}

@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 2,
+  "id": "b23-pipeline-versus-contracts",
+  "layer": "b",
+  "title": "Open sales pipeline and active contracts are separate facts",
+  "suite": ["regression", "account-intelligence"],
+  "tags": ["account-intelligence", "opportunities", "contracts", "status-filter"],
+  "knowledge": { "primarySkill": "zeyos-account-intelligence", "okfConcepts": ["entities/opportunities", "entities/contracts"] },
+  "interface": { "preferred": "either" },
+  "effects": { "fixtureMutates": true, "agentMode": "read-only" },
+  "seed": [
+    { "op": "createAccount", "as": "account", "data": { "lastname": "{recordPrefix}-{runId} pvc", "firstname": "", "type": 1, "currency": "EUR", "visibility": 0 } },
+    { "op": "createOpportunity", "as": "oppOpen", "data": { "name": "{recordPrefix}-{runId} pvc open", "account": "$SEED.account.ID", "status": 4, "visibility": 0 } },
+    { "op": "createOpportunity", "as": "oppAcc", "data": { "name": "{recordPrefix}-{runId} pvc accepted", "account": "$SEED.account.ID", "status": 5, "probability": 100, "visibility": 0 } },
+    { "op": "createOpportunity", "as": "oppRej", "data": { "name": "{recordPrefix}-{runId} pvc rejected", "account": "$SEED.account.ID", "status": 6, "visibility": 0 } },
+    { "op": "createContract", "as": "conActive", "data": { "name": "{recordPrefix}-{runId} pvc active", "account": "$SEED.account.ID", "status": 4, "currency": "EUR", "visibility": 0 } },
+    { "op": "createContract", "as": "conExpired", "data": { "name": "{recordPrefix}-{runId} pvc expired", "account": "$SEED.account.ID", "status": 6, "currency": "EUR", "visibility": 0 } },
+    { "op": "createContract", "as": "conCancelled", "data": { "name": "{recordPrefix}-{runId} pvc cancelled", "account": "$SEED.account.ID", "status": 7, "currency": "EUR", "visibility": 0 } }
+  ],
+  "turns": [
+    {
+      "id": "answer",
+      "prompt": "For the account named exactly \"{recordPrefix}-{runId} pvc\", list its OPEN sales pipeline (opportunities not yet accepted or rejected) and its ACTIVE contracts as two separate arrays of IDs. Return {\"openOpportunities\": [...], \"activeContracts\": [...]}. Do not merge the lists.",
+      "result": { "mode": "inline", "format": "json", "schema": { "type": "object", "required": ["openOpportunities", "activeContracts"] } },
+      "expect": {
+        "kind": "all",
+        "expectations": [
+          { "kind": "computeProjection", "sources": { "o": { "op": "listOpportunities", "params": { "filters": { "account": "$SEED.account.ID", "visibility": 0 }, "fields": ["ID", "status"], "limit": 1000 } } }, "pipeline": [{ "where": { "field": "status", "notIn": [5, 6] } }, { "project": { "value": "ID" } }], "compareTo": "$RESULT.openOpportunities", "comparator": "set" },
+          { "kind": "computeProjection", "sources": { "c": { "op": "listContracts", "params": { "filters": { "account": "$SEED.account.ID", "visibility": 0 }, "fields": ["ID", "status"], "limit": 1000 } } }, "pipeline": [{ "where": { "field": "status", "equals": 4 } }, { "project": { "value": "ID" } }], "compareTo": "$RESULT.activeContracts", "comparator": "set" }
+        ]
+      }
+    }
+  ],
+  "cleanup": "auto",
+  "coverage": { "entities": ["opportunities", "contracts"], "operations": ["listOpportunities", "listContracts"], "formats": ["json"], "rules": ["R-018"] }
+}

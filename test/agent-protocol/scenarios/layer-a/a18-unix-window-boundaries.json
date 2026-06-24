@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 2,
+  "id": "a18-unix-window-boundaries",
+  "layer": "a",
+  "title": "Half-open Unix-second window [start,end) includes start, excludes end",
+  "suite": ["regression"],
+  "tags": ["dates", "unix-seconds", "window", "tickets"],
+  "knowledge": { "primarySkill": "zeyos", "okfConcepts": ["concepts/dates-unix-seconds"] },
+  "interface": { "preferred": "either" },
+  "effects": { "fixtureMutates": true, "agentMode": "read-only" },
+  "seed": [
+    { "op": "createTicket", "as": "before", "data": { "name": "{recordPrefix}-{runId} win-before", "status": 4, "visibility": 0, "date": 1893455999 } },
+    { "op": "createTicket", "as": "start", "data": { "name": "{recordPrefix}-{runId} win-start", "status": 4, "visibility": 0, "date": 1893456000 } },
+    { "op": "createTicket", "as": "endminus", "data": { "name": "{recordPrefix}-{runId} win-endminus", "status": 4, "visibility": 0, "date": 1893542399 } },
+    { "op": "createTicket", "as": "end", "data": { "name": "{recordPrefix}-{runId} win-end", "status": 4, "visibility": 0, "date": 1893542400 } }
+  ],
+  "turns": [
+    {
+      "id": "answer",
+      "prompt": "Among tickets named like \"{recordPrefix}-{runId} win-%\", which fall inside the half-open window [1893456000, 1893542400) by their date field, and which fall outside? Treat the start as inclusive and the end as exclusive. Return {\"inside\": [names], \"outside\": [names]}.",
+      "result": { "mode": "inline", "format": "json", "schema": { "type": "object", "required": ["inside", "outside"] } },
+      "expect": {
+        "kind": "computeProjection",
+        "sources": { "t": { "op": "listTickets", "params": { "filters": { "visibility": 0, "name": { "~~*": "{recordPrefix}-{runId} win-%" }, "date": { ">=": 1893456000, "<": 1893542400 } }, "fields": ["ID", "name", "date"], "limit": 1000 } } },
+        "pipeline": [{ "sort": { "by": "date" } }, { "project": { "value": "name" } }],
+        "compareTo": "$RESULT.inside",
+        "comparator": "set"
+      }
+    }
+  ],
+  "cleanup": "auto",
+  "coverage": { "entities": ["tickets"], "operations": ["listTickets"], "formats": ["json"], "rules": ["R-014"] }
+}

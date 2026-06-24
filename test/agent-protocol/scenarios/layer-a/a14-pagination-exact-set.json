@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 2,
+  "id": "a14-pagination-exact-set",
+  "layer": "a",
+  "title": "Stable multi-page retrieval returns every id without gaps or duplicates",
+  "suite": ["regression"],
+  "tags": ["pagination", "ordering", "tickets"],
+  "knowledge": { "primarySkill": "zeyos", "okfConcepts": ["concepts/counting-and-sums"] },
+  "interface": { "preferred": "either" },
+  "effects": { "fixtureMutates": true, "agentMode": "read-only" },
+  "seed": [
+    { "op": "createTicket", "as": "s00", "data": { "name": "{recordPrefix}-{runId} page-00", "status": 4, "visibility": 0 } },
+    { "op": "createTicket", "as": "s01", "data": { "name": "{recordPrefix}-{runId} page-01", "status": 4, "visibility": 0 } },
+    { "op": "createTicket", "as": "s02", "data": { "name": "{recordPrefix}-{runId} page-02", "status": 4, "visibility": 0 } },
+    { "op": "createTicket", "as": "s03", "data": { "name": "{recordPrefix}-{runId} page-03", "status": 4, "visibility": 0 } },
+    { "op": "createTicket", "as": "s04", "data": { "name": "{recordPrefix}-{runId} page-04", "status": 4, "visibility": 0 } },
+    { "op": "createTicket", "as": "s05", "data": { "name": "{recordPrefix}-{runId} page-05", "status": 4, "visibility": 0 } },
+    { "op": "createTicket", "as": "s06", "data": { "name": "{recordPrefix}-{runId} page-06", "status": 4, "visibility": 0 } },
+    { "op": "createTicket", "as": "s07", "data": { "name": "{recordPrefix}-{runId} page-07", "status": 4, "visibility": 0 } },
+    { "op": "createTicket", "as": "s08", "data": { "name": "{recordPrefix}-{runId} page-08", "status": 4, "visibility": 0 } },
+    { "op": "createTicket", "as": "s09", "data": { "name": "{recordPrefix}-{runId} page-09", "status": 4, "visibility": 0 } },
+    { "op": "createTicket", "as": "s10", "data": { "name": "{recordPrefix}-{runId} page-10", "status": 4, "visibility": 0 } },
+    { "op": "createTicket", "as": "s11", "data": { "name": "{recordPrefix}-{runId} page-11", "status": 4, "visibility": 0 } },
+    { "op": "createTicket", "as": "s12", "data": { "name": "{recordPrefix}-{runId} page-12", "status": 4, "visibility": 0 } }
+  ],
+  "turns": [
+    {
+      "id": "answer",
+      "prompt": "List every ticket whose name starts with \"{recordPrefix}-{runId} page-\" in ascending ID order, paging through the results five at a time. Return the ordered JSON array of their numeric IDs — the complete set, not just the first page.",
+      "result": { "mode": "inline", "format": "json", "schema": { "type": "array", "minItems": 13, "items": { "type": "number" } } },
+      "expect": {
+        "kind": "all",
+        "expectations": [
+          { "kind": "verifyResult", "assertions": [{ "path": "$", "unique": true }, { "path": "$", "sorted": "asc" }] },
+          {
+            "kind": "computeProjection",
+            "sources": { "t": { "op": "listTickets", "params": { "filters": { "visibility": 0, "name": { "~~*": "{recordPrefix}-{runId} page-%" } }, "fields": ["ID", "name"], "limit": 10000 } } },
+            "pipeline": [{ "sort": { "by": "ID" } }, { "project": { "value": "ID" } }],
+            "compareTo": "$RESULT",
+            "comparator": "orderedArray"
+          }
+        ]
+      }
+    }
+  ],
+  "cleanup": "auto",
+  "coverage": { "entities": ["tickets"], "operations": ["listTickets"], "formats": ["json"], "rules": ["R-013"] }
+}

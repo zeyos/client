@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 2,
+  "id": "b24-net-revenue-after-credits",
+  "layer": "b",
+  "title": "Invoiced net revenue after credits (signed sum, explicit basis)",
+  "suite": ["regression", "billing"],
+  "tags": ["billing", "aggregate", "date-window", "credits", "structured-output"],
+  "knowledge": { "primarySkill": "zeyos-billing-insights", "okfConcepts": ["metrics/invoiced-net-revenue", "concepts/dates-unix-seconds", "concepts/visibility-column"] },
+  "interface": { "preferred": "either" },
+  "effects": { "fixtureMutates": true, "agentMode": "read-only", "forbiddenOperations": ["createTransaction", "updateTransaction", "deleteTransaction"] },
+  "seed": [
+    { "op": "createAccount", "as": "account", "data": { "lastname": "{recordPrefix}-{runId} netrev", "firstname": "", "type": 1, "currency": "EUR", "visibility": 0 } },
+    { "op": "createTransaction", "as": "inv1", "data": { "account": "$SEED.account.ID", "transactionnum": "{recordPrefix}-{runId} netrev inv1", "type": 3, "date": 1893500000, "netamount": 100.10, "currency": "EUR", "status": 1 } },
+    { "op": "createTransaction", "as": "inv2", "data": { "account": "$SEED.account.ID", "transactionnum": "{recordPrefix}-{runId} netrev inv2", "type": 3, "date": 1893600000, "netamount": 50.15, "currency": "EUR", "status": 1 } },
+    { "op": "createTransaction", "as": "credit", "data": { "account": "$SEED.account.ID", "transactionnum": "{recordPrefix}-{runId} netrev credit", "type": 4, "date": 1893700000, "netamount": 20.10, "currency": "EUR", "status": 1 } },
+    { "op": "createTransaction", "as": "outOfWindow", "data": { "account": "$SEED.account.ID", "transactionnum": "{recordPrefix}-{runId} netrev oow", "type": 3, "date": 1880000000, "netamount": 999.00, "currency": "EUR", "status": 1 } },
+    { "op": "createTransaction", "as": "wrongType", "data": { "account": "$SEED.account.ID", "transactionnum": "{recordPrefix}-{runId} netrev wrong", "type": 6, "date": 1893500000, "netamount": 888.00, "currency": "EUR", "status": 1 } }
+  ],
+  "turns": [
+    {
+      "id": "answer",
+      "prompt": "What is invoiced net revenue after credits for the account named exactly \"{recordPrefix}-{runId} netrev\" in the window [1893456000, 1896048000)? Use transaction date and types 3 (invoice) and 4 (credit). Return {\"invoiceNet\":<number>, \"credits\":<number>, \"netAfterCredits\":<number>, \"currency\":\"EUR\", \"basis\":\"invoice-date\"}.",
+      "result": { "mode": "inline", "format": "json", "schema": { "type": "object", "required": ["invoiceNet", "credits", "netAfterCredits", "currency", "basis"] } },
+      "expect": {
+        "kind": "all",
+        "expectations": [
+          { "kind": "verifyResult", "assertions": [{ "path": "$.currency", "equals": "EUR" }, { "path": "$.basis", "matches": "invoice" }] },
+          {
+            "kind": "computeProjection",
+            "sources": { "tx": { "op": "listTransactions", "params": { "filters": { "account": "$SEED.account.ID", "date": { ">=": 1893456000, "<": 1896048000 } }, "fields": ["ID", "type", "netamount"], "limit": 10000 } } },
+            "pipeline": [
+              { "where": { "field": "type", "in": [3, 4] } },
+              { "derive": { "signed": { "if": ["type", 4, { "negate": "netamount" }, "netamount"] } } },
+              { "aggregate": { "netAfterCredits": { "sum": "signed" } } }
+            ],
+            "select": "$.netAfterCredits",
+            "compareTo": "$RESULT.netAfterCredits",
+            "tolerance": 0.005
+          },
+          { "kind": "verifyTrace", "assertions": [{ "path": "$.events[?(@.resource=='transactions')].request.body.filters.visibility", "absent": true }] }
+        ]
+      }
+    }
+  ],
+  "cleanup": "auto",
+  "coverage": { "entities": ["transactions", "accounts"], "operations": ["listTransactions"], "formats": ["json"], "rules": ["R-012", "R-013", "R-016", "R-019"] }
+}

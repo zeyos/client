@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 2,
+  "id": "b37-permission-membership-path",
+  "layer": "b",
+  "title": "Application permission grant and group membership are separate hops",
+  "suite": ["regression", "platform"],
+  "tags": ["platform", "permissions", "membership", "multi-hop"],
+  "knowledge": { "primarySkill": "zeyos-platform-and-schema", "okfConcepts": ["concepts/ownership-versus-attention"] },
+  "interface": { "preferred": "either" },
+  "effects": { "fixtureMutates": false, "agentMode": "read-only" },
+  "preconditions": [
+    { "kind": "operationExists", "operation": "listPermissions" },
+    { "kind": "operationExists", "operation": "listGroupsToUsers" },
+    { "kind": "minimumRows", "op": "listPermissions", "params": { "fields": ["ID", "group", "application"], "limit": 1 }, "min": 1 },
+    { "kind": "minimumRows", "op": "listGroupsToUsers", "params": { "fields": ["ID", "group", "user"], "limit": 1 }, "min": 1 }
+  ],
+  "turns": [
+    {
+      "id": "answer",
+      "prompt": "Pick an application that some group has a permission grant for. Show which groups grant access to that application, and which users belong to those groups. Keep the permission grant and the group membership as SEPARATE facts. Return sorted JSON rows: [{application, permission, group, user}].",
+      "result": { "mode": "inline", "format": "json", "schema": { "type": "array", "minItems": 1, "items": { "type": "object", "required": ["application", "group"] } } },
+      "expect": {
+        "kind": "verifyTrace",
+        "require": [{ "operation": "listPermissions", "min": 1 }, { "operation": "listGroupsToUsers", "min": 1 }]
+      }
+    }
+  ],
+  "cleanup": "auto",
+  "coverage": { "entities": ["permissions", "groups2users", "applications", "groups", "users"], "operations": ["listPermissions", "listGroupsToUsers"], "formats": ["json"], "rules": ["R-017"] }
+}

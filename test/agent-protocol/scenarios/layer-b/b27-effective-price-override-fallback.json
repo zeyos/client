@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 2,
+  "id": "b27-effective-price-override-fallback",
+  "layer": "b",
+  "title": "Effective customer price: price-list override vs item default fallback",
+  "suite": ["regression", "commerce"],
+  "tags": ["commerce", "pricing", "join", "fallback"],
+  "knowledge": { "primarySkill": "zeyos-commerce-and-inventory", "okfConcepts": ["playbooks/effective-customer-price", "entities/prices"] },
+  "interface": { "preferred": "either" },
+  "effects": { "fixtureMutates": true, "agentMode": "read-only" },
+  "preconditions": [
+    { "kind": "fixtureRecipeValid", "op": "createItem", "data": { "name": "{recordPrefix}-{runId} probe-item", "type": 0, "visibility": 0 } }
+  ],
+  "seed": [
+    { "op": "createAccount", "as": "customer", "data": { "lastname": "{recordPrefix}-{runId} price-cust", "firstname": "", "type": 1, "currency": "EUR", "visibility": 0 } },
+    { "op": "createItem", "as": "itemA", "data": { "name": "{recordPrefix}-{runId} item-A", "type": 0, "visibility": 0 } },
+    { "op": "createItem", "as": "itemB", "data": { "name": "{recordPrefix}-{runId} item-B", "type": 0, "visibility": 0 } },
+    { "op": "createPriceList", "as": "pl", "data": { "name": "{recordPrefix}-{runId} pricelist", "currency": "EUR" } },
+    { "op": "createPriceListToAccount", "as": "assign", "data": { "pricelist": "$SEED.pl.ID", "account": "$SEED.customer.ID" } },
+    { "op": "createPrice", "as": "overrideA", "data": { "pricelist": "$SEED.pl.ID", "item": "$SEED.itemA.ID", "price": 9.99, "minamount": 1 } }
+  ],
+  "turns": [
+    {
+      "id": "answer",
+      "prompt": "What effective price does the customer named exactly \"{recordPrefix}-{runId} price-cust\" get for items \"{recordPrefix}-{runId} item-A\" and \"{recordPrefix}-{runId} item-B\"? Resolve the customer's assigned price list first. Return a JSON array of {itemId, price, source} where source is \"pricelist-override\" when the price comes from the assigned price list, or \"item-default\" when it falls back to the item's own selling price.",
+      "result": { "mode": "inline", "format": "json", "schema": { "type": "array", "minItems": 2, "items": { "type": "object", "required": ["itemId", "source"] } } },
+      "expect": {
+        "kind": "all",
+        "expectations": [
+          { "kind": "verifyResult", "assertions": [
+            { "path": "$[?(@.source=='pricelist-override')]", "present": true },
+            { "path": "$[?(@.source=='item-default')]", "present": true }
+          ] },
+          { "kind": "computeProjection", "sources": { "p": { "op": "listPrices", "params": { "filters": { "pricelist": "$SEED.pl.ID", "item": "$SEED.itemA.ID" }, "fields": ["ID", "price"], "limit": 100 } } }, "pipeline": [{ "aggregate": { "price": { "sum": "price" } } }], "select": "$.price", "compareTo": "$[?(@.source=='pricelist-override')].price", "tolerance": 0.005 }
+        ]
+      }
+    }
+  ],
+  "cleanup": "auto",
+  "coverage": { "entities": ["prices", "pricelists", "pricelists2accounts", "items", "accounts"], "operations": ["listPrices", "listPriceListsToAccounts"], "formats": ["json"], "rules": ["R-003"] }
+}

@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 2,
+  "id": "b29-supplier-options-ranked",
+  "layer": "b",
+  "title": "Supplier option comparison for an order quantity (eligibility + ranking)",
+  "suite": ["regression", "procurement", "new-skill"],
+  "tags": ["procurement", "suppliers", "ranking", "eligibility"],
+  "knowledge": { "primarySkill": "zeyos-procurement-and-supplier-performance", "okfConcepts": ["entities/suppliers", "playbooks/supplier-scorecard"] },
+  "interface": { "preferred": "either" },
+  "effects": { "fixtureMutates": true, "agentMode": "read-only" },
+  "preconditions": [
+    { "kind": "fixtureRecipeValid", "op": "createItem", "data": { "name": "{recordPrefix}-{runId} probe-item", "type": 0, "visibility": 0 } }
+  ],
+  "seed": [
+    { "op": "createItem", "as": "item", "data": { "name": "{recordPrefix}-{runId} sup-item", "type": 0, "visibility": 0 } },
+    { "op": "createAccount", "as": "supA", "data": { "lastname": "{recordPrefix}-{runId} supplier-A", "firstname": "", "type": 2, "currency": "EUR", "visibility": 0 } },
+    { "op": "createAccount", "as": "supB", "data": { "lastname": "{recordPrefix}-{runId} supplier-B", "firstname": "", "type": 2, "currency": "EUR", "visibility": 0 } },
+    { "op": "createSupplier", "as": "linkA", "data": { "item": "$SEED.item.ID", "account": "$SEED.supA.ID", "price": 5.00, "minamount": 10, "deliverytime": 3, "stock": 100 } },
+    { "op": "createSupplier", "as": "linkB", "data": { "item": "$SEED.item.ID", "account": "$SEED.supB.ID", "price": 4.50, "minamount": 25, "deliverytime": 7, "stock": 100 } }
+  ],
+  "turns": [
+    {
+      "id": "answer",
+      "prompt": "Compare supplier options for ordering 20 units of the item named exactly \"{recordPrefix}-{runId} sup-item\". A supplier is eligible only if its minimum order quantity is <= 20. Rank eligible suppliers by unit price ascending (then delivery time). Return a JSON array of {itemId, supplierId, price, minAmount, deliveryTime, eligible, rank}. Never hide a minimum-quantity constraint.",
+      "result": { "mode": "inline", "format": "json", "schema": { "type": "array", "minItems": 2, "items": { "type": "object", "required": ["supplierId", "price", "minAmount", "eligible"] } } },
+      "expect": {
+        "kind": "all",
+        "expectations": [
+          { "kind": "verifyResult", "assertions": [
+            { "path": "$[?(@.eligible==false)]", "present": true },
+            { "path": "$[?(@.rank==1)].eligible", "equals": true }
+          ] },
+          { "kind": "computeProjection", "sources": { "s": { "op": "listSuppliers", "params": { "filters": { "item": "$SEED.item.ID" }, "fields": ["ID", "account", "minamount"], "limit": 1000 } } }, "pipeline": [{ "where": { "field": "minamount", "lte": 20 } }, { "project": { "value": "account" } }], "compareTo": "$[?(@.eligible==true)].supplierId", "comparator": "set" }
+        ]
+      }
+    }
+  ],
+  "cleanup": "auto",
+  "coverage": { "entities": ["suppliers", "items", "accounts"], "operations": ["listSuppliers"], "formats": ["json"], "rules": ["R-003"] }
+}

@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 2,
+  "id": "a23-cli-client-equivalence",
+  "layer": "a",
+  "title": "CLI and @zeyos/client return the same records for the same filtered, sorted query",
+  "suite": ["regression"],
+  "tags": ["cli", "client", "parity", "tickets"],
+  "knowledge": { "primarySkill": "zeyos", "okfConcepts": ["concepts/filters-vs-filter"] },
+  "interface": { "preferred": "either" },
+  "effects": { "fixtureMutates": true, "agentMode": "read-only" },
+  "seed": [
+    { "op": "createTicket", "as": "a", "data": { "name": "{recordPrefix}-{runId} eq", "status": 4, "priority": 4, "visibility": 0 } },
+    { "op": "createTicket", "as": "b", "data": { "name": "{recordPrefix}-{runId} eq", "status": 4, "priority": 3, "visibility": 0 } },
+    { "op": "createTicket", "as": "c", "data": { "name": "{recordPrefix}-{runId} eq", "status": 4, "priority": 2, "visibility": 0 } },
+    { "op": "createTicket", "as": "d", "data": { "name": "{recordPrefix}-{runId} eq", "status": 9, "priority": 4, "visibility": 0 } },
+    { "op": "createTicket", "as": "e", "data": { "name": "{recordPrefix}-{runId} eq", "status": 1, "priority": 1, "visibility": 0 } }
+  ],
+  "turns": [
+    {
+      "id": "answer",
+      "prompt": "Run the same query through the `zeyos` CLI and the @zeyos/client: tickets named exactly \"{recordPrefix}-{runId} eq\" with status 4 (ACTIVE), sorted by priority descending, returning their IDs. Return {\"cli\": [...ids], \"client\": [...ids], \"equal\": <true if identical>}.",
+      "result": { "mode": "inline", "format": "json", "schema": { "type": "object", "required": ["cli", "client", "equal"], "properties": { "equal": { "const": true } } } },
+      "expect": {
+        "kind": "all",
+        "expectations": [
+          { "kind": "verifyResult", "assertions": [{ "path": "$.equal", "equals": true }] },
+          { "kind": "computeProjection", "sources": { "t": { "op": "listTickets", "params": { "filters": { "visibility": 0, "name": "{recordPrefix}-{runId} eq", "status": 4 }, "fields": ["ID", "priority"], "limit": 1000 } } }, "pipeline": [{ "sort": { "by": [{ "field": "priority", "dir": "desc" }] } }, { "project": { "value": "ID" } }], "compareTo": "$RESULT.cli", "comparator": "orderedArray" },
+          { "kind": "computeProjection", "sources": { "t": { "op": "listTickets", "params": { "filters": { "visibility": 0, "name": "{recordPrefix}-{runId} eq", "status": 4 }, "fields": ["ID", "priority"], "limit": 1000 } } }, "pipeline": [{ "sort": { "by": [{ "field": "priority", "dir": "desc" }] } }, { "project": { "value": "ID" } }], "compareTo": "$RESULT.client", "comparator": "orderedArray" }
+        ]
+      }
+    }
+  ],
+  "cleanup": "auto",
+  "coverage": { "entities": ["tickets"], "operations": ["listTickets"], "formats": ["json"], "rules": ["R-013"] }
+}

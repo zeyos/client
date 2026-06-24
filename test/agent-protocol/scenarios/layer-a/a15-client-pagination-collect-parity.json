@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 2,
+  "id": "a15-client-pagination-collect-parity",
+  "layer": "a",
+  "title": "@zeyos/client paginate() and collect() return the same complete ordered set",
+  "suite": ["regression"],
+  "tags": ["pagination", "client", "helpers", "tickets"],
+  "knowledge": { "primarySkill": "zeyos", "okfConcepts": ["concepts/counting-and-sums"] },
+  "interface": { "preferred": "client", "required": ["client"] },
+  "effects": { "fixtureMutates": true, "agentMode": "read-only" },
+  "seed": [
+    { "op": "createTicket", "as": "s00", "data": { "name": "{recordPrefix}-{runId} collect-00", "status": 4, "visibility": 0 } },
+    { "op": "createTicket", "as": "s01", "data": { "name": "{recordPrefix}-{runId} collect-01", "status": 4, "visibility": 0 } },
+    { "op": "createTicket", "as": "s02", "data": { "name": "{recordPrefix}-{runId} collect-02", "status": 4, "visibility": 0 } },
+    { "op": "createTicket", "as": "s03", "data": { "name": "{recordPrefix}-{runId} collect-03", "status": 4, "visibility": 0 } },
+    { "op": "createTicket", "as": "s04", "data": { "name": "{recordPrefix}-{runId} collect-04", "status": 4, "visibility": 0 } },
+    { "op": "createTicket", "as": "s05", "data": { "name": "{recordPrefix}-{runId} collect-05", "status": 4, "visibility": 0 } },
+    { "op": "createTicket", "as": "s06", "data": { "name": "{recordPrefix}-{runId} collect-06", "status": 4, "visibility": 0 } },
+    { "op": "createTicket", "as": "s07", "data": { "name": "{recordPrefix}-{runId} collect-07", "status": 4, "visibility": 0 } },
+    { "op": "createTicket", "as": "s08", "data": { "name": "{recordPrefix}-{runId} collect-08", "status": 4, "visibility": 0 } },
+    { "op": "createTicket", "as": "s09", "data": { "name": "{recordPrefix}-{runId} collect-09", "status": 4, "visibility": 0 } },
+    { "op": "createTicket", "as": "s10", "data": { "name": "{recordPrefix}-{runId} collect-10", "status": 4, "visibility": 0 } },
+    { "op": "createTicket", "as": "s11", "data": { "name": "{recordPrefix}-{runId} collect-11", "status": 4, "visibility": 0 } },
+    { "op": "createTicket", "as": "s12", "data": { "name": "{recordPrefix}-{runId} collect-12", "status": 4, "visibility": 0 } }
+  ],
+  "turns": [
+    {
+      "id": "answer",
+      "prompt": "Using @zeyos/client, fetch every ticket whose name starts with \"{recordPrefix}-{runId} collect-\" (ascending ID) twice: once with the paginate() helper and once with collect(). Return a JSON object {\"paginate\": [...ids], \"collect\": [...ids], \"equal\": <true if the two ordered arrays match>}.",
+      "result": { "mode": "inline", "format": "json", "schema": { "type": "object", "required": ["paginate", "collect", "equal"], "properties": { "equal": { "const": true } } } },
+      "expect": {
+        "kind": "all",
+        "expectations": [
+          { "kind": "verifyResult", "assertions": [{ "path": "$.equal", "equals": true }, { "path": "$.paginate", "unique": true }] },
+          {
+            "kind": "computeProjection",
+            "sources": { "t": { "op": "listTickets", "params": { "filters": { "visibility": 0, "name": { "~~*": "{recordPrefix}-{runId} collect-%" } }, "fields": ["ID"], "limit": 10000 } } },
+            "pipeline": [{ "sort": { "by": "ID" } }, { "project": { "value": "ID" } }],
+            "compareTo": "$RESULT.paginate",
+            "comparator": "orderedArray"
+          }
+        ]
+      }
+    }
+  ],
+  "cleanup": "auto",
+  "coverage": { "entities": ["tickets"], "operations": ["listTickets"], "formats": ["json"], "rules": ["R-013"] }
+}

@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 2,
+  "id": "b28-stock-by-storage",
+  "layer": "b",
+  "title": "Inventory movement summary by storage and flag (no single-storage global)",
+  "suite": ["regression", "commerce"],
+  "tags": ["commerce", "inventory", "grouping", "stocktransactions"],
+  "knowledge": { "primarySkill": "zeyos-commerce-and-inventory", "okfConcepts": ["metrics/stock-movement-by-storage", "entities/stocktransactions"] },
+  "interface": { "preferred": "either" },
+  "effects": { "fixtureMutates": true, "agentMode": "read-only" },
+  "preconditions": [
+    { "kind": "fixtureRecipeValid", "op": "createItem", "data": { "name": "{recordPrefix}-{runId} probe-item", "type": 0, "visibility": 0 } },
+    { "kind": "fixtureRecipeValid", "op": "createStorage", "data": { "name": "{recordPrefix}-{runId} probe-storage", "visibility": 0 } }
+  ],
+  "seed": [
+    { "op": "createItem", "as": "item", "data": { "name": "{recordPrefix}-{runId} stock-item", "type": 0, "visibility": 0 } },
+    { "op": "createStorage", "as": "sA", "data": { "name": "{recordPrefix}-{runId} storage-A", "visibility": 0 } },
+    { "op": "createStorage", "as": "sB", "data": { "name": "{recordPrefix}-{runId} storage-B", "visibility": 0 } },
+    { "op": "createStockTransaction", "as": "m1", "data": { "item": "$SEED.item.ID", "storage": "$SEED.sA.ID", "flag": 0, "date": 1893456000, "amount": 10 } },
+    { "op": "createStockTransaction", "as": "m2", "data": { "item": "$SEED.item.ID", "storage": "$SEED.sA.ID", "flag": 0, "date": 1893456000, "amount": 5 } },
+    { "op": "createStockTransaction", "as": "m3", "data": { "item": "$SEED.item.ID", "storage": "$SEED.sA.ID", "flag": 1, "date": 1893456000, "amount": 3 } },
+    { "op": "createStockTransaction", "as": "m4", "data": { "item": "$SEED.item.ID", "storage": "$SEED.sA.ID", "flag": 2, "date": 1893456000, "amount": 7 } },
+    { "op": "createStockTransaction", "as": "m5", "data": { "item": "$SEED.item.ID", "storage": "$SEED.sB.ID", "flag": 0, "date": 1893456000, "amount": 7 } }
+  ],
+  "turns": [
+    {
+      "id": "answer",
+      "prompt": "Summarize the stock movements for the item named exactly \"{recordPrefix}-{runId} stock-item\" by storage and flag (0 booked, 1 reserved, 2 cancelled). Do NOT call any single storage the global stock level. Return {\"byStorage\": [{storageId, booked, reserved, cancelled}], \"totalBooked\": <number>, \"totalReserved\": <number>}.",
+      "result": { "mode": "inline", "format": "json", "schema": { "type": "object", "required": ["byStorage", "totalBooked", "totalReserved"], "properties": { "byStorage": { "type": "array", "minItems": 2 } } } },
+      "expect": {
+        "kind": "all",
+        "expectations": [
+          { "kind": "verifyResult", "assertions": [{ "path": "$.byStorage", "minCount": 2 }] },
+          { "kind": "computeProjection", "sources": { "s": { "op": "listStockTransactions", "params": { "filters": { "item": "$SEED.item.ID" }, "fields": ["ID", "storage", "flag", "amount"], "limit": 10000 } } }, "pipeline": [{ "aggregate": { "booked": { "sum": { "if": ["flag", 0, "amount", { "const": 0 }] } } } }], "select": "$.booked", "compareTo": "$RESULT.totalBooked" },
+          { "kind": "computeProjection", "sources": { "s": { "op": "listStockTransactions", "params": { "filters": { "item": "$SEED.item.ID" }, "fields": ["ID", "storage", "flag", "amount"], "limit": 10000 } } }, "pipeline": [{ "aggregate": { "reserved": { "sum": { "if": ["flag", 1, "amount", { "const": 0 }] } } } }], "select": "$.reserved", "compareTo": "$RESULT.totalReserved" },
+          { "kind": "verifyTrace", "assertions": [{ "path": "$.events[?(@.resource=='stocktransactions')].request.body.filters.visibility", "absent": true }] }
+        ]
+      }
+    }
+  ],
+  "cleanup": "auto",
+  "coverage": { "entities": ["stocktransactions", "storages", "items"], "operations": ["listStockTransactions"], "formats": ["json"], "rules": ["R-012", "R-013"] }
+}

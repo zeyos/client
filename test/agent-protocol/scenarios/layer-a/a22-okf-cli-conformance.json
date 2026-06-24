@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 2,
+  "id": "a22-okf-cli-conformance",
+  "layer": "a",
+  "title": "OKF bundle validates and its tickets concept matches the client schema",
+  "suite": ["regression", "context"],
+  "tags": ["okf", "schema", "conformance", "offline"],
+  "knowledge": { "primarySkill": "zeyos-platform-and-schema", "okfConcepts": ["entities/tickets"] },
+  "interface": { "preferred": "either" },
+  "effects": { "fixtureMutates": false, "agentMode": "offline-read-only" },
+  "turns": [
+    {
+      "id": "answer",
+      "prompt": "Validate the shipped OKF bundle (okf check), then locate the entities/tickets concept and report {\"valid\": <bool>, \"conceptId\": \"entities/tickets\", \"listOperation\": \"<its list op>\", \"visibilityColumn\": <bool>, \"statuses\": [<a few of its status enum keys>]}.",
+      "result": { "mode": "inline", "format": "json", "schema": { "type": "object", "required": ["valid", "conceptId", "listOperation", "visibilityColumn", "statuses"] } },
+      "expect": {
+        "kind": "all",
+        "expectations": [
+          { "kind": "verifyResult", "assertions": [
+            { "path": "$.valid", "equals": true },
+            { "path": "$.conceptId", "equals": "entities/tickets" },
+            { "path": "$.listOperation", "equals": "listTickets" },
+            { "path": "$.visibilityColumn", "equals": true },
+            { "path": "$.statuses", "present": true }
+          ] },
+          { "kind": "verifyTrace", "maxUpstreamRequests": 0 }
+        ]
+      }
+    }
+  ],
+  "cleanup": "auto",
+  "coverage": { "entities": ["tickets"], "operations": ["listTickets"], "formats": ["json"], "rules": ["R-015"] }
+}

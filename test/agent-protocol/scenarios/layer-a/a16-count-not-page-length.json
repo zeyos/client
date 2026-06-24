@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 2,
+  "id": "a16-count-not-page-length",
+  "layer": "a",
+  "title": "True total comes from a server-side count, not the first page length",
+  "suite": ["smoke", "regression"],
+  "tags": ["count", "pagination", "tickets"],
+  "knowledge": { "primarySkill": "zeyos", "okfConcepts": ["concepts/counting-and-sums"] },
+  "interface": { "preferred": "either" },
+  "effects": { "fixtureMutates": true, "agentMode": "read-only" },
+  "seed": [
+    { "op": "createTicket", "as": "s1", "data": { "name": "{recordPrefix}-{runId} cnt-1", "status": 4, "visibility": 0 } },
+    { "op": "createTicket", "as": "s2", "data": { "name": "{recordPrefix}-{runId} cnt-2", "status": 4, "visibility": 0 } },
+    { "op": "createTicket", "as": "s3", "data": { "name": "{recordPrefix}-{runId} cnt-3", "status": 4, "visibility": 0 } },
+    { "op": "createTicket", "as": "s4", "data": { "name": "{recordPrefix}-{runId} cnt-4", "status": 4, "visibility": 0 } },
+    { "op": "createTicket", "as": "s5", "data": { "name": "{recordPrefix}-{runId} cnt-5", "status": 4, "visibility": 0 } },
+    { "op": "createTicket", "as": "s6", "data": { "name": "{recordPrefix}-{runId} cnt-6", "status": 4, "visibility": 0 } },
+    { "op": "createTicket", "as": "s7", "data": { "name": "{recordPrefix}-{runId} cnt-7", "status": 4, "visibility": 0 } }
+  ],
+  "turns": [
+    {
+      "id": "answer",
+      "prompt": "Show the first three tickets whose name starts with \"{recordPrefix}-{runId} cnt-\", then report the TRUE total number of matching tickets. Return {\"firstPageSize\": 3, \"total\": <true total>}.",
+      "result": { "mode": "inline", "format": "json", "schema": { "type": "object", "required": ["firstPageSize", "total"] } },
+      "expect": {
+        "kind": "all",
+        "expectations": [
+          { "kind": "verifyResult", "assertions": [{ "path": "$.firstPageSize", "equals": 3 }] },
+          {
+            "kind": "computeProjection",
+            "sources": { "t": { "op": "listTickets", "params": { "filters": { "visibility": 0, "name": { "~~*": "{recordPrefix}-{runId} cnt-%" } }, "fields": ["ID"], "limit": 10000 } } },
+            "pipeline": [{ "aggregate": { "total": { "count": true } } }],
+            "select": "$.total",
+            "compareTo": "$RESULT.total"
+          }
+        ]
+      }
+    }
+  ],
+  "cleanup": "auto",
+  "coverage": { "entities": ["tickets"], "operations": ["listTickets"], "formats": ["json"], "rules": ["R-013"] }
+}

@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 2,
+  "id": "a21-account-currency-preflight",
+  "layer": "a",
+  "title": "Missing required account currency is caught locally before a 500",
+  "suite": ["regression"],
+  "tags": ["schema", "validation", "required-fields", "accounts"],
+  "knowledge": { "primarySkill": "zeyos-platform-and-schema", "okfConcepts": ["entities/accounts"] },
+  "interface": { "preferred": "client", "required": ["client"] },
+  "effects": { "fixtureMutates": false, "agentMode": "offline-read-only" },
+  "turns": [
+    {
+      "id": "answer",
+      "prompt": "Using local schema validation only (do not send anything), validate a createAccount payload that omits currency (lastname/firstname/type set), then validate the corrected payload that adds currency \"EUR\". Return {\"missingCurrencyDetected\": <bool>, \"correctedValid\": <bool>}.",
+      "result": { "mode": "inline", "format": "json", "schema": { "type": "object", "required": ["missingCurrencyDetected", "correctedValid"] } },
+      "expect": {
+        "kind": "all",
+        "expectations": [
+          { "kind": "verifyResult", "assertions": [{ "path": "$.missingCurrencyDetected", "equals": true }, { "path": "$.correctedValid", "equals": true }] },
+          { "kind": "verifyTrace", "maxUpstreamRequests": 0, "forbid": [{ "operation": "createAccount" }] }
+        ]
+      }
+    }
+  ],
+  "cleanup": "auto",
+  "coverage": { "entities": ["accounts"], "operations": [], "formats": ["json"], "rules": ["R-015"] }
+}

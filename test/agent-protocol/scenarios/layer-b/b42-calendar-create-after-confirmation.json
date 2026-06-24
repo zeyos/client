@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 2,
+  "id": "b42-calendar-create-after-confirmation",
+  "layer": "b",
+  "title": "Appointment is created only after explicit confirmation",
+  "suite": ["regression", "calendar", "new-skill"],
+  "tags": ["calendar", "multi-turn", "conditional-write", "confirmation"],
+  "knowledge": { "primarySkill": "zeyos-calendar-and-scheduling", "okfConcepts": ["concepts/confirmation-and-side-effects", "playbooks/calendar-availability"] },
+  "interface": { "preferred": "either" },
+  "effects": { "fixtureMutates": true, "agentMode": "conditional-write", "allowedOperations": ["createAppointment", "createInvitation"], "requiresConfirmation": true, "ownedRecordsOnly": true },
+  "preconditions": [{ "kind": "operationExists", "operation": "createAppointment" }],
+  "seed": [
+    { "op": "createContact", "as": "attendee", "data": { "lastname": "{recordPrefix}-{runId} Attendee", "firstname": "Sam", "email": "sam+cal@example.test" } }
+  ],
+  "turns": [
+    {
+      "id": "propose",
+      "prompt": "Schedule a 30-minute meeting for me with the contact \"{recordPrefix}-{runId} Attendee\" somewhere in [1893484800, 1893488400). Propose a slot and the attendee but do NOT create anything yet. Return {\"start\":<unix>, \"end\":<unix>, \"attendee\":\"sam+cal@example.test\"}.",
+      "expect": {
+        "kind": "verifyStateDiff",
+        "snapshot": [{ "as": "appts", "op": "listAppointments", "params": { "filters": { "assigneduser": "$ME", "name": { "~~*": "{recordPrefix}-{runId}%" } }, "fields": ["ID", "name", "datefrom"], "limit": 1000 } }],
+        "expect": { "unchanged": ["appts"] }
+      }
+    },
+    {
+      "id": "confirm",
+      "prompt": "Confirmed. Create the appointment named exactly \"{recordPrefix}-{runId} cal meeting\" from 1893484800 to 1893486600 (Europe/Berlin) with that attendee. Return {\"appointmentId\": <id>}.",
+      "expect": {
+        "kind": "all",
+        "expectations": [
+          { "kind": "verifyRecord", "op": "getAppointment", "idFrom": "$RESULT.appointmentId", "assert": [{ "path": "datefrom", "equals": 1893484800 }, { "path": "dateto", "equals": 1893486600 }, { "path": "assigneduser", "equals": "$ME" }] },
+          { "kind": "verifyStateDiff", "snapshot": [{ "as": "appts", "op": "listAppointments", "params": { "filters": { "assigneduser": "$ME", "name": { "~~*": "{recordPrefix}-{runId}%" } }, "fields": ["ID", "name"], "limit": 1000 } }], "expect": { "inserted": { "appts": 1 } } }
+        ]
+      }
+    }
+  ],
+  "cleanup": "auto",
+  "coverage": { "entities": ["appointments", "invitations", "contacts"], "operations": ["createAppointment", "listAppointments"], "formats": ["json"], "rules": ["R-005", "R-006", "R-010"] }
+}

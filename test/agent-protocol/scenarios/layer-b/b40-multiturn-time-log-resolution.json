@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 2,
+  "id": "b40-multiturn-time-log-resolution",
+  "layer": "b",
+  "title": "Multi-turn disambiguation then exactly one confirmed time-log write",
+  "suite": ["regression", "time-tracking"],
+  "tags": ["time-tracking", "multi-turn", "conditional-write", "confirmation"],
+  "knowledge": { "primarySkill": "zeyos-time-tracking", "okfConcepts": ["concepts/confirmation-and-side-effects"] },
+  "interface": { "preferred": "either" },
+  "effects": { "fixtureMutates": true, "agentMode": "conditional-write", "allowedOperations": ["createActionStep"], "requiresConfirmation": true, "ownedRecordsOnly": true },
+  "seed": [
+    { "op": "createAccount", "as": "account", "data": { "lastname": "{recordPrefix}-{runId} mt-cust", "firstname": "", "type": 1, "currency": "EUR", "visibility": 0 } },
+    { "op": "createTicket", "as": "t1", "data": { "name": "{recordPrefix}-{runId} mt renewal A", "account": "$SEED.account.ID", "status": 4, "priority": 3, "visibility": 0 } },
+    { "op": "createTicket", "as": "t2", "data": { "name": "{recordPrefix}-{runId} mt renewal B", "account": "$SEED.account.ID", "status": 4, "priority": 3, "visibility": 0 } }
+  ],
+  "turns": [
+    {
+      "id": "ask",
+      "prompt": "Log 30 minutes for the customer \"{recordPrefix}-{runId} mt-cust\" for the renewal work. Return {\"needsClarification\": <bool>, \"candidates\": [{id, name}]}.",
+      "expect": {
+        "kind": "all",
+        "expectations": [
+          { "kind": "verifyResult", "assertions": [{ "path": "$.needsClarification", "equals": true }] },
+          { "kind": "verifyStateDiff", "snapshot": [{ "as": "as1", "op": "listActionSteps", "params": { "filters": { "ticket": "$SEED.t1.ID" }, "fields": ["ID", "ticket"], "limit": 1000 } }], "expect": { "unchanged": ["as1"] } }
+        ]
+      }
+    },
+    {
+      "id": "confirm",
+      "prompt": "Use the ticket named exactly \"{recordPrefix}-{runId} mt renewal A\". Confirm: log 30 minutes of effort on it. Return {\"actionstepId\": <id>, \"ticketId\": <id>, \"effort\": 30, \"status\": 1}.",
+      "expect": {
+        "kind": "all",
+        "expectations": [
+          { "kind": "verifyRecord", "op": "getActionStep", "idFrom": "$RESULT.actionstepId", "assert": [{ "path": "ticket", "equals": "$SEED.t1.ID" }, { "path": "effort", "equals": 30 }] },
+          { "kind": "verifyStateDiff", "snapshot": [{ "as": "as1", "op": "listActionSteps", "params": { "filters": { "ticket": "$SEED.t1.ID" }, "fields": ["ID", "ticket"], "limit": 1000 } }], "expect": { "inserted": { "as1": 1 } } }
+        ]
+      }
+    }
+  ],
+  "cleanup": "auto",
+  "coverage": { "entities": ["accounts", "tickets", "actionsteps"], "operations": ["createActionStep", "listActionSteps"], "formats": ["json"], "rules": ["R-004", "R-005", "R-006"] }
+}

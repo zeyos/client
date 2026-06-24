@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 2,
+  "id": "b36-customfields-versus-objects",
+  "layer": "b",
+  "title": "Custom-field definitions, extdata values and custom objects stay separate",
+  "suite": ["regression", "platform"],
+  "tags": ["platform", "customfields", "extdata", "objects"],
+  "knowledge": { "primarySkill": "zeyos-platform-and-schema", "okfConcepts": ["entities/customfields", "entities/objects"] },
+  "interface": { "preferred": "either" },
+  "effects": { "fixtureMutates": false, "agentMode": "read-only" },
+  "preconditions": [
+    { "kind": "operationExists", "operation": "listCustomFields" },
+    { "kind": "operationExists", "operation": "listObjects" },
+    { "kind": "minimumRows", "op": "listCustomFields", "params": { "fields": ["ID", "name", "entity"], "limit": 1 }, "min": 1 }
+  ],
+  "turns": [
+    {
+      "id": "answer",
+      "prompt": "Show three SEPARATE sections for ticket customization: (1) custom-field DEFINITIONS (from the custom-field registry), (2) an example of extdata VALUES on an actual ticket, and (3) custom OBJECTS. Do not present a definition as a value or an object as a field definition. Return {\"definitions\":[...], \"extdataExamples\":[...], \"objects\":[...]}.",
+      "result": { "mode": "inline", "format": "json", "schema": { "type": "object", "required": ["definitions", "extdataExamples", "objects"], "properties": { "definitions": { "type": "array" }, "objects": { "type": "array" } } } },
+      "expect": {
+        "kind": "all",
+        "expectations": [
+          { "kind": "verifyResult", "assertions": [{ "path": "$.definitions", "present": true }, { "path": "$.objects", "present": true }] },
+          { "kind": "verifyTrace", "require": [{ "operation": "listCustomFields", "min": 1 }] }
+        ]
+      }
+    }
+  ],
+  "cleanup": "auto",
+  "coverage": { "entities": ["customfields", "objects", "tickets"], "operations": ["listCustomFields", "listObjects"], "formats": ["json"], "rules": ["R-015"] }
+}

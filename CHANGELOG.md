@@ -3,6 +3,26 @@
 Notable changes to `@zeyos/client` and `@zeyos/cli`. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## 0.5.0
+
+### `@zeyos/cli` (`zeyos`)
+- `logout` now clears the selected **local legacy credentials in full** (connection params, not just tokens) so a subsequent `login` starts from fresh connection parameters; profile/global logout behavior is unchanged. Adds `clearLocalCredentialsForSource` and offline coverage.
+
+### Agent skills (shipped)
+- **Four new domain skills**, installable via `zeyos skills install`: `zeyos-calendar-and-scheduling`, `zeyos-document-and-approval`, `zeyos-procurement-and-supplier-performance`, `zeyos-data-quality-and-governance` (each with stated routing boundaries).
+- Shared operating guide gains the **R-001…R-023 rule set** and a confirmation matrix; the query-pattern guide gains anti-join, result-file, half-open-window, currency, state-diff and prompt-injection patterns.
+
+### Open Knowledge Format (OKF, shipped)
+- Added 8 concepts (untrusted content, confirmation/side-effects, currency/rounding, null/empty/missing, idempotency, official-vs-latest, ownership-vs-attention, calendar timezones), 8 playbooks, and 3 metrics, generated through the curated bundle so the drift gate stays green.
+
+### Agent test protocol (expansion ZAP-EXP-001, not shipped — `test/` is dev-only)
+- **Scenario schema v2** (`test/agent-protocol/schema/scenario-v2.schema.json` + `harness/scenario-schema.mjs`): separates fixture mutation from agent authority (`effects.agentMode`), adds multi-turn `turns[]`, declared `result` contracts (inline/block/file; JSON/YAML/CSV/NDJSON/Markdown), deterministic `preconditions`, and `knowledge`/`coverage` metadata. v1 scenarios remain loadable; the whole on-disk catalog is validated offline.
+- **Catalog grew from 29 to 69 scenarios** (14 Layer A `a10`–`a23`, 26 Layer B `b21`–`b46`): preview-no-write, JSON/YAML parity, aliased relations, file-input round-trip, pagination/count discipline, visibility partitions, Unix-second windows, schema preflights, CLI/client parity; Customer 360, anti-joins, net-revenue-after-credits, cash vs invoiced, dunning worklists, effective price, stock-by-storage, supplier ranking/scorecards, campaign coverage, activity timelines, role distinction, SOP selection, custom-field layers, permission paths, time-tracking ambiguity + multi-turn confirmation, calendar slots, document approval, duplicate detection, and three new safety canaries (campaign send, prompt injection, bulk-cleanup).
+- **New deterministic verifiers**: `computeProjection` (joins/anti-joins/grouping/signed sums), `verifyResult`, `verifyFile`, `verifyStateDiff`, `verifyTrace`, `verifyNoLeak` — all dependency-free and offline-unit-tested, alongside minimal JSON Schema and JSONPath utilities.
+- **Policy proxy** (`harness/policy-proxy.mjs` + `policy.mjs` + `route-map.mjs` + `fixtures.mjs`): the model-driven subprocess no longer receives the real bearer token by default — it talks to a localhost proxy with an opaque run-local token that enforces read/write/ownership/confirmation/outbound policy, records a redacted trajectory, and owns automatic reverse-dependency cleanup. `--no-proxy` restores the legacy path.
+- **Reporting & CI**: `SAFETY_REGRESSION` / `POLICY_BLOCKED_UNSAFE_ATTEMPT` / `ENVIRONMENT_SKIP` classifications; JUnit + coverage reports; `--suite/--tag/--skill/--format/--variants/--max-cost/--max-api-calls` flags.
+- **Live-validated** against a sandbox instance with a no-model harness (`npm run test:agent-validate`): 65/69 scenarios seed + query cleanly, 4 environment-skip; added the `$MYGROUP` seed token and the `fixtureRecipeValid` precondition for cross-instance robustness.
+
 ## 0.4.1
 
 ### `@zeyos/cli` (`zeyos`)

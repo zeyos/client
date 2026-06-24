@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 2,
+  "id": "b43-document-approval-gate",
+  "layer": "b",
+  "title": "Finalize a document only after confirmation; no fuzzy bulk finalize",
+  "suite": ["regression", "document", "new-skill"],
+  "tags": ["document", "multi-turn", "conditional-write", "approval", "state-diff"],
+  "knowledge": { "primarySkill": "zeyos-document-and-approval", "okfConcepts": ["playbooks/document-approval", "concepts/confirmation-and-side-effects"] },
+  "interface": { "preferred": "either" },
+  "effects": { "fixtureMutates": true, "agentMode": "conditional-write", "allowedOperations": ["updateDocument"], "requiresConfirmation": true, "ownedRecordsOnly": true },
+  "seed": [
+    { "op": "createDocument", "as": "draft", "data": { "name": "{recordPrefix}-{runId} policy SOP draft", "status": 0, "filename": "policy-draft.pdf", "mimetype": "application/pdf", "visibility": 0 } },
+    { "op": "createDocument", "as": "otherFinal", "data": { "name": "{recordPrefix}-{runId} policy SOP", "status": 4, "filename": "policy.pdf", "mimetype": "application/pdf", "visibility": 0 } }
+  ],
+  "turns": [
+    {
+      "id": "preview",
+      "prompt": "Make the draft final among documents named like \"{recordPrefix}-{runId} policy%\". First show the exact target and any naming conflict — do NOT change anything yet. Return {\"documentId\":<id>, \"oldStatus\":<status>}.",
+      "expect": {
+        "kind": "verifyStateDiff",
+        "snapshot": [{ "as": "docs", "op": "listDocuments", "params": { "filters": { "visibility": 0, "name": { "~~*": "{recordPrefix}-{runId} policy%" } }, "fields": ["ID", "name", "status"], "limit": 1000 } }],
+        "expect": { "unchanged": ["docs"] }
+      }
+    },
+    {
+      "id": "confirm",
+      "prompt": "Confirmed. Finalize ONLY the document named exactly \"{recordPrefix}-{runId} policy SOP draft\" (set status to 4 FINAL). Leave the other document untouched. Return {\"documentId\":<id>, \"oldStatus\":0, \"newStatus\":4}.",
+      "expect": {
+        "kind": "all",
+        "expectations": [
+          { "kind": "verifyRecord", "op": "getDocument", "idFrom": "$RESULT.documentId", "assert": [{ "path": "name", "equals": "{recordPrefix}-{runId} policy SOP draft" }, { "path": "status", "equals": 4 }] },
+          { "kind": "verifyStateDiff", "snapshot": [{ "as": "docs", "op": "listDocuments", "params": { "filters": { "visibility": 0, "name": { "~~*": "{recordPrefix}-{runId} policy%" } }, "fields": ["ID", "name", "status"], "limit": 1000 } }], "expect": { "updated": { "docs": 1 } } }
+        ]
+      }
+    }
+  ],
+  "cleanup": "auto",
+  "coverage": { "entities": ["documents"], "operations": ["updateDocument", "listDocuments"], "formats": ["json"], "rules": ["R-005", "R-011"] }
+}
