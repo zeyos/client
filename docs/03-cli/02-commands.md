@@ -78,7 +78,7 @@ zeyos logout [--global]
 **Examples:**
 
 ```bash
-zeyos logout          # Clear local .zeyos/auth.json tokens
+zeyos logout          # Clear local .zeyos/auth.json credentials
 zeyos logout --global # Clear ~/.config/zeyos/credentials.json tokens
 ```
 

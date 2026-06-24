@@ -1155,6 +1155,66 @@ test('logout --profile fails loudly when the selected profile is unknown', async
   assert.match(res.stderr, /Known profiles: dev/);
 });
 
+test('logout clears the full legacy local credential set', async (t) => {
+  const home = await tempDir(t);
+  const cwd = await tempDir(t);
+  const server = await jsonServer(t, (_req, res) => {
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ ok: true }));
+  });
+
+  await mkdir(join(cwd, '.zeyos'), { recursive: true });
+  await writeFile(join(cwd, '.zeyos', 'auth.json'), JSON.stringify({
+    baseUrl: server.baseUrl,
+    instance: 'dev',
+    clientId: 'local-client',
+    clientSecret: 'local-secret',
+    accessToken: 'local-token',
+    refreshToken: 'local-refresh',
+    expiresAt: 123,
+    refreshTokenExpiresAt: 456,
+    dateFormat: 'YYYY/MM/DD'
+  }, null, 2));
+
+  const res = await cli(['logout'], { cwd, env: isolatedEnv(home, CLEAN_ENV) });
+  assert.equal(res.code, 0, res.stderr);
+  assert.match(res.stderr, /Logged out \(local credentials\)/);
+
+  const saved = JSON.parse(await readFile(join(cwd, '.zeyos', 'auth.json'), 'utf8'));
+  assert.equal(saved.baseUrl, undefined);
+  assert.equal(saved.instance, undefined);
+  assert.equal(saved.clientId, undefined);
+  assert.equal(saved.clientSecret, undefined);
+  assert.equal(saved.accessToken, undefined);
+  assert.equal(saved.refreshToken, undefined);
+  assert.equal(saved.expiresAt, undefined);
+  assert.equal(saved.refreshTokenExpiresAt, undefined);
+  assert.equal(saved.dateFormat, 'YYYY/MM/DD');
+  assert.equal(server.requests.length, 1);
+  assert.match(server.requests[0].url, /\/dev\/oauth2\/v1\/revoke$/);
+});
+
+test('logout clears stale local connection params even without an access token', async (t) => {
+  const home = await tempDir(t);
+  const cwd = await tempDir(t);
+
+  await mkdir(join(cwd, '.zeyos'), { recursive: true });
+  await writeFile(join(cwd, '.zeyos', 'auth.json'), JSON.stringify({
+    baseUrl: 'https://zeyos.example.com/dev',
+    clientId: 'local-client',
+    clientSecret: 'local-secret',
+    dateFormat: 'YYYY/MM/DD'
+  }, null, 2));
+
+  const res = await cli(['logout'], { cwd, env: isolatedEnv(home, CLEAN_ENV) });
+  assert.equal(res.code, 0, res.stderr);
+  assert.match(res.stderr, /Logged out \(local credentials\)/);
+  assert.doesNotMatch(res.stderr, /Not currently logged in/);
+
+  const saved = JSON.parse(await readFile(join(cwd, '.zeyos', 'auth.json'), 'utf8'));
+  assert.deepEqual(saved, { dateFormat: 'YYYY/MM/DD' });
+});
+
 test('logout --global clears legacy global credentials even when local config exists', async (t) => {
   const home = await tempDir(t);
   const cwd = await tempDir(t);

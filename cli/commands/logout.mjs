@@ -1,22 +1,28 @@
 /**
  * zeyos logout
  *
- * Revokes the current access token (best-effort) and removes stored tokens
- * from the credential file.  Connection params (baseUrl, clientId, clientSecret)
- * are kept so a subsequent `zeyos login` works without re-entering them.
+ * Revokes the current access token (best-effort) and clears the selected
+ * stored session. Local legacy credentials are cleared completely so a
+ * subsequent `zeyos login` starts from fresh connection parameters.
  *
  * Options:
  *   --global    Clear the global credentials file
  */
 
 import { createZeyosClient, MemoryTokenStore } from '@zeyos/client';
-import { loadConfigWithSource, loadGlobalConfig, clearTokensForSource, listProfiles } from '../lib/config.mjs';
+import {
+  loadConfigWithSource,
+  loadGlobalConfig,
+  clearTokensForSource,
+  clearLocalCredentialsForSource,
+  listProfiles
+} from '../lib/config.mjs';
 import { success, warn, info, error }          from '../lib/output.mjs';
 
 export const USAGE = `\
 Usage: zeyos logout [options]
 
-Revoke the current session and clear stored tokens.
+Revoke the current session and clear stored credentials.
 
 Options:
   --profile <name>  Log out of a specific profile
@@ -44,6 +50,10 @@ export async function run(values) {
   }
 
   if (!config.accessToken) {
+    if (source?.kind === 'local' && clearLocalCredentialsForSource(source)) {
+      success('Logged out (local credentials).');
+      return;
+    }
     warn('Not currently logged in.');
     return;
   }
@@ -74,7 +84,11 @@ export async function run(values) {
     }
   }
 
-  clearTokensForSource(source);
+  if (source?.kind === 'local') {
+    clearLocalCredentialsForSource(source);
+  } else {
+    clearTokensForSource(source);
+  }
   const where = source?.kind === 'profile' ? `profile "${source.name}"` : (values.global ? 'global credentials' : 'local credentials');
   success(`Logged out (${where}).`);
 }

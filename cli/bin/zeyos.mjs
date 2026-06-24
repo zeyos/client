@@ -6,7 +6,7 @@
  *
  * Commands:
  *   login                Authenticate with ZeyOS
- *   logout               Revoke session and clear tokens
+ *   logout               Revoke session and clear stored credentials
  *   whoami               Show current user info
  *   list <resource>      List records
  *   count <resource>     Count records
@@ -38,7 +38,7 @@ Usage: ${_z} <command> [options] [args…]
 
 ${_c.bold('Commands:')}
   ${_c.cyan('login')}                Authenticate with a ZeyOS instance
-  ${_c.cyan('logout')}               Revoke session and clear stored tokens
+  ${_c.cyan('logout')}               Revoke session and clear stored credentials
   ${_c.cyan('whoami')}               Show currently authenticated user
   ${_c.cyan('list')}   <resource>    List / query records
   ${_c.cyan('count')}  <resource>    Count records (with optional filter)

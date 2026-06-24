@@ -187,6 +187,21 @@ export function clearTokens(scope = 'local') {
   if (path) _writeJson(path, _stripTokens(_readJson(path)));
 }
 
+/** Remove all credential/session fields from the resolved legacy local auth file. */
+export function clearLocalCredentialsForSource(source) {
+  if (!source || source.kind !== 'local') return false;
+  const path = source.path ?? _findLocalPath();
+  if (!path) return false;
+
+  const current = _readJson(path);
+  const hadCredentials = CRED_KEYS.some((key) => Object.prototype.hasOwnProperty.call(current, key));
+  if (!hadCredentials) return false;
+
+  const next = _stripCredentials(current);
+  _writeJson(path, next);
+  return true;
+}
+
 /**
  * Persist refreshed tokens back to wherever the active credentials came from.
  * @param {ConfigSource|null} source
@@ -371,6 +386,14 @@ function _onlyCredKeys(obj) {
 function _stripTokens(o) {
   const { accessToken, refreshToken, expiresAt, refreshTokenExpiresAt, ...rest } = o;
   return rest;
+}
+
+function _stripCredentials(o) {
+  const out = { ...o };
+  for (const key of CRED_KEYS) {
+    delete out[key];
+  }
+  return out;
 }
 
 function _readGlobal() {
