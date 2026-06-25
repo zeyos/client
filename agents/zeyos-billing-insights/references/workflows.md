@@ -90,17 +90,40 @@ If the user actually wants cash basis, switch to `payments` and sum `amount` ove
 Use this for prompts like:
 
 - "Show me all invoice activity for customer XYZ."
+- "List all delivery notes for customer XYZ."
 - "What is the payment status for account 122?"
 
 Recommended approach:
 
-1. Resolve the account first.
-2. Query `transactions` for invoice and credit records for that account.
+1. Resolve the account first. Company names are stored in `accounts.lastname`, not
+   `accounts.name`; for partial customer names use `{"lastname":{"~~*":"%XYZ%"}}`, not
+   an invented operator such as `contains`.
+2. Query `transactions` for the requested transaction type for that account.
+   - Billing delivery notes are `transactions.type = 2`.
+   - Billing invoices are `transactions.type = 3`.
+   - Billing credits are `transactions.type = 4`.
 3. Query `payments` for the same account or linked transactions.
 4. Present:
+   - delivery notes when requested
    - invoices and credits
    - payments received
    - open items or gaps you can identify from the available status fields
+
+CLI example for delivery notes:
+
+```bash
+zeyos list accounts \
+  --filter '{"lastname":{"~~*":"%Bureau3%"},"visibility":0}' \
+  --fields ID,customernum,firstname,lastname,type \
+  --limit 20 \
+  --json
+
+zeyos list transactions \
+  --filter '{"account":<accountId>,"type":2}' \
+  --fields ID,transactionnum,type,account,date,status,netamount \
+  --limit 100 \
+  --json
+```
 
 ## Pattern: Cash Received In A Period
 

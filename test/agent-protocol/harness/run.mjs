@@ -680,11 +680,26 @@ async function runModelAttempt(a) {
     exitCode: lastAgent?.code, cleanup: [], seed: [],
     notExecuted: detectPlannedNotExecuted(lastAgent?.stdout, decisive.resultRaw),
     failureKind: decisive.failureKind, blockedUnsafe,
+    traceSummary: mergeTraceSummaries(turnRecords.map((t) => t.traceSummary)),
     turns: turnRecords.length > 1 ? turnRecords : undefined,
     workspacePath: lastAgent?.workspacePath || null,
     skillRoot: lastAgent?.skillRoot || childEnv.ZEYOS_SKILL_ROOT || null,
     usage: lastAgent?.usage || null
   };
+}
+
+function mergeTraceSummaries(summaries = []) {
+  const out = { count: 0, upstream: 0, apiErrors: 0, operations: {} };
+  for (const summary of summaries) {
+    if (!summary) continue;
+    out.count += Number(summary.count) || 0;
+    out.upstream += Number(summary.upstream) || 0;
+    out.apiErrors += Number(summary.apiErrors) || 0;
+    for (const [op, n] of Object.entries(summary.operations || {})) {
+      out.operations[op] = (out.operations[op] || 0) + (Number(n) || 0);
+    }
+  }
+  return out;
 }
 
 /** Cleanup: explicit scenario steps if present, else manifest-derived (covers agent creates). */
@@ -1007,7 +1022,8 @@ export {
   detectFailureKind,
   detectToolMisuse,
   runScenario,
-  buildModelScorecard
+  buildModelScorecard,
+  mergeTraceSummaries
 };
 
 // Only run the orchestrator when invoked directly, not when imported by a test.

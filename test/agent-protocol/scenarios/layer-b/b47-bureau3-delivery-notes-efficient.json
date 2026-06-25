@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 2,
+  "id": "b47-bureau3-delivery-notes-efficient",
+  "layer": "b",
+  "title": "List Bureau3 delivery notes without schema/filter mistakes",
+  "suite": ["regression", "billing", "schema-efficiency"],
+  "tags": ["billing", "transactions", "delivery-notes", "schema", "efficiency", "read-only"],
+  "knowledge": { "primarySkill": "zeyos-billing-insights", "okfConcepts": ["entities/accounts", "entities/transactions"] },
+  "interface": { "preferred": "either" },
+  "effects": { "agentMode": "read-only" },
+  "preconditions": [
+    {
+      "kind": "minimumRows",
+      "op": "listAccounts",
+      "params": {
+        "filters": { "lastname": { "~~*": "%Bureau3%" }, "visibility": 0 },
+        "fields": ["ID", "lastname"],
+        "limit": 20
+      },
+      "min": 1
+    }
+  ],
+  "turns": [
+    {
+      "id": "answer",
+      "prompt": "Using the billing-insights skill, give me a JSON list of all billing delivery notes for customer Bureau3. Return each delivery note as {\"id\":<transaction ID>,\"transactionnum\":\"<number>\"}. Output only the JSON array on the RESULT line.",
+      "result": {
+        "mode": "inline",
+        "format": "json",
+        "schema": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "object",
+            "required": ["id", "transactionnum"]
+          }
+        }
+      },
+      "expect": {
+        "kind": "all",
+        "expectations": [
+          {
+            "kind": "computeProjection",
+            "sources": {
+              "acc": {
+                "op": "listAccounts",
+                "params": {
+                  "filters": { "lastname": { "~~*": "%Bureau3%" }, "visibility": 0 },
+                  "fields": ["ID", "lastname"],
+                  "limit": 100
+                }
+              },
+              "tx": {
+                "op": "listTransactions",
+                "params": {
+                  "filters": { "type": 2 },
+                  "fields": ["ID", "transactionnum", "type", "account"],
+                  "limit": 10000
+                }
+              }
+            },
+            "pipeline": [
+              { "from": "tx" },
+              { "join": { "source": "acc", "on": { "left": "account", "right": "ID" } } },
+              { "project": { "value": "transactionnum" } }
+            ],
+            "compareTo": "$RESULT[*].transactionnum",
+            "comparator": "set"
+          },
+          {
+            "kind": "verifyTrace",
+            "require": [
+              { "operation": "listAccounts", "min": 1 },
+              { "operation": "listTransactions", "min": 1 }
+            ],
+            "requireFilters": [
+              { "operation": "listAccounts", "fields": ["lastname"] },
+              { "operation": "listTransactions", "fields": ["account", "type"] }
+            ],
+            "maxUpstreamRequests": 9,
+            "maxApiErrors": 0,
+            "assertions": [
+              { "path": "$.events..contains", "absent": true },
+              { "path": "$.events[?(@.operationId=='listAccounts')].request.body.filters.name", "absent": true },
+              { "path": "$.events[?(@.operationId=='listTransactions')].request.body.filters.visibility", "absent": true },
+              { "path": "$.events[?(@.operationId=='listTransactions')].request.body.filters.type", "equals": 2 }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "coverage": { "entities": ["accounts", "transactions"], "operations": ["listAccounts", "listTransactions"], "formats": ["json"], "rules": ["R-003", "R-015", "R-016"] }
+}

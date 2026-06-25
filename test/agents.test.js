@@ -183,6 +183,30 @@ test('platform customfield workflow forbids turning command failure into zero', 
   }
 });
 
+test('billing and shared query guidance prevent account schema and filter-operator hallucinations', () => {
+  const shared = readFileSync(path.join(ROOT, 'agents/shared/zeyos-query-patterns.md'), 'utf8');
+  for (const expected of [
+    'Company names live in `accounts.lastname`',
+    'there is no generic `accounts.name` column',
+    '`{"lastname":{"~~*":"%Bureau3%"}}`',
+    'do not use',
+    '`contains`'
+  ]) {
+    assert.ok(shared.includes(expected), `shared query guidance missing: ${expected}`);
+  }
+
+  const billing = readFileSync(path.join(ROOT, 'agents/zeyos-billing-insights/references/workflows.md'), 'utf8');
+  for (const expected of [
+    'Billing delivery notes are `transactions.type = 2`',
+    'Company names are stored in `accounts.lastname`',
+    `zeyos list accounts`,
+    `--filter '{"lastname":{"~~*":"%Bureau3%"},"visibility":0}'`,
+    `--filter '{"account":<accountId>,"type":2}'`
+  ]) {
+    assert.ok(billing.includes(expected), `billing workflow missing: ${expected}`);
+  }
+});
+
 test('work-management workflow documents actionstep operation IDs and effort semantics', () => {
   const content = readFileSync(path.join(ROOT, 'agents/zeyos-work-management/references/workflows.md'), 'utf8');
 

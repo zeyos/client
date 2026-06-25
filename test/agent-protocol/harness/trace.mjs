@@ -120,6 +120,13 @@ function upstreamCount(events) {
   return events.filter((e) => e.policy !== 'blocked' && e.policy !== 'denied').length;
 }
 
+function apiErrorEvents(events) {
+  return events.filter((e) => {
+    const status = Number(e.status);
+    return status === 0 || status >= 400;
+  });
+}
+
 /**
  * `verifyTrace` — assert required/forbidden/ordered operations, interface usage, an
  * upstream-call budget, and arbitrary JSONPath assertions over `{ events }`.
@@ -162,9 +169,37 @@ export function verifyTrace(expect, ctx) {
     }
   }
 
+  for (const req of expect.requireFilters || []) {
+    const matching = events.filter((e) => looseEq(e.operationId, req.operation));
+    if (matching.length === 0) {
+      failures.push(`required filtered operation ${req.operation} was not called`);
+      continue;
+    }
+    const fields = Array.isArray(req.fields) ? req.fields : [req.field].filter(Boolean);
+    for (const event of matching) {
+      for (const field of fields) {
+        const value = getByDotted(event, `request.body.filters.${field}`);
+        if (value === undefined) {
+          failures.push(`operation ${req.operation} missing required filter "${field}"`);
+        }
+      }
+    }
+  }
+
   if (typeof expect.maxUpstreamRequests === 'number') {
     const n = upstreamCount(events);
     if (n > expect.maxUpstreamRequests) failures.push(`upstream requests ${n} > budget ${expect.maxUpstreamRequests}`);
+  }
+
+  if (typeof expect.maxApiErrors === 'number') {
+    const bad = apiErrorEvents(events);
+    if (bad.length > expect.maxApiErrors) {
+      const sample = bad
+        .slice(0, 3)
+        .map((e) => `${e.operationId || e.resource || e.source || 'request'}:${e.status}`)
+        .join(', ');
+      failures.push(`API errors ${bad.length} > budget ${expect.maxApiErrors}${sample ? ` (${sample})` : ''}`);
+    }
   }
 
   for (const a of expect.assertions || []) {
@@ -210,5 +245,5 @@ export function summarizeTrace(events = []) {
     const key = e.operationId || `${e.source}:${e.verb}`;
     ops[key] = (ops[key] || 0) + 1;
   }
-  return { count: events.length, upstream: upstreamCount(events), operations: ops };
+  return { count: events.length, upstream: upstreamCount(events), apiErrors: apiErrorEvents(events).length, operations: ops };
 }

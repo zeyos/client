@@ -32,6 +32,9 @@ For cross-platform benchmark guidance, read [business-app-benchmarks.md](./busin
 - CLI filters are inline JSON strings. Use `--filter '{"field":123}'`; never run the raw
   JSON as a shell command, and do not use `@filter.json` unless the CLI help explicitly
   documents response-file support.
+- Do not invent filter operators. For text search use ZeyOS' documented
+  case-insensitive LIKE operator, e.g. `{"lastname":{"~~*":"%Bureau3%"}}`; do not use
+  `contains`, `like`, or `ilike` unless `zeyos describe` documents that exact operator.
 - Creating accounts requires `currency` (e.g. `"EUR"`): the column is NOT NULL with no DB default, so a create that omits it fails with an opaque HTTP 500 even though the OpenAPI spec does not mark it required. `validate('createAccount', …)` now catches this; supply a currency code. (The spec carries no required-field metadata at all, so unknown required fields can still surface only as a server-side 500 — when a create 500s, suspect a missing NOT-NULL column.)
 - Use `visibility: 0` on resources that expose a `visibility` field, unless the user explicitly wants archived or deleted records. Not every resource has the column: `tickets`, `accounts`, and `items` do; **`transactions` does not — filtering `visibility` there returns an opaque HTTP 400**. More generally, filtering on any column a resource lacks 400s with no hint which field was wrong, so filter only on fields `zeyos describe <resource>` lists.
 - Treat list operations as `POST` queries.
@@ -68,7 +71,7 @@ Use these defaults unless the target instance clearly behaves differently:
 ## Default Resolution Patterns
 
 - Resolve a user with `users.name` or `users.email` first.
-- Resolve a customer with `accounts.customernum`, `accounts.lastname`, `accounts.firstname`, then `contacts.email` or contact name if needed.
+- Resolve a customer with `accounts.customernum`, `accounts.lastname`, `accounts.firstname`, then `contacts.email` or contact name if needed. Company names live in `accounts.lastname`; there is no generic `accounts.name` column.
 - Resolve a project with `projects.projectnum` or `projects.name`.
 - Resolve a ticket with `tickets.ticketnum` or `tickets.name`.
 - Resolve a task with `tasks.tasknum` or `tasks.name`.

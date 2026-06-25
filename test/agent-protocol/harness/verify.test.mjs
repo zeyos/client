@@ -30,6 +30,7 @@ import {
   buildPrompt,
   detectPlannedNotExecuted,
   detectFailureKind,
+  mergeTraceSummaries,
   runScenario
 } from './run.mjs';
 import {
@@ -1037,6 +1038,24 @@ test('model scorecard aggregates pass rate, latency, cost, and tokens', () => {
   assert.equal(slow.costUsd, null);
   assert.equal(slow.knownUsageAttempts, 1);
   assert.equal(slow.unknownUsageAttempts, 1);
+});
+
+test('trace summaries merge across turns for attempt-level reporting', () => {
+  const summary = mergeTraceSummaries([
+    { count: 2, upstream: 2, apiErrors: 0, operations: { listAccounts: 1, listTransactions: 1 } },
+    { count: 3, upstream: 2, apiErrors: 1, operations: { listAccounts: 1, listPayments: 2 } }
+  ]);
+
+  assert.deepEqual(summary, {
+    count: 5,
+    upstream: 4,
+    apiErrors: 1,
+    operations: {
+      listAccounts: 2,
+      listTransactions: 1,
+      listPayments: 2
+    }
+  });
 });
 
 test('loop runner presets produce expected command shapes', () => {

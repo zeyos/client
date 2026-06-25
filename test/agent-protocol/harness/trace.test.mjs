@@ -54,6 +54,38 @@ test('verifyTrace enforces an upstream request budget', () => {
   assert.equal(verifyTrace({ maxUpstreamRequests: 8 }, { trace: many }).pass, false);
 });
 
+test('verifyTrace can require filters on specific operations', () => {
+  const filtered = [
+    { source: 'http', operationId: 'listAccounts', request: { body: { filters: { lastname: { '~~*': '%Bureau3%' } } } }, status: 200, policy: 'allowed' },
+    { source: 'http', operationId: 'listTransactions', request: { body: { filters: { account: 4331, type: 2 } } }, status: 200, policy: 'allowed' }
+  ];
+  assert.equal(verifyTrace({
+    requireFilters: [
+      { operation: 'listAccounts', fields: ['lastname'] },
+      { operation: 'listTransactions', fields: ['account', 'type'] }
+    ]
+  }, { trace: filtered }).pass, true);
+
+  const unfiltered = [{ source: 'http', operationId: 'listAccounts', request: { body: { filters: {} } }, status: 200, policy: 'allowed' }];
+  const res = verifyTrace({ requireFilters: [{ operation: 'listAccounts', fields: ['lastname'] }] }, { trace: unfiltered });
+  assert.equal(res.pass, false);
+  assert.match(res.detail, /missing required filter "lastname"/);
+});
+
+test('verifyTrace enforces an API error budget', () => {
+  const clean = [{ source: 'http', operationId: 'listAccounts', status: 200, policy: 'allowed' }];
+  assert.equal(verifyTrace({ maxApiErrors: 0 }, { trace: clean }).pass, true);
+
+  const bad = [
+    ...clean,
+    { source: 'http', operationId: 'listAccounts', status: 400, policy: 'allowed' },
+    { source: 'http', operationId: 'listTransactions', status: 0, policy: 'allowed' }
+  ];
+  const res = verifyTrace({ maxApiErrors: 0 }, { trace: bad });
+  assert.equal(res.pass, false);
+  assert.match(res.detail, /API errors 2 > budget 0/);
+});
+
 test('redactText and redactEvent strip secrets and token patterns', () => {
   assert.match(redactText('Authorization: Bearer abcdefghijklmnopqrstuvwxyz123'), /Bearer \[REDACTED\]/);
   assert.match(redactText('my token is SUPERSECRETVALUE', ['SUPERSECRETVALUE']), /\[REDACTED\]/);
