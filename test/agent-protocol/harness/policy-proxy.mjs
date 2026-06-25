@@ -59,6 +59,18 @@ export async function startPolicyProxy(cfg) {
 
   async function handle(req, res) {
     const started = Date.now();
+
+    // OAuth token endpoint: never forward upstream. Return the opaque token so the agent's
+    // client/CLI "refreshes" to it (and never obtains the real upstream bearer). The CLI
+    // sends Basic client auth here — not the opaque Bearer — so this must run BEFORE the
+    // opaque-token check, otherwise its built-in auto-refresh 401s and every call fails.
+    const pathOnly = String(req.url).split('?')[0];
+    if (/\/oauth2\/v\d+\/token\/?$/.test(pathOnly)) {
+      await readBody(req); // drain the grant body; we don't forward it
+      record({ req, operationId: 'oauth2.token', verb: 'other', resource: 'oauth2', policy: 'allowed', status: 200, started, reason: 'synthetic token (opaque; not forwarded)' });
+      return respond(res, 200, { token_type: 'Bearer', access_token: opaqueToken, refresh_token: opaqueToken, expires_in: 3600, scope: '' });
+    }
+
     const auth = req.headers['authorization'] || '';
     if (auth !== `Bearer ${opaqueToken}`) {
       // The real token never reaches the agent; an unrecognized token cannot proxy.

@@ -192,6 +192,8 @@ const COMMAND_FLAGS = {
   profiles:  PROFILE_FLAGS,
 };
 
+const CREDENTIAL_MUTATION_COMMANDS = new Set(['login', 'logout', 'profile', 'profiles']);
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -218,6 +220,11 @@ async function main() {
   }
 
   const rest    = argv.slice(1);
+
+  if (process.env.ZEYOS_CREDENTIALS_READONLY && CREDENTIAL_MUTATION_COMMANDS.has(command)) {
+    process.stderr.write(`Credential command "${command}" is disabled because ZEYOS_CREDENTIALS_READONLY is set.\n`);
+    process.exit(1);
+  }
 
   // Parse remaining args permissively: known options are parsed normally and
   // unknown --key value flags are captured too (so create/update accept fields).

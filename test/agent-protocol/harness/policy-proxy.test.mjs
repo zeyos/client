@@ -108,3 +108,20 @@ test('trace events never contain the real token', async () => {
     assert.equal(serialized.includes('REAL-SECRET-TOKEN'), false);
   });
 });
+
+test('proxy intercepts the OAuth token endpoint and returns the opaque token (no upstream)', async () => {
+  // The agent CLI auto-refreshes via Basic client auth (not the opaque Bearer); the proxy
+  // must answer with the opaque token so the CLI keeps working and never sees the real one.
+  await withProxy({ mode: 'read-only' }, async ({ proxy, upstream }) => {
+    const res = await fetch(`${proxy.agentBaseUrl}/oauth2/v1/token`, {
+      method: 'POST',
+      headers: { authorization: `Basic ${Buffer.from('cid:sec').toString('base64')}`, 'content-type': 'application/x-www-form-urlencoded' },
+      body: 'grant_type=refresh_token&refresh_token=whatever'
+    });
+    assert.equal(res.status, 200);
+    const tok = await res.json();
+    assert.equal(tok.access_token, proxy.opaqueToken);
+    assert.equal(tok.token_type, 'Bearer');
+    assert.equal(upstream.seen.length, 0, 'token endpoint must NOT be forwarded upstream');
+  });
+});

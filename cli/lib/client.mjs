@@ -23,29 +23,47 @@ export function buildClient(overrides = {}, opts = {}) {
     throw new Error(`Profile "${loaded.profile.name}" not found (selected via ${loaded.profile.origin}). ${known}`);
   }
   const config = { ...loaded.config, ...overrides };
-  requireConfig(['baseUrl', 'clientId', 'clientSecret', 'accessToken'], config);
+  const tokenOnly = isTokenOnlyMode(config);
+  requireConfig(tokenOnly ? ['baseUrl', 'accessToken'] : ['baseUrl', 'clientId', 'clientSecret', 'accessToken'], config);
 
-  const tokenStore = new MemoryTokenStore({
-    accessToken:           config.accessToken,
-    refreshToken:          config.refreshToken,
-    expiresAt:             config.expiresAt,
-    refreshTokenExpiresAt: config.refreshTokenExpiresAt,
-  });
+  const tokenStore = new MemoryTokenStore(tokenOnly
+    ? { accessToken: config.accessToken }
+    : {
+        accessToken:           config.accessToken,
+        refreshToken:          config.refreshToken,
+        expiresAt:             config.expiresAt,
+        refreshTokenExpiresAt: config.refreshTokenExpiresAt,
+      });
+
+  const oauth = tokenOnly
+    ? {
+        tokenStore,
+        autoRefresh: false,
+      }
+    : {
+        clientId:     config.clientId,
+        clientSecret: config.clientSecret,
+        tokenStore,
+        autoRefresh:  true,
+      };
 
   const client = createZeyosClient({
     platform: config.baseUrl,
     auth: {
       mode: 'oauth',
-      oauth: {
-        clientId:     config.clientId,
-        clientSecret: config.clientSecret,
-        tokenStore,
-        autoRefresh:  true,
-      },
+      oauth,
     },
   });
 
-  return { client, config, tokenStore, configSource: loaded.source };
+  return { client, config, tokenStore, configSource: tokenOnly ? null : loaded.source, tokenOnly };
+}
+
+function isTruthyEnv(value) {
+  return /^(1|true|yes|on)$/i.test(String(value || '').trim());
+}
+
+function isTokenOnlyMode(config) {
+  return Boolean(process.env.ZEYOS_TOKEN) || (isTruthyEnv(process.env.ZEYOS_NO_REFRESH) && Boolean(config.accessToken));
 }
 
 /**

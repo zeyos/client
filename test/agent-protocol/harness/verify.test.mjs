@@ -20,8 +20,18 @@ import {
   orphanSweep,
   passwordLogin
 } from './verify.mjs';
-import { runAgent } from './opencode-adapter.mjs';
-import { classify, globToRe, buildPrompt, detectPlannedNotExecuted, detectFailureKind, runScenario } from './run.mjs';
+import { extractUsageFromText, openCodeUsageFromRow, runAgent } from './opencode-adapter.mjs';
+import {
+  BENCHMARK_MODELS,
+  BENCHMARK_SCENARIO_IDS,
+  buildModelScorecard,
+  classify,
+  globToRe,
+  buildPrompt,
+  detectPlannedNotExecuted,
+  detectFailureKind,
+  runScenario
+} from './run.mjs';
 import {
   runnerPreset,
   compareRecords,
@@ -840,6 +850,44 @@ test('runAgent isolates runner scratch files inside an attempt workspace', async
   }
 });
 
+test('usage parsing accepts runner JSON usage events', () => {
+  const usage = extractUsageFromText([
+    'noise',
+    JSON.stringify({ type: 'message', usage: { inputTokens: 100, outputTokens: 20, reasoningTokens: 5, costUsd: 0.00123 } })
+  ].join('\n'));
+
+  assert.deepEqual(usage, {
+    source: 'runner-json',
+    costUsd: 0.00123,
+    tokens: { input: 100, output: 20, reasoning: 5, total: 125 }
+  });
+});
+
+test('opencode DB rows normalize to actual cost and token usage', () => {
+  const usage = openCodeUsageFromRow({
+    id: 'ses_123',
+    model: JSON.stringify({ providerID: 'openrouter', id: 'deepseek/deepseek-v4-flash' }),
+    cost: 0.012345678,
+    tokens_input: 1000,
+    tokens_output: 200,
+    tokens_reasoning: 50,
+    tokens_cache_read: 300,
+    tokens_cache_write: 0
+  });
+
+  assert.equal(usage.source, 'opencode-db');
+  assert.equal(usage.sessionId, 'ses_123');
+  assert.equal(usage.costUsd, 0.012345678);
+  assert.deepEqual(usage.tokens, {
+    input: 1000,
+    output: 200,
+    reasoning: 50,
+    cacheRead: 300,
+    cacheWrite: 0,
+    total: 1550
+  });
+});
+
 test('runScenario honors allModels after a passing first model', async () => {
   const dir = await mkdtemp(path.join(os.tmpdir(), 'ap-all-models-'));
   const scenario = {
@@ -886,6 +934,7 @@ test('runScenario refreshes the subprocess token before an attempt', async () =>
   };
   const client = fakeClient({ listTickets: async () => [{ ID: 1 }] });
   let refreshes = 0;
+  const forceValues = [];
 
   try {
     const rec = await runScenario({
@@ -897,8 +946,9 @@ test('runScenario refreshes the subprocess token before an attempt', async () =>
         timeoutMs: 5000
       },
       childEnv: { ...process.env, ZEYOS_TOKEN: 'stale-start-token', ZEYOS_SKILL_ROOT: path.join(dir, 'agents') },
-      tokenProvider: async () => {
+      tokenProvider: async ({ force } = {}) => {
         refreshes += 1;
+        forceValues.push(force);
         return { accessToken: 'fresh-attempt-token' };
       },
       resultsDir: dir,
@@ -914,10 +964,53 @@ test('runScenario refreshes the subprocess token before an attempt', async () =>
     });
 
     assert.equal(refreshes, 1);
+    assert.deepEqual(forceValues, [false]);
     assert.equal(rec.classification, 'PASS');
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+test('benchmark constants pin the OpenRouter matrix and read-only count set', () => {
+  assert.deepEqual(BENCHMARK_MODELS, [
+    'openrouter/openai/gpt-oss-120b',
+    'openrouter/xiaomi/mimo-v2.5',
+    'openrouter/z-ai/glm-5.2',
+    'openrouter/deepseek/deepseek-v4-flash',
+    'openrouter/moonshotai/kimi-k2.7-code'
+  ]);
+  assert.ok(BENCHMARK_SCENARIO_IDS.includes('b02-account-customer-count'));
+  assert.ok(BENCHMARK_SCENARIO_IDS.includes('b14-mail-unanswered-ticket-count'));
+  assert.equal(BENCHMARK_SCENARIO_IDS.length, 10);
+});
+
+test('model scorecard aggregates pass rate, latency, cost, and tokens', () => {
+  const rows = buildModelScorecard([
+    {
+      attempts: [
+        { model: 'm/fast', pass: true, durationMs: 1000, usage: { costUsd: 0.01, tokens: { input: 100, output: 20, total: 120 } } },
+        { model: 'm/slow', pass: false, durationMs: 3000, usage: { tokens: { input: 50, output: 10, total: 60 } } }
+      ]
+    },
+    {
+      attempts: [
+        { model: 'm/fast', pass: true, durationMs: 2000, usage: { costUsd: 0.02, tokens: { input: 200, output: 40, total: 240 } } },
+        { model: 'm/slow', pass: true, durationMs: 5000, usage: null }
+      ]
+    }
+  ]);
+
+  const fast = rows.find((row) => row.model === 'm/fast');
+  assert.equal(fast.passRate, 1);
+  assert.equal(fast.avgLatencyMs, 1500);
+  assert.equal(fast.costUsd, 0.03);
+  assert.equal(fast.tokens.total, 360);
+
+  const slow = rows.find((row) => row.model === 'm/slow');
+  assert.equal(slow.passRate, 0.5);
+  assert.equal(slow.costUsd, null);
+  assert.equal(slow.knownUsageAttempts, 1);
+  assert.equal(slow.unknownUsageAttempts, 1);
 });
 
 test('loop runner presets produce expected command shapes', () => {

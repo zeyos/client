@@ -21,6 +21,8 @@ const ENV_KEYS = {
   ZEYOS_CLIENT_SECRET: 'clientSecret',
   ZEYOS_TOKEN:         'accessToken',
   ZEYOS_REFRESH_TOKEN: 'refreshToken',
+  ZEYOS_NO_REFRESH:    'tokenOnly',
+  ZEYOS_CREDENTIALS_READONLY: 'credentialsReadonly',
 };
 
 export const USAGE = `\
@@ -82,8 +84,9 @@ function buildAgentReport() {
     clientSecret: Boolean(config.clientSecret),
     accessToken:  Boolean(config.accessToken),
     refreshToken: Boolean(config.refreshToken),
+    tokenOnly:    Boolean(process.env.ZEYOS_TOKEN) || isTruthyEnv(process.env.ZEYOS_NO_REFRESH),
   };
-  const ready = Boolean(effective.baseUrl && effective.clientId && effective.clientSecret && effective.accessToken);
+  const ready = Boolean(effective.baseUrl && effective.accessToken && (effective.tokenOnly || (effective.clientId && effective.clientSecret)));
   const resources = inspectResources();
 
   return {
@@ -115,6 +118,10 @@ function buildAgentReport() {
     },
     resources,
   };
+}
+
+function isTruthyEnv(value) {
+  return /^(1|true|yes|on)$/i.test(String(value || '').trim());
 }
 
 function inspectResources() {

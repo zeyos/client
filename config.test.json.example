@@ -26,7 +26,7 @@
       "ollama/llama3.1:8b"
     ],
     "judgeModel": "openrouter/anthropic/claude-opus-4.8",
-    "_runnerNote": "Swap `runner` to change agent CLI. opencode (default) below. For pi: { \"command\": \"pi\", \"args\": [\"-p\", \"--provider\", \"ollama\", \"--model\", \"{model}\", \"--no-session\", \"{prompt}\"], \"cwd\": \".\", \"timeoutMs\": 240000 }. Pair the pi runner with the harness `--bare-skill` flag to test skills the way a real downstream agent consumes them (no inlined operating contract). See PROTOCOL.md §5.1–5.2.",
+    "_runnerNote": "Swap `runner` to change agent CLI. opencode (default) below. For pi: { \"command\": \"pi\", \"args\": [\"-p\", \"--provider\", \"ollama\", \"--model\", \"{model}\", \"--no-session\", \"{prompt}\"], \"cwd\": \".\", \"timeoutMs\": 240000 }. Pair the pi runner with the harness `--bare-skill` flag to test skills the way a real downstream agent consumes them (no inlined operating contract). Override per-attempt timeout at runtime with run.mjs --timeout-ms <ms>; override transient retry count with --transient-retries <n>. See PROTOCOL.md §5.1–5.2.",
     "runner": {
       "command": "opencode",
       "args": ["run", "--model", "{model}", "{prompt}"],
@@ -34,6 +34,7 @@
       "timeoutMs": 240000
     },
     "scenarios": { "include": ["layer-a/*", "layer-b/*"], "exclude": [] },
+    "_benchmarkNote": "For model selection, run: node test/agent-protocol/harness/run.mjs --benchmark --timeout-ms 600000 --run-id benchmark-YYYYMMDD. This implies --read-only and --all-models, uses a fixed 10-scenario read-only count set, and defaults to openrouter/openai/gpt-oss-120b, openrouter/xiaomi/mimo-v2.5, openrouter/z-ai/glm-5.2, openrouter/deepseek/deepseek-v4-flash, and openrouter/moonshotai/kimi-k2.7-code unless --models is supplied.",
     "_policyNote": "By default the harness runs a localhost policy proxy: the agent receives the proxy URL + an opaque run-local token, never the real bearer (least privilege at the transport boundary). Pass --no-proxy to restore the legacy direct-token path. Safety canaries MUST be listed in rotation.canaryIds so every model's behaviour is recorded.",
     "rotation": { "transientRetries": 1, "canaryIds": ["b07-destructive-confirmation", "b31-campaign-send-refusal", "b38-stored-prompt-injection", "b46-data-quality-remediation-preview"] }
   }

@@ -20,6 +20,10 @@
  *     --layer <a|b>        restrict to a layer
  *     --models <csv>       override the rotation
  *     --all-models         run every selected model even after a pass
+ *     --benchmark          fixed read-only OpenRouter model matrix for model selection
+ *     --timeout-ms <n>     per-attempt runner timeout override
+ *     --transient-retries <n>
+ *                          override retry count for transient runner failures
  *     --read-only          restrict selected scenarios to non-mutating cases
  *     --no-cleanup         skip post-scenario record cleanup (debugging)
  *     --config <path>      config file (default: <repo>/config.test.json)
@@ -59,6 +63,25 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '../../..');
 const PROTOCOL_DIR = path.resolve(__dirname, '..');
 const SCENARIO_DIR = path.join(PROTOCOL_DIR, 'scenarios');
+const BENCHMARK_MODELS = [
+  'openrouter/openai/gpt-oss-120b',
+  'openrouter/xiaomi/mimo-v2.5',
+  'openrouter/z-ai/glm-5.2',
+  'openrouter/deepseek/deepseek-v4-flash',
+  'openrouter/moonshotai/kimi-k2.7-code'
+];
+const BENCHMARK_SCENARIO_IDS = [
+  'b01-work-open-high-priority',
+  'b02-account-customer-count',
+  'b03-billing-transaction-count',
+  'b04-dunning-operationid-trap',
+  'b05-commerce-item-count',
+  'b08-platform-customfield-count',
+  'b09-campaign-count',
+  'b10-collaboration-event-count',
+  'b14-mail-unanswered-ticket-count',
+  'b16-open-due-actionsteps-count'
+];
 
 // The agent contract is inlined into every prompt so it does not depend on the
 // runner auto-discovering AGENTS.md (opencode scopes file access to its cwd).
@@ -83,7 +106,10 @@ function parseArgs(argv) {
     runId: null,
     bareSkill: false,
     allModels: false,
+    benchmark: false,
     readOnly: false,
+    timeoutMs: null,
+    transientRetries: null,
     // Knowledge context offered to the agent: skills (default), okf (the OKF
     // bundle only), or both. Lets the loop measure whether OKF-as-context lifts
     // pass rates and which concepts correlate with failures.
@@ -106,6 +132,7 @@ function parseArgs(argv) {
     else if (a === '--no-cleanup') opts.noCleanup = true;
     else if (a === '--bare-skill') opts.bareSkill = true;
     else if (a === '--all-models') opts.allModels = true;
+    else if (a === '--benchmark') opts.benchmark = true;
     else if (a === '--read-only') opts.readOnly = true;
     else if (a === '--no-proxy') opts.proxy = false;
     else if (a === '--scenario') opts.scenario = argv[++i];
@@ -114,6 +141,8 @@ function parseArgs(argv) {
     else if (a === '--tag') opts.tag = argv[++i];
     else if (a === '--skill') opts.skill = argv[++i];
     else if (a === '--models') opts.models = argv[++i].split(',').map((s) => s.trim()).filter(Boolean);
+    else if (a === '--timeout-ms' || a === '--attempt-timeout-ms') opts.timeoutMs = Number(argv[++i]);
+    else if (a === '--transient-retries') opts.transientRetries = Number(argv[++i]);
     else if (a === '--format') opts.formats = argv[++i].split(',').map((s) => s.trim()).filter(Boolean);
     else if (a === '--variants') opts.variants = argv[++i].split(',').map((s) => s.trim()).filter(Boolean);
     else if (a === '--max-cost') opts.maxCost = Number(argv[++i]);
@@ -124,6 +153,17 @@ function parseArgs(argv) {
   }
   if (!['skills', 'okf', 'both'].includes(opts.context)) {
     fail(`--context must be one of skills|okf|both (got "${opts.context}").`);
+  }
+  if (opts.timeoutMs != null && (!Number.isFinite(opts.timeoutMs) || opts.timeoutMs <= 0)) {
+    fail(`--timeout-ms must be a positive number (got "${opts.timeoutMs}").`);
+  }
+  if (opts.transientRetries != null && (!Number.isInteger(opts.transientRetries) || opts.transientRetries < 0)) {
+    fail(`--transient-retries must be a non-negative integer (got "${opts.transientRetries}").`);
+  }
+  if (opts.benchmark) {
+    opts.readOnly = true;
+    opts.allModels = true;
+    if (!opts.models) opts.models = BENCHMARK_MODELS;
   }
   return opts;
 }
@@ -267,8 +307,9 @@ async function main() {
   const ap = config.agentProtocol || {};
   const recordPrefix = ap.recordPrefix || 'AGENTTEST';
   const models = opts.models || ap.models || [];
-  const runner = ap.runner || { command: 'opencode', args: ['run', '--model', '{model}', '{prompt}'], cwd: '.', timeoutMs: 240000 };
-  const transientRetries = ap.rotation?.transientRetries ?? 1;
+  const runner = { ...(ap.runner || { command: 'opencode', args: ['run', '--model', '{model}', '{prompt}'], cwd: '.', timeoutMs: 240000 }) };
+  if (opts.timeoutMs != null) runner.timeoutMs = opts.timeoutMs;
+  const transientRetries = opts.transientRetries ?? ap.rotation?.transientRetries ?? 1;
   const canarySet = new Set(ap.rotation?.canaryIds || []);
   const skillRoot = ap.skillRoot ? path.resolve(path.dirname(configPath), ap.skillRoot) : path.join(REPO_ROOT, 'agents');
   const okfRoot = ap.okfRoot ? path.resolve(path.dirname(configPath), ap.okfRoot) : path.join(REPO_ROOT, 'okf');
@@ -285,8 +326,15 @@ async function main() {
     fail(`Scenario validation failed:\n${validation.errors.map((e) => `  - ${e}`).join('\n')}`);
   }
 
-  let scenarios = selectScenarios(all, ap.scenarios || {}, opts);
+  let scenarios = opts.benchmark && !opts.scenario
+    ? BENCHMARK_SCENARIO_IDS.map((id) => all.find((s) => s.id === id)).filter(Boolean)
+    : selectScenarios(all, ap.scenarios || {}, opts);
   if (scenarios.length === 0) fail('No scenarios selected.');
+  if (opts.benchmark && !opts.scenario && scenarios.length !== BENCHMARK_SCENARIO_IDS.length) {
+    const found = new Set(scenarios.map((s) => s.id));
+    const missing = BENCHMARK_SCENARIO_IDS.filter((id) => !found.has(id));
+    fail(`Benchmark scenario set is incomplete; missing: ${missing.join(', ')}`);
+  }
 
   // --read-only / --bare-skill filter on AGENT AUTHORITY (agentWrites), not fixture
   // creation: a seeded but read-only scenario is safe to run in both modes.
@@ -360,6 +408,7 @@ async function main() {
   const runId = opts.runId || `run-${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)}`;
   const resultsDir = path.join(PROTOCOL_DIR, 'results', runId);
   await mkdir(resultsDir, { recursive: true });
+  if (!runner.workspaceRoot) runner.workspaceRoot = path.join(resultsDir, 'workspaces');
 
   console.log(`\nZeyOS Agent Test Protocol — run ${runId}`);
   console.log(`Instance:  ${instance} (${baseUrl})`);
@@ -416,6 +465,8 @@ async function main() {
     ZEYOS_BASE_URL: agentBaseUrl,
     ZEYOS_INSTANCE: instance,
     ZEYOS_TOKEN: agentToken,
+    ZEYOS_NO_REFRESH: '1',
+    ZEYOS_CREDENTIALS_READONLY: '1',
     ZEYOS_REPO_ROOT: REPO_ROOT,
     ZEYOS_SKILL_ROOT: skillRoot,
     ZEYOS_OKF_ROOT: okfRoot
@@ -441,6 +492,14 @@ async function main() {
 
   // Release-blocking: real client/skill defects + any observed/attempted unsafe action.
   const defects = records.filter((r) => ['CLIENT_DEFECT', 'SAFETY_REGRESSION', 'POLICY_BLOCKED_UNSAFE_ATTEMPT'].includes(r.classification));
+  if (typeof opts.maxCost === 'number') {
+    const modelScorecard = buildModelScorecard(records);
+    const knownCost = modelScorecard.reduce((sum, row) => sum + (Number.isFinite(row.costUsd) ? row.costUsd : 0), 0);
+    const unknown = modelScorecard.reduce((sum, row) => sum + row.unknownUsageAttempts, 0);
+    if (knownCost > opts.maxCost) {
+      console.log(`\n⚠ Cost budget exceeded: $${knownCost.toFixed(6)} > $${opts.maxCost.toFixed(6)}${unknown ? ` (${unknown} attempt[s] had unknown usage)` : ''}`);
+    }
+  }
   if (typeof opts.maxApiCalls === 'number' && proxy && proxy.events.length > opts.maxApiCalls) {
     console.log(`\n⚠ API-call budget exceeded: ${proxy.events.length} > ${opts.maxApiCalls}`);
   }
@@ -461,7 +520,7 @@ async function runScenario(c) {
   // Preconditions (spec §7.4): a missing instance feature/data/operation is an
   // ENVIRONMENT_SKIP (neutral), never a model run or a CLIENT_DEFECT.
   if (scenario.preconditions?.length && (client || verifyClientProvider)) {
-    const pcClient = verifyClientProvider ? await verifyClientProvider({ force: true }) : client;
+    const pcClient = verifyClientProvider ? await verifyClientProvider({ force: false }) : client;
     const pc = await evaluatePreconditions(scenario.preconditions, { client: pcClient, runId, recordPrefix, me, myGroup });
     if (!pc.ok) {
       return {
@@ -475,7 +534,7 @@ async function runScenario(c) {
   }
 
   for (const model of models) {
-    let verifyClient = verifyClientProvider ? await verifyClientProvider({ force: true }) : client;
+    let verifyClient = verifyClientProvider ? await verifyClientProvider({ force: false }) : client;
     // Per-attempt ownership manifest: a fresh manifest each model so ownership/cleanup
     // never bleed across attempts. The policy proxy consults it for owned-records-only.
     const manifest = createOwnershipManifest();
@@ -556,7 +615,7 @@ async function runModelAttempt(a) {
     // and only the harness-held real token rotates.
     let agentEnv = childEnv;
     if (tokenProvider) {
-      const fresh = await tokenProvider({ force: true });
+      const fresh = await tokenProvider({ force: false });
       if (proxy && runtime) { runtime.realToken = fresh.accessToken; agentEnv = childEnv; }
       else agentEnv = { ...childEnv, ZEYOS_TOKEN: fresh.accessToken };
     }
@@ -568,7 +627,7 @@ async function runModelAttempt(a) {
     // State snapshot before the turn (for verifyStateDiff / state assertions).
     let stateBefore = null;
     const snapshotSpec = turn.state?.snapshot || (turn.expect && collectStateSnapshot(turn.expect));
-    const verifyClient = verifyClientProvider ? await verifyClientProvider({ force: true }) : a.verifyClient;
+    const verifyClient = verifyClientProvider ? await verifyClientProvider({ force: false }) : a.verifyClient;
     if (snapshotSpec) stateBefore = await snapshotResources(snapshotSpec, { client: verifyClient, runId, recordPrefix, me, myGroup, seed });
 
     let agent;
@@ -623,7 +682,8 @@ async function runModelAttempt(a) {
     failureKind: decisive.failureKind, blockedUnsafe,
     turns: turnRecords.length > 1 ? turnRecords : undefined,
     workspacePath: lastAgent?.workspacePath || null,
-    skillRoot: lastAgent?.skillRoot || childEnv.ZEYOS_SKILL_ROOT || null
+    skillRoot: lastAgent?.skillRoot || childEnv.ZEYOS_SKILL_ROOT || null,
+    usage: lastAgent?.usage || null
   };
 }
 
@@ -766,8 +826,9 @@ async function dryRun(scenarios, client, me, myGroup) {
 async function writeScorecards({ resultsDir, runId, instance, baseUrl, models, records, scenarios = [], formats = ['json', 'markdown'] }) {
   const want = new Set(formats);
   const coverage = computeCoverage(scenarios, records);
+  const modelScorecard = buildModelScorecard(records);
   await writeFile(path.join(resultsDir, 'scorecard.json'),
-    `${JSON.stringify({ runId, instance, baseUrl, models, generatedAt: new Date().toISOString(), coverage: coverage.totals, records }, null, 2)}\n`, 'utf8');
+    `${JSON.stringify({ runId, instance, baseUrl, models, generatedAt: new Date().toISOString(), coverage: coverage.totals, modelScorecard, records }, null, 2)}\n`, 'utf8');
 
   // Machine-readable JUnit + coverage reports (spec §8.11–§8.12).
   if (want.has('junit')) await writeFile(path.join(resultsDir, 'junit.xml'), toJUnitXml(records, { name: `zeyos-agent-protocol-${runId}` }), 'utf8');
@@ -781,6 +842,8 @@ async function writeScorecards({ resultsDir, runId, instance, baseUrl, models, r
   lines.push(`- Models: ${models.map((m) => `\`${m}\``).join(', ')}`);
   lines.push(`- Generated: ${new Date().toISOString()}`, '');
   lines.push(summaryCounts(records), '');
+  lines.push('## Model Scorecard', '');
+  lines.push(renderModelScorecardMarkdown(modelScorecard), '');
 
   // Safety regressions lead the report (release-blocking, spec §8.11).
   const safety = [...by('SAFETY_REGRESSION'), ...by('POLICY_BLOCKED_UNSAFE_ATTEMPT')];
@@ -812,6 +875,74 @@ async function writeScorecards({ resultsDir, runId, instance, baseUrl, models, r
   }
 
   await writeFile(path.join(resultsDir, 'scorecard.md'), `${lines.join('\n')}\n`, 'utf8');
+}
+
+function buildModelScorecard(records) {
+  const rows = new Map();
+  for (const record of records || []) {
+    for (const attempt of record.attempts || []) {
+      const model = attempt.model || '(unknown)';
+      const row = rows.get(model) || {
+        model,
+        attempts: 0,
+        pass: 0,
+        fail: 0,
+        review: 0,
+        totalDurationMs: 0,
+        knownUsageAttempts: 0,
+        unknownUsageAttempts: 0,
+        knownCostAttempts: 0,
+        costUsd: 0,
+        tokens: { input: 0, output: 0, reasoning: 0, cacheRead: 0, cacheWrite: 0, total: 0 }
+      };
+      row.attempts += 1;
+      if (attempt.pass === true) row.pass += 1;
+      else if (attempt.pass === null) row.review += 1;
+      else row.fail += 1;
+      row.totalDurationMs += Number(attempt.durationMs) || 0;
+
+      const usage = attempt.usage || null;
+      if (usage) {
+        row.knownUsageAttempts += 1;
+        if (Number.isFinite(usage.costUsd)) {
+          row.knownCostAttempts += 1;
+          row.costUsd += usage.costUsd;
+        }
+        for (const key of Object.keys(row.tokens)) {
+          const value = usage.tokens?.[key];
+          if (Number.isFinite(value)) row.tokens[key] += value;
+        }
+      } else {
+        row.unknownUsageAttempts += 1;
+      }
+      rows.set(model, row);
+    }
+  }
+
+  return [...rows.values()]
+    .map((row) => ({
+      ...row,
+      passRate: row.attempts ? row.pass / row.attempts : 0,
+      avgLatencyMs: row.attempts ? Math.round(row.totalDurationMs / row.attempts) : 0,
+      costUsd: row.knownCostAttempts ? Number(row.costUsd.toFixed(8)) : null,
+    }))
+    .sort((a, b) => (b.passRate - a.passRate) || (a.avgLatencyMs - b.avgLatencyMs) || String(a.model).localeCompare(String(b.model)));
+}
+
+function renderModelScorecardMarkdown(rows) {
+  if (!rows.length) return '_No model attempts recorded._';
+  const lines = [
+    '| Model | Pass rate | Attempts | Avg latency | Cost | Tokens | Usage |',
+    '| --- | ---: | ---: | ---: | ---: | ---: | --- |'
+  ];
+  for (const row of rows) {
+    const cost = row.costUsd == null ? 'n/a' : `$${row.costUsd.toFixed(6)}`;
+    const usage = row.unknownUsageAttempts
+      ? `${row.knownUsageAttempts}/${row.attempts} captured (${row.unknownUsageAttempts} unknown)`
+      : `${row.knownUsageAttempts}/${row.attempts} captured`;
+    lines.push(`| \`${row.model}\` | ${Math.round(row.passRate * 100)}% | ${row.pass}/${row.attempts} | ${row.avgLatencyMs}ms | ${cost} | ${row.tokens.total || 0} | ${usage} |`);
+  }
+  return lines.join('\n');
 }
 
 function scenarioBlock(r) {
@@ -863,7 +994,19 @@ function fail(msg) {
 }
 
 // Pure helpers are exported for offline unit testing (see verify.test.mjs).
-export { classify, globToRe, selectScenarios, buildPrompt, detectPlannedNotExecuted, detectFailureKind, detectToolMisuse, runScenario };
+export {
+  BENCHMARK_MODELS,
+  BENCHMARK_SCENARIO_IDS,
+  classify,
+  globToRe,
+  selectScenarios,
+  buildPrompt,
+  detectPlannedNotExecuted,
+  detectFailureKind,
+  detectToolMisuse,
+  runScenario,
+  buildModelScorecard
+};
 
 // Only run the orchestrator when invoked directly, not when imported by a test.
 const invokedDirectly = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;

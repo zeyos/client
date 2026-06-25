@@ -54,6 +54,7 @@
     "test": "node scripts/test.mjs",
     "test:cli-integration": "node --test cli/test/integration.mjs",
     "test:agent-protocol": "node test/agent-protocol/harness/run.mjs",
+    "test:agent-benchmark": "node test/agent-protocol/harness/run.mjs --benchmark",
     "test:agent-loop": "node test/agent-protocol/harness/loop.mjs",
     "test:agent-validate": "node test/agent-protocol/harness/validate-live.mjs"
   }

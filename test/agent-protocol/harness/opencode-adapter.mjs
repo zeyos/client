@@ -7,9 +7,10 @@
  * opencode flag changes — is a config edit, not a code change.
  */
 
-import { spawn } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { cp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
 const TRANSIENT_RE = /\b(429|rate.?limit|timed?.?out|ETIMEDOUT|ECONNRESET|ENOTFOUND|EAI_AGAIN|socket hang up|503|502|temporarily)\b/i;
@@ -71,7 +72,8 @@ async function prepareAttemptWorkspace({ runner, model, repoRoot, scenarioId, sk
  *
  * @returns {Promise<{
  *   code:number, stdout:string, stderr:string, timedOut:boolean,
- *   transient:boolean, durationMs:number, transcriptPath:string, command:string
+ *   transient:boolean, durationMs:number, transcriptPath:string, command:string,
+ *   usage:null|{source:string, sessionId?:string, costUsd?:number, tokens?:Record<string, number>}
  * }>}
  */
 export async function runAgent({ runner, model, prompt, env, repoRoot, resultsDir, scenarioId }) {
@@ -84,6 +86,7 @@ export async function runAgent({ runner, model, prompt, env, repoRoot, resultsDi
   });
   const childEnv = {
     ...env,
+    PWD: cwd,
     ZEYOS_SKILL_ROOT: attemptSkillRoot,
     ...(workspacePath ? { ZEYOS_ATTEMPT_WORKSPACE: workspacePath } : {})
   };
@@ -129,10 +132,22 @@ export async function runAgent({ runner, model, prompt, env, repoRoot, resultsDi
     });
   });
 
-  const durationMs = Date.now() - started;
+  const ended = Date.now();
+  const durationMs = ended - started;
   const transient =
     result.timedOut ||
     (result.code !== 0 && TRANSIENT_RE.test(`${result.stderr}\n${result.stdout}`));
+  const usage = await captureUsage({
+    runner,
+    args,
+    cwd,
+    repoRoot,
+    model,
+    started,
+    ended,
+    stdout: result.stdout,
+    stderr: result.stderr
+  });
 
   const transcriptPath = await writeTranscript({
     resultsDir,
@@ -144,7 +159,8 @@ export async function runAgent({ runner, model, prompt, env, repoRoot, resultsDi
     durationMs,
     workspacePath,
     skillRoot: attemptSkillRoot,
-    env: childEnv
+    env: childEnv,
+    usage
   });
 
   return {
@@ -158,11 +174,12 @@ export async function runAgent({ runner, model, prompt, env, repoRoot, resultsDi
     command: displayCommand(runner.command, args, prompt),
     workspacePath,
     skillRoot: attemptSkillRoot,
-    runnerError: Boolean(result.spawnError)
+    runnerError: Boolean(result.spawnError),
+    usage
   };
 }
 
-async function writeTranscript({ resultsDir, scenarioId, model, prompt, command, result, durationMs, workspacePath, skillRoot, env }) {
+async function writeTranscript({ resultsDir, scenarioId, model, prompt, command, result, durationMs, workspacePath, skillRoot, env, usage }) {
   const safeModel = safeName(model);
   const dir = path.join(resultsDir, 'transcripts');
   await mkdir(dir, { recursive: true });
@@ -176,6 +193,7 @@ async function writeTranscript({ resultsDir, scenarioId, model, prompt, command,
     `# exitCode: ${result.code}  timedOut: ${result.timedOut}  durationMs: ${durationMs}`,
     `# workspace: ${workspacePath || '(repo root)'}`,
     `# skillRoot: ${skillRoot || '(default)'}`,
+    `# usage: ${formatUsage(usage)}`,
     '',
     '===== PROMPT =====',
     prompt,
@@ -190,3 +208,181 @@ async function writeTranscript({ resultsDir, scenarioId, model, prompt, command,
   await writeFile(file, body, 'utf8');
   return file;
 }
+
+async function captureUsage({ runner, args, cwd, repoRoot, model, started, ended, stdout, stderr }) {
+  const fromText = extractUsageFromText(`${stdout || ''}\n${stderr || ''}`);
+  if (fromText) return fromText;
+  const command = path.basename(String(runner.command || ''));
+  if (command !== 'opencode' || !args.includes('run')) return null;
+  return readOpenCodeUsage({ directories: [cwd, repoRoot], preferredDirectory: cwd, model, started, ended });
+}
+
+function extractUsageFromText(text) {
+  for (const line of String(text || '').split(/\r?\n/).reverse()) {
+    const trimmed = line.trim();
+    if (!trimmed || !trimmed.startsWith('{')) continue;
+    let event;
+    try { event = JSON.parse(trimmed); } catch { continue; }
+    const usage = normalizeUsage(event.usage || event.tokens || event);
+    if (usage) return { source: 'runner-json', ...usage };
+  }
+  return null;
+}
+
+function normalizeUsage(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const costUsd = firstFinite(raw.costUsd, raw.cost_usd, raw.cost, raw.totalCost, raw.total_cost);
+  const tokens = {
+    input: firstFinite(raw.input, raw.inputTokens, raw.promptTokens, raw.prompt_tokens, raw.tokens_input),
+    output: firstFinite(raw.output, raw.outputTokens, raw.completionTokens, raw.completion_tokens, raw.tokens_output),
+    reasoning: firstFinite(raw.reasoning, raw.reasoningTokens, raw.reasoning_tokens, raw.tokens_reasoning),
+    cacheRead: firstFinite(raw.cacheRead, raw.cache_read, raw.cachedInputTokens, raw.cache_read_tokens, raw.tokens_cache_read),
+    cacheWrite: firstFinite(raw.cacheWrite, raw.cache_write, raw.cache_write_tokens, raw.tokens_cache_write),
+  };
+  const knownTokens = Object.fromEntries(Object.entries(tokens).filter(([, value]) => value != null));
+  if (costUsd == null && Object.keys(knownTokens).length === 0) return null;
+  const total = firstFinite(raw.total, raw.totalTokens, raw.total_tokens);
+  return {
+    ...(costUsd != null ? { costUsd } : {}),
+    tokens: {
+      ...knownTokens,
+      ...(total != null ? { total } : totalTokens(knownTokens) > 0 ? { total: totalTokens(knownTokens) } : {})
+    }
+  };
+}
+
+async function readOpenCodeUsage({ directories, preferredDirectory, model, started, ended }) {
+  const dbPath = process.env.OPENCODE_DB || path.join(os.homedir(), '.local', 'share', 'opencode', 'opencode.db');
+  if (!existsSync(dbPath)) return null;
+
+  const searchDirectories = [...new Set((directories || []).filter(Boolean).map((dir) => path.resolve(dir)))];
+  if (!searchDirectories.length) return null;
+
+  const since = Math.max(0, Number(started) - 10_000);
+  const until = Number(ended) + 60_000;
+  const sql = [
+    'select id,title,model,cost,tokens_input,tokens_output,tokens_reasoning,tokens_cache_read,tokens_cache_write,time_created,time_updated,directory',
+    'from session',
+    `where directory in (${searchDirectories.map(sqlString).join(',')})`,
+    `and time_updated >= ${Math.floor(since)}`,
+    `and time_created <= ${Math.floor(until)}`,
+    `order by case when directory = ${sqlString(preferredDirectory || searchDirectories[0])} then 0 else 1 end, time_updated desc`,
+    'limit 16;'
+  ].join(' ');
+
+  let rows;
+  try {
+    rows = await sqliteJson(dbPath, sql);
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(rows) || rows.length === 0) return null;
+
+  const expected = parseOpenCodeModel(model);
+  const row = expected
+    ? rows.find((candidate) => openCodeModelMatches(candidate.model, expected))
+    : rows[0];
+  if (!row) return null;
+  return openCodeUsageFromRow(row);
+}
+
+function openCodeUsageFromRow(row) {
+  if (!row) return null;
+  const tokens = {
+    input: toNumber(row.tokens_input),
+    output: toNumber(row.tokens_output),
+    reasoning: toNumber(row.tokens_reasoning),
+    cacheRead: toNumber(row.tokens_cache_read),
+    cacheWrite: toNumber(row.tokens_cache_write),
+  };
+  const knownTokens = Object.fromEntries(Object.entries(tokens).filter(([, value]) => value != null));
+  const usage = normalizeUsage({ costUsd: row.cost, ...knownTokens });
+  if (!usage) return null;
+  return {
+    source: 'opencode-db',
+    sessionId: row.id,
+    model: safeJsonParse(row.model) || row.model || null,
+    ...usage
+  };
+}
+
+async function sqliteJson(dbPath, sql) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const result = await sqliteJsonOnce(dbPath, sql);
+    if (result.ok) return result.rows;
+    if (!/locked|busy/i.test(result.error || '') || attempt === 2) return null;
+    await delay(100 * (attempt + 1));
+  }
+  return null;
+}
+
+function sqliteJsonOnce(dbPath, sql) {
+  return new Promise((resolve) => {
+    execFile('sqlite3', ['-readonly', '-json', dbPath, sql], { timeout: 3000, maxBuffer: 1024 * 1024 }, (err, stdout) => {
+      if (err) return resolve({ ok: false, error: err.message || String(err) });
+      try {
+        return resolve({ ok: true, rows: JSON.parse(stdout || '[]') });
+      } catch (parseErr) {
+        return resolve({ ok: false, error: parseErr.message || String(parseErr) });
+      }
+    });
+  });
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function parseOpenCodeModel(model) {
+  const parts = String(model || '').split('/');
+  if (parts.length < 2) return null;
+  return {
+    providerID: parts[0],
+    id: parts.slice(1).join('/')
+  };
+}
+
+function openCodeModelMatches(rawModel, expected) {
+  const model = typeof rawModel === 'string' ? safeJsonParse(rawModel) : rawModel;
+  return model?.providerID === expected.providerID && model?.id === expected.id;
+}
+
+function safeJsonParse(value) {
+  try { return JSON.parse(value); } catch { return null; }
+}
+
+function sqlString(value) {
+  return `'${String(value || '').replaceAll("'", "''")}'`;
+}
+
+function firstFinite(...values) {
+  for (const value of values) {
+    const n = toNumber(value);
+    if (n != null) return n;
+  }
+  return null;
+}
+
+function toNumber(value) {
+  if (value == null || value === '') return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function totalTokens(tokens) {
+  return Object.values(tokens || {}).reduce((sum, value) => sum + (Number.isFinite(value) ? value : 0), 0);
+}
+
+function formatUsage(usage) {
+  if (!usage) return 'unknown';
+  const parts = [usage.source];
+  if (usage.sessionId) parts.push(`session=${usage.sessionId}`);
+  if (Number.isFinite(usage.costUsd)) parts.push(`costUsd=${usage.costUsd}`);
+  const tokens = usage.tokens || {};
+  for (const [key, value] of Object.entries(tokens)) {
+    if (Number.isFinite(value)) parts.push(`${key}Tokens=${value}`);
+  }
+  return parts.join(' ');
+}
+
+export { extractUsageFromText, normalizeUsage, openCodeUsageFromRow };

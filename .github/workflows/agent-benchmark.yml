@@ -1,0 +1,82 @@
+name: Agent model benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Benchmark run id"
+        required: false
+        default: ""
+      timeout_ms:
+        description: "Per-attempt timeout in milliseconds"
+        required: false
+        default: "600000"
+      transient_retries:
+        description: "Retry count for transient runner failures"
+        required: false
+        default: "0"
+      models:
+        description: "Optional comma-separated model override"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      ZEYOS_AGENT_CONFIG_JSON: ${{ secrets.ZEYOS_AGENT_CONFIG_JSON }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - name: Install project
+        run: npm ci
+
+      - name: Install opencode runner
+        run: npm install -g opencode-ai
+
+      - name: Install local ZeyOS CLI
+        run: npm install -g ./cli
+
+      - name: Write live benchmark config
+        run: |
+          if [ -z "$OPENROUTER_API_KEY" ]; then
+            echo "Missing OPENROUTER_API_KEY secret." >&2
+            exit 1
+          fi
+          if [ -z "$ZEYOS_AGENT_CONFIG_JSON" ]; then
+            echo "Missing ZEYOS_AGENT_CONFIG_JSON secret." >&2
+            exit 1
+          fi
+          printf '%s\n' "$ZEYOS_AGENT_CONFIG_JSON" > config.test.json
+
+      - name: Run benchmark
+        env:
+          RUN_ID_INPUT: ${{ inputs.run_id }}
+          TIMEOUT_MS: ${{ inputs.timeout_ms }}
+          TRANSIENT_RETRIES: ${{ inputs.transient_retries }}
+          MODELS: ${{ inputs.models }}
+        run: |
+          RUN_ID="${RUN_ID_INPUT:-benchmark-${GITHUB_RUN_ID}}"
+          ARGS=(test/agent-protocol/harness/run.mjs --benchmark --timeout-ms "$TIMEOUT_MS" --transient-retries "$TRANSIENT_RETRIES" --run-id "$RUN_ID")
+          if [ -n "$MODELS" ]; then
+            ARGS+=(--models "$MODELS")
+          fi
+          node "${ARGS[@]}"
+
+      - name: Upload benchmark results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-benchmark-results
+          path: test/agent-protocol/results/
+          if-no-files-found: warn

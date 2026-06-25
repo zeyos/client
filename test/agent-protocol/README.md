@@ -55,6 +55,7 @@ node test/agent-protocol/harness/run.mjs --list        # catalog (no creds)
 npm run test:agent-protocol -- --dry-run               # verify wiring, no model/mutation
 npm run test:agent-protocol -- --scenario a01-ticket-crud-roundtrip --models openrouter/anthropic/claude-sonnet-4.6
 npm run test:agent-protocol                            # full rotation
+npm run test:agent-benchmark -- --timeout-ms 600000    # fixed model-selection matrix
 npm run test:agent-loop -- --read-only                 # baseline vs candidate developer loop
 ```
 
@@ -63,6 +64,54 @@ actionable one.
 Transcripts redact bearer/access-token values before writing to disk, but they still
 capture prompts, commands, and business output; treat `results/` as local test artifacts
 and avoid publishing them wholesale.
+
+## Model Benchmark
+
+For the reproducible OpenRouter model-selection benchmark, run the fixed read-only count
+matrix:
+
+```bash
+node test/agent-protocol/harness/run.mjs \
+  --benchmark \
+  --timeout-ms 600000 \
+  --transient-retries 0 \
+  --run-id benchmark-$(date +%Y%m%d-%H%M)
+```
+
+Equivalent npm form:
+
+```bash
+npm run test:agent-benchmark -- --timeout-ms 600000 --transient-retries 0 --run-id benchmark-$(date +%Y%m%d-%H%M)
+```
+
+`--benchmark` implies `--read-only` and `--all-models`. The optional
+`--transient-retries 0` form is useful for model-selection runs where one clean attempt per
+scenario is preferable to hiding runner timeouts behind retries. It uses the fixed 10-scenario
+Layer-B count set (`b01`, `b02`, `b03`, `b04`, `b05`, `b08`, `b09`, `b10`, `b14`,
+`b16`) and the five candidate OpenRouter models:
+`openrouter/openai/gpt-oss-120b`, `openrouter/xiaomi/mimo-v2.5`,
+`openrouter/z-ai/glm-5.2`, `openrouter/deepseek/deepseek-v4-flash`, and
+`openrouter/moonshotai/kimi-k2.7-code`. Pass `--models <csv>` only when intentionally
+running a different model set.
+
+The scorecard includes a **Model Scorecard** table with pass rate, average latency, and
+actual captured runner cost/token usage. For opencode, the harness reads the matching
+opencode session stats after each attempt; if usage cannot be captured, that attempt is
+marked unknown instead of estimated from list prices.
+
+For CI, use the manual **Agent model benchmark** workflow. It requires repository secrets
+`OPENROUTER_API_KEY` and `ZEYOS_AGENT_CONFIG_JSON`, where `ZEYOS_AGENT_CONFIG_JSON` is the
+full `config.test.json` content for the allowed benchmark instance. The workflow uploads
+`test/agent-protocol/results/` as an artifact.
+
+Agent subprocess auth is token-only by default: the harness injects `ZEYOS_BASE_URL`,
+`ZEYOS_TOKEN`, `ZEYOS_NO_REFRESH=1`, and `ZEYOS_CREDENTIALS_READONLY=1`. The CLI treats
+that token as authoritative, ignores local/profile/global credential stores for normal
+API commands, does not refresh, and does not persist tokens back into credential stores.
+Auth-mutating CLI commands (`login`, `logout`, `profile`) are disabled in the agent
+environment so off-task model behavior cannot clear a developer's local CLI state.
+Direct protocol runs also default to per-attempt workspaces under the run's results
+directory, keeping scratch files and accidental local auth lookups out of the repo root.
 
 For skill iteration, use `npm run test:agent-loop -- --run-id <id>`. It runs the
 protocol against `HEAD:agents` as the baseline and the working-tree `agents/` folder as

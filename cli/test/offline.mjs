@@ -18,7 +18,9 @@ const ZEYOS_ENV_KEYS = [
   'ZEYOS_CLIENT_ID',
   'ZEYOS_CLIENT_SECRET',
   'ZEYOS_TOKEN',
-  'ZEYOS_REFRESH_TOKEN'
+  'ZEYOS_REFRESH_TOKEN',
+  'ZEYOS_NO_REFRESH',
+  'ZEYOS_CREDENTIALS_READONLY'
 ];
 
 function cli(args, options = {}) {
@@ -988,6 +990,120 @@ test('whoami reports invalid refresh tokens with platform and source details', a
   assert.ok(server.requests.some((request) => /\/dev\/oauth2\/v1\/userinfo$/.test(request.url)));
   assert.ok(tokenRequest, 'expected a refresh-token request after userinfo returned 401');
   assert.match(tokenRequest.body, /grant_type=refresh_token/);
+});
+
+test('explicit ZEYOS_TOKEN is token-only and never refreshes from local credentials', async (t) => {
+  const cwd = await tempDir(t);
+  const server = await jsonServer(t, (req, res) => {
+    if (/\/oauth2\/v1\/userinfo$/.test(req.url)) {
+      res.writeHead(401, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: 'invalid_token' }));
+      return;
+    }
+    if (/\/oauth2\/v1\/token$/.test(req.url)) {
+      res.writeHead(500, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: 'token endpoint should not be called' }));
+      return;
+    }
+    res.writeHead(404);
+    res.end();
+  });
+
+  await mkdir(join(cwd, '.zeyos'), { recursive: true });
+  await writeFile(join(cwd, '.zeyos', 'auth.json'), JSON.stringify({
+    baseUrl: 'https://wrong.example.com/other',
+    clientId: 'local-client',
+    clientSecret: 'local-secret',
+    accessToken: 'local-access-token',
+    refreshToken: 'local-refresh-token',
+    expiresAt: 1
+  }, null, 2));
+
+  const result = await cli(['whoami', '--json'], {
+    cwd,
+    env: isolatedEnv(cwd, {
+      ...NO_CREDENTIALS,
+      ZEYOS_BASE_URL: server.baseUrl,
+      ZEYOS_TOKEN: 'env-access-token'
+    })
+  });
+
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /Your session has expired or is invalid/);
+  assert.match(result.stderr, /Credential source: environment variables/);
+  assert.equal(server.requests.length, 1);
+  assert.match(server.requests[0].url, /\/dev\/oauth2\/v1\/userinfo$/);
+  assert.equal(server.requests[0].headers.authorization, 'Bearer env-access-token');
+});
+
+test('ZEYOS_TOKEN ignores local credentials instead of merging their baseUrl', async (t) => {
+  const cwd = await tempDir(t);
+  await mkdir(join(cwd, '.zeyos'), { recursive: true });
+  await writeFile(join(cwd, '.zeyos', 'auth.json'), JSON.stringify({
+    baseUrl: 'https://wrong.example.com/other',
+    clientId: 'local-client',
+    clientSecret: 'local-secret',
+    accessToken: 'local-access-token'
+  }, null, 2));
+
+  const result = await cli(['whoami', '--json'], {
+    cwd,
+    env: isolatedEnv(cwd, {
+      ...NO_CREDENTIALS,
+      ZEYOS_TOKEN: 'env-access-token'
+    })
+  });
+
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /Missing required configuration/);
+  assert.match(result.stderr, /baseUrl/);
+  assert.doesNotMatch(result.stderr, /clientId/);
+  assert.doesNotMatch(result.stderr, /clientSecret/);
+});
+
+test('ZEYOS_CREDENTIALS_READONLY blocks auth-mutating commands without touching local auth', async (t) => {
+  const cwd = await tempDir(t);
+  const authPath = join(cwd, '.zeyos', 'auth.json');
+  const original = JSON.stringify({
+    baseUrl: 'https://zeyos.example.com/dev',
+    clientId: 'local-client',
+    clientSecret: 'local-secret',
+    accessToken: 'local-access-token',
+    refreshToken: 'local-refresh-token'
+  }, null, 2);
+  await mkdir(dirname(authPath), { recursive: true });
+  await writeFile(authPath, original);
+
+  const result = await cli(['logout'], {
+    cwd,
+    env: isolatedEnv(cwd, {
+      ...NO_CREDENTIALS,
+      ZEYOS_CREDENTIALS_READONLY: '1'
+    })
+  });
+
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /Credential command "logout" is disabled/);
+  assert.equal(await readFile(authPath, 'utf8'), original);
+});
+
+test('doctor agent accepts token-only env auth without client credentials', async (t) => {
+  const cwd = await tempDir(t);
+  const result = await cli(['doctor', 'agent', '--json'], {
+    cwd,
+    env: isolatedEnv(cwd, {
+      ...NO_CREDENTIALS,
+      ZEYOS_BASE_URL: 'https://zeyos.example.com/dev',
+      ZEYOS_TOKEN: 'access-token-value'
+    })
+  });
+
+  assert.equal(result.code, 0, result.stderr);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.auth.ready, true);
+  assert.equal(report.auth.effective.tokenOnly, true);
+  assert.equal(report.auth.effective.clientId, false);
+  assert.equal(report.auth.effective.clientSecret, false);
 });
 
 test('--query --json emits a machine-readable request descriptor', async (t) => {

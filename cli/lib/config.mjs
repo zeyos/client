@@ -60,6 +60,9 @@ export function loadConfig(opts = {}) {
  */
 export function loadConfigWithSource(opts = {}) {
   const env = _fromEnv();
+  if (env.accessToken) {
+    return { config: env, source: null, profile: null };
+  }
   const selection = resolveProfileSelection({ profileFlag: opts.profile });
 
   let base = {};
