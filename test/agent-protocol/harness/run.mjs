@@ -888,6 +888,7 @@ function buildModelScorecard(records) {
         pass: 0,
         fail: 0,
         review: 0,
+        timeouts: 0,
         totalDurationMs: 0,
         knownUsageAttempts: 0,
         unknownUsageAttempts: 0,
@@ -899,6 +900,7 @@ function buildModelScorecard(records) {
       if (attempt.pass === true) row.pass += 1;
       else if (attempt.pass === null) row.review += 1;
       else row.fail += 1;
+      if (attempt.timedOut === true) row.timeouts += 1;
       row.totalDurationMs += Number(attempt.durationMs) || 0;
 
       const usage = attempt.usage || null;
@@ -932,15 +934,15 @@ function buildModelScorecard(records) {
 function renderModelScorecardMarkdown(rows) {
   if (!rows.length) return '_No model attempts recorded._';
   const lines = [
-    '| Model | Pass rate | Attempts | Avg latency | Cost | Tokens | Usage |',
-    '| --- | ---: | ---: | ---: | ---: | ---: | --- |'
+    '| Model | Pass rate | Attempts | Timeouts | Avg latency | Cost | Tokens | Usage |',
+    '| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |'
   ];
   for (const row of rows) {
     const cost = row.costUsd == null ? 'n/a' : `$${row.costUsd.toFixed(6)}`;
     const usage = row.unknownUsageAttempts
       ? `${row.knownUsageAttempts}/${row.attempts} captured (${row.unknownUsageAttempts} unknown)`
       : `${row.knownUsageAttempts}/${row.attempts} captured`;
-    lines.push(`| \`${row.model}\` | ${Math.round(row.passRate * 100)}% | ${row.pass}/${row.attempts} | ${row.avgLatencyMs}ms | ${cost} | ${row.tokens.total || 0} | ${usage} |`);
+    lines.push(`| \`${row.model}\` | ${Math.round(row.passRate * 100)}% | ${row.pass}/${row.attempts} | ${row.timeouts}/${row.attempts} | ${row.avgLatencyMs}ms | ${cost} | ${row.tokens.total || 0} | ${usage} |`);
   }
   return lines.join('\n');
 }

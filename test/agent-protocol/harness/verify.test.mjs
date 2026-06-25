@@ -989,7 +989,7 @@ test('model scorecard aggregates pass rate, latency, cost, and tokens', () => {
     {
       attempts: [
         { model: 'm/fast', pass: true, durationMs: 1000, usage: { costUsd: 0.01, tokens: { input: 100, output: 20, total: 120 } } },
-        { model: 'm/slow', pass: false, durationMs: 3000, usage: { tokens: { input: 50, output: 10, total: 60 } } }
+        { model: 'm/slow', pass: false, durationMs: 3000, timedOut: true, usage: { tokens: { input: 50, output: 10, total: 60 } } }
       ]
     },
     {
@@ -1008,6 +1008,7 @@ test('model scorecard aggregates pass rate, latency, cost, and tokens', () => {
 
   const slow = rows.find((row) => row.model === 'm/slow');
   assert.equal(slow.passRate, 0.5);
+  assert.equal(slow.timeouts, 1);
   assert.equal(slow.costUsd, null);
   assert.equal(slow.knownUsageAttempts, 1);
   assert.equal(slow.unknownUsageAttempts, 1);
