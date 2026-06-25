@@ -155,6 +155,27 @@ For counts:
 zeyos count actionsteps --filter '{"ticket":812,"status":0}' --json
 ```
 
+For unanchored due-date counts, first narrow by equality filters and due-date presence
+server-side. The API can return misleading zero counts for comparison filters like
+`{"duedate":{"<=":4102444800}}`, and `duedate:null` is not a due item. If the
+presence count is zero, the due-date count is zero.
+
+```bash
+zeyos count actionsteps --filter '{"status":0,"duedate":{"!=":null}}' --json
+```
+
+If due dates exist, list those rows and count the timestamp range client-side.
+
+```bash
+zeyos list actionsteps \
+  --fields ID,status,duedate \
+  --filter '{"status":0,"duedate":{"!=":null}}' \
+  --limit 10000 \
+  --json
+```
+
+Then parse the JSON and count rows where `duedate != null && Number(duedate) <= cutoff`.
+
 ## Pattern: Time Entry / Effort Summaries
 
 Use this for prompts like:

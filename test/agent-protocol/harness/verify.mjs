@@ -327,13 +327,25 @@ function looseEq(a, b) {
   return String(a) === String(b);
 }
 
+function finitePredicateNumber(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
 function matchesPredicate(record, pred) {
   const v = record?.[pred.field];
   if ('equals' in pred) return looseEq(v, pred.equals);
   if ('in' in pred) return pred.in.some((x) => looseEq(v, x));
   if ('notIn' in pred) return !pred.notIn.some((x) => looseEq(v, x));
-  if ('gte' in pred) return Number(v) >= Number(pred.gte);
-  if ('lte' in pred) return Number(v) <= Number(pred.lte);
+  if ('gte' in pred) {
+    const n = finitePredicateNumber(v);
+    return n !== null && n >= Number(pred.gte);
+  }
+  if ('lte' in pred) {
+    const n = finitePredicateNumber(v);
+    return n !== null && n <= Number(pred.lte);
+  }
   return false;
 }
 

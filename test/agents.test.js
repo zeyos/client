@@ -156,6 +156,10 @@ test('count-heavy workflows include first-command zeyos count snippets', () => {
     [
       'agents/zeyos-collaboration-and-activity/references/workflows.md',
       'zeyos count events'
+    ],
+    [
+      'agents/zeyos-work-management/references/workflows.md',
+      `zeyos count actionsteps --filter '{"status":0,"duedate":{"!=":null}}'`
     ]
   ];
 
@@ -188,7 +192,10 @@ test('work-management workflow documents actionstep operation IDs and effort sem
     'createActionStep',
     'effort',
     'BOOKED',
-    'COMPLETED'
+    'COMPLETED',
+    'comparison filters like',
+    '`duedate:null` is not',
+    'duedate != null && Number(duedate) <= cutoff'
   ]) {
     assert.ok(content.includes(expected), `work-management workflow missing: ${expected}`);
   }

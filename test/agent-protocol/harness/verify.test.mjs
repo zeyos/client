@@ -111,6 +111,31 @@ test('computeCount does NOT false-pass on a missing RESULT when ground truth is 
   assert.equal(genuine.pass, true);
 });
 
+test('computeCount range predicates do not treat null or empty values as zero', async () => {
+  const rows = [
+    { ID: 1, status: 0, duedate: null },
+    { ID: 2, status: 0, duedate: '' },
+    { ID: 3, status: 0 },
+    { ID: 4, status: 0, duedate: 10 },
+    { ID: 5, status: 0, duedate: '20' },
+    { ID: 6, status: 0, duedate: 999 }
+  ];
+  const client = fakeClient({ listActionSteps: async () => rows });
+  const expect = {
+    kind: 'computeCount',
+    op: 'listActionSteps',
+    params: { limit: 10000 },
+    predicates: [
+      { field: 'status', equals: 0 },
+      { field: 'duedate', lte: 20 }
+    ]
+  };
+
+  const res = await evaluateExpect(expect, { ...ctxBase, client, result: '2' });
+  assert.equal(res.pass, true);
+  assert.equal(res.expected, 2);
+});
+
 test('computeCount pages past the server limit instead of undercounting', async () => {
   // 12 matching rows, paged 10 at a time: a single capped call would miss 2.
   const rows = Array.from({ length: 12 }, (_, i) => ({ ID: i + 1, status: 4 }));
