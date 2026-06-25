@@ -24,6 +24,8 @@
  *     --timeout-ms <n>     per-attempt runner timeout override
  *     --transient-retries <n>
  *                          override retry count for transient runner failures
+ *     --format <csv>       report formats (json,markdown,junit,html)
+ *     --html-report        include static single-file scorecard.html
  *     --read-only          restrict selected scenarios to non-mutating cases
  *     --no-cleanup         skip post-scenario record cleanup (debugging)
  *     --config <path>      config file (default: <repo>/config.test.json)
@@ -58,6 +60,7 @@ import { snapshotResources } from './statediff.mjs';
 import { summarizeTrace } from './trace.mjs';
 import { toJUnitXml } from './reporters/junit.mjs';
 import { computeCoverage, renderCoverageMarkdown } from './reporters/coverage.mjs';
+import { renderHtmlScorecard } from './reporters/html.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '../../..');
@@ -144,6 +147,9 @@ function parseArgs(argv) {
     else if (a === '--timeout-ms' || a === '--attempt-timeout-ms') opts.timeoutMs = Number(argv[++i]);
     else if (a === '--transient-retries') opts.transientRetries = Number(argv[++i]);
     else if (a === '--format') opts.formats = argv[++i].split(',').map((s) => s.trim()).filter(Boolean);
+    else if (a === '--html-report') {
+      if (!opts.formats.includes('html')) opts.formats.push('html');
+    }
     else if (a === '--variants') opts.variants = argv[++i].split(',').map((s) => s.trim()).filter(Boolean);
     else if (a === '--max-cost') opts.maxCost = Number(argv[++i]);
     else if (a === '--max-api-calls') opts.maxApiCalls = Number(argv[++i]);
@@ -504,6 +510,7 @@ async function main() {
     console.log(`\n⚠ API-call budget exceeded: ${proxy.events.length} > ${opts.maxApiCalls}`);
   }
   console.log(`\nScorecard: ${path.relative(REPO_ROOT, resultsDir)}/scorecard.md`);
+  if (opts.formats.includes('html')) console.log(`HTML report: ${path.relative(REPO_ROOT, resultsDir)}/scorecard.html`);
   console.log(summaryCounts(records));
   process.exit(defects.length > 0 ? 1 : 0);
 }
@@ -661,7 +668,7 @@ async function runModelAttempt(a) {
     } else {
       evalRes = await evaluateExpect(turn.expect, ctx);
     }
-    turnRecords.push({ id: turn.id, pass: evalRes.pass, detail: evalRes.detail, expected: evalRes.expected, actual: evalRes.actual, resultRaw, failureKind: detectFailureKind({ agent, resultRaw, evalRes }), traceSummary: summarizeTrace(trace) });
+    turnRecords.push({ id: turn.id, pass: evalRes.pass, detail: evalRes.detail, expected: evalRes.expected, actual: evalRes.actual, resultRaw, failureKind: detectFailureKind({ agent, resultRaw, evalRes }), traceSummary: summarizeTrace(trace), toolSummary: agent.toolSummary || null });
   }
 
   // Aggregate turns into the attempt: fail if any turn failed; review if any manual-null.
@@ -684,7 +691,8 @@ async function runModelAttempt(a) {
     turns: turnRecords.length > 1 ? turnRecords : undefined,
     workspacePath: lastAgent?.workspacePath || null,
     skillRoot: lastAgent?.skillRoot || childEnv.ZEYOS_SKILL_ROOT || null,
-    usage: lastAgent?.usage || null
+    usage: lastAgent?.usage || null,
+    toolSummary: mergeToolSummaries(turnRecords.map((t) => t.toolSummary))
   };
 }
 
@@ -698,6 +706,19 @@ function mergeTraceSummaries(summaries = []) {
     for (const [op, n] of Object.entries(summary.operations || {})) {
       out.operations[op] = (out.operations[op] || 0) + (Number(n) || 0);
     }
+  }
+  return out;
+}
+
+function mergeToolSummaries(summaries = []) {
+  const out = { source: 'runner-transcript', observed: false, totalCalls: 0, shellCalls: 0, zeyosCalls: 0, otherToolCalls: 0 };
+  for (const summary of summaries) {
+    if (!summary) continue;
+    if (summary.observed) out.observed = true;
+    out.totalCalls += Number(summary.totalCalls) || 0;
+    out.shellCalls += Number(summary.shellCalls) || 0;
+    out.zeyosCalls += Number(summary.zeyosCalls) || 0;
+    out.otherToolCalls += Number(summary.otherToolCalls) || 0;
   }
   return out;
 }
@@ -736,12 +757,12 @@ function collectStateSnapshot(expect) {
 
 /** Continuation prompt for turn N>0: replay the conversation so the single-shot runner has context. */
 function buildContinuationPrompt(turn, prior, ctx) {
-  const lines = ['Continue the same session. Conversation so far:', ''];
+  const lines = ['/zeyos', '', 'Continue the same session. Conversation so far:', ''];
   for (const p of prior) {
-    lines.push(`USER: ${p.prompt}`, `ASSISTANT: ${String(p.stdout || '').slice(-1500)}`, '');
+    lines.push(`USER: ${prepareZeyosTaskText(p.prompt)}`, `ASSISTANT: ${String(p.stdout || '').slice(-1500)}`, '');
   }
   lines.push(
-    `USER: ${turn.prompt.replaceAll('{runId}', String(ctx.runId)).replaceAll('{recordPrefix}', String(ctx.recordPrefix))}`,
+    `USER: ${prepareZeyosTaskText(interpolatePrompt(turn.prompt, ctx))}`,
     '',
     'End your reply with exactly one line: `RESULT: <value>`.'
   );
@@ -749,7 +770,7 @@ function buildContinuationPrompt(turn, prior, ctx) {
 }
 
 function buildPrompt(scenario, ctx, opts = {}) {
-  const lines = [];
+  const lines = ['/zeyos'];
   // Knowledge context: which body of guidance the agent is pointed at. `skills`
   // (default) preserves the original behaviour; `okf` points only at the OKF
   // bundle; `both` offers each. This is the axis the loop uses to measure OKF.
@@ -758,18 +779,19 @@ function buildPrompt(scenario, ctx, opts = {}) {
   const useOkf = context === 'okf' || context === 'both';
   // Bare-skill mode deliberately omits the inlined operating contract so the only place
   // the agent can learn "you have tools, the CLI is authenticated, act don't plan" is the
-  // skill itself — that is the self-containment test. Harness mode inlines AGENTS.md.
-  if (!opts.bareSkill && AGENTS_CONTRACT) lines.push(AGENTS_CONTRACT, '', '--- TASK ---', '');
-  if (scenario.skill && useSkill) {
-    // Referenced through ZEYOS_SKILL_ROOT so the harness can test copied baseline or
-    // candidate skill folders without rewriting scenario files. Wording avoids
-    // to avoid colliding with opencode's own "skill" loader. In bare-skill mode this
-    // pointer (plus what the skill files say) is the agent's entire operating context.
+  // skill itself -- that is the self-containment test. Harness mode inlines AGENTS.md.
+  if (!opts.bareSkill && AGENTS_CONTRACT) lines.push('', AGENTS_CONTRACT, '', '--- TASK ---', '');
+  if (useSkill) {
+    // Every live runner prompt starts by invoking the generic /zeyos skill. The harness
+    // only points at that entrypoint; the skill is responsible for routing to any
+    // specialized zeyos-* guide based on the task itself.
     const root = opts.skillRootLabel || '$ZEYOS_SKILL_ROOT';
     lines.push(
-      `Before acting, read the domain guide files from the configured skill root: ` +
-        `${root}/${scenario.skill}/SKILL.md and ${root}/${scenario.skill}/references/workflows.md. ` +
-        `If your file-read tool does not expand environment variables, first run ` +
+      `This prompt intentionally enters through the /zeyos skill. If the runner did not ` +
+        `expand the slash command for you, read ${root}/zeyos/SKILL.md before acting. ` +
+        `Let /zeyos decide which specialized zeyos-* guide to load from the user's task; ` +
+        `do not rely on the harness to name a specialized guide. If your file-read tool ` +
+        `does not expand environment variables, first run ` +
         '`printf "%s\\n" "$ZEYOS_SKILL_ROOT"` in the shell and read the absolute paths it prints.',
       ''
     );
@@ -790,14 +812,25 @@ function buildPrompt(scenario, ctx, opts = {}) {
     );
   }
   lines.push(
-    scenario.prompt
-      .replaceAll('{runId}', String(ctx.runId))
-      .replaceAll('{recordPrefix}', String(ctx.recordPrefix))
+    prepareZeyosTaskText(interpolatePrompt(scenario.prompt, ctx))
   );
   if (scenario.interface === 'cli') lines.push('', 'Use the `zeyos` CLI for this task.');
   else if (scenario.interface === 'client') lines.push('', 'Use the `@zeyos/client` JavaScript client for this task.');
   lines.push('', 'End your reply with exactly one line: `RESULT: <value>`.');
   return lines.join('\n');
+}
+
+function interpolatePrompt(prompt, ctx) {
+  return String(prompt || '')
+    .replaceAll('{runId}', String(ctx.runId))
+    .replaceAll('{recordPrefix}', String(ctx.recordPrefix));
+}
+
+function prepareZeyosTaskText(prompt) {
+  let out = String(prompt || '').replace(/^\/zeyos\b\s*/i, '').trimStart();
+  const stripped = out.replace(/^Using the [A-Za-z0-9 -]+ skill,\s*/i, '');
+  if (stripped !== out) out = stripped.replace(/^([a-z])/, (m) => m.toUpperCase());
+  return out;
 }
 
 function summarizeAttempts(attempts) {
@@ -847,6 +880,10 @@ async function writeScorecards({ resultsDir, runId, instance, baseUrl, models, r
 
   // Machine-readable JUnit + coverage reports (spec §8.11–§8.12).
   if (want.has('junit')) await writeFile(path.join(resultsDir, 'junit.xml'), toJUnitXml(records, { name: `zeyos-agent-protocol-${runId}` }), 'utf8');
+  if (want.has('html')) {
+    const html = await renderHtmlScorecard({ runId, instance, baseUrl, models, records, resultsDir });
+    await writeFile(path.join(resultsDir, 'scorecard.html'), html, 'utf8');
+  }
   await writeFile(path.join(resultsDir, 'coverage.json'), `${JSON.stringify(coverage, null, 2)}\n`, 'utf8');
   await writeFile(path.join(resultsDir, 'coverage.md'), renderCoverageMarkdown(coverage), 'utf8');
 
@@ -1018,12 +1055,14 @@ export {
   globToRe,
   selectScenarios,
   buildPrompt,
+  buildContinuationPrompt,
   detectPlannedNotExecuted,
   detectFailureKind,
   detectToolMisuse,
   runScenario,
   buildModelScorecard,
-  mergeTraceSummaries
+  mergeTraceSummaries,
+  mergeToolSummaries
 };
 
 // Only run the orchestrator when invoked directly, not when imported by a test.

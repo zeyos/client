@@ -6,12 +6,41 @@ description: Read or change ZeyOS business data (accounts, contacts, tickets, ta
 # Working with ZeyOS via the CLI
 
 This is the generic, do-it-now skill for talking to a ZeyOS instance. The specialized
-`zeyos-*` skills add metric definitions and domain rules; this one just makes sure you
-**run real commands against the live instance and answer from the result**.
+`zeyos-*` skills add metric definitions and domain rules; this one routes to the right
+guide, makes sure you **run real commands against the live instance**, and answers from
+the result.
 
 Read [../shared/zeyos-agent-operating-guide.md](../shared/zeyos-agent-operating-guide.md)
 first (it establishes that you have tools and the CLI is already authenticated), then
 [../shared/zeyos-query-patterns.md](../shared/zeyos-query-patterns.md) for the query rules.
+
+## Route first, then execute
+
+When `/zeyos` is invoked, inspect the user request and read the matching specialized
+skill before querying. Do not ask the user to pick the skill and do not answer from this
+generic guide if the request needs domain rules.
+
+| Request area | Read this guide |
+| --- | --- |
+| Accounts, customers, contacts, CRM profile, account type, relationship lookup | [../zeyos-account-intelligence/SKILL.md](../zeyos-account-intelligence/SKILL.md) |
+| Tickets, tasks, projects, actionstep queues, workload, third-person effort summaries | [../zeyos-work-management/SKILL.md](../zeyos-work-management/SKILL.md) |
+| First-person work ("my ...") or logging/booking time | [../zeyos-time-tracking/SKILL.md](../zeyos-time-tracking/SKILL.md) |
+| Transactions, invoices, delivery notes, revenue, payments, billing documents | [../zeyos-billing-insights/SKILL.md](../zeyos-billing-insights/SKILL.md) |
+| Dunning notices, receivables follow-up, collection state | [../zeyos-collections-and-dunning/SKILL.md](../zeyos-collections-and-dunning/SKILL.md) |
+| Items, products, catalog, stock, inventory, orders | [../zeyos-commerce-and-inventory/SKILL.md](../zeyos-commerce-and-inventory/SKILL.md) |
+| Mail, inbound/outbound messages, drafts, unanswered ticket mail | [../zeyos-mail-operations/SKILL.md](../zeyos-mail-operations/SKILL.md) |
+| Campaigns, mailing lists, outreach recipients, message reads | [../zeyos-campaign-and-outreach/SKILL.md](../zeyos-campaign-and-outreach/SKILL.md) |
+| Activity events, timeline, collaboration history | [../zeyos-collaboration-and-activity/SKILL.md](../zeyos-collaboration-and-activity/SKILL.md) |
+| Notes, SOPs, knowledge retrieval | [../zeyos-notes-and-sops/SKILL.md](../zeyos-notes-and-sops/SKILL.md) |
+| Documents, approval gates, official/latest file state | [../zeyos-document-and-approval/SKILL.md](../zeyos-document-and-approval/SKILL.md) |
+| Calendar availability, scheduling, appointment creation | [../zeyos-calendar-and-scheduling/SKILL.md](../zeyos-calendar-and-scheduling/SKILL.md) |
+| Custom fields, schema/admin resources, operationId traps, platform model lookup | [../zeyos-platform-and-schema/SKILL.md](../zeyos-platform-and-schema/SKILL.md) |
+| Supplier scorecards, procurement, supplier delivery performance | [../zeyos-procurement-and-supplier-performance/SKILL.md](../zeyos-procurement-and-supplier-performance/SKILL.md) |
+| Duplicate accounts, null/empty/missing checks, remediation previews | [../zeyos-data-quality-and-governance/SKILL.md](../zeyos-data-quality-and-governance/SKILL.md) |
+
+If multiple domains apply, read each relevant specialized guide plus
+[../shared/zeyos-entity-map.md](../shared/zeyos-entity-map.md), then choose the smallest
+query plan that answers the user.
 
 ## Do this, don't just describe it
 
@@ -83,9 +112,8 @@ zeyos count accounts --filter '{"type":1,"visibility":0}'
 ```
 
 Report the number, and state the definition you used ("customer = `accounts.type` 1,
-excluding archived"). For a domain-specific metric (revenue, receivables, workload),
-hand off to the matching `zeyos-*` skill for the correct definition, but still run the
-query here.
+excluding archived"). For a domain-specific metric (revenue, receivables, workload), read
+the matching `zeyos-*` skill for the correct definition, then still run the query here.
 
 ## Safety
 

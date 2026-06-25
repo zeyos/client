@@ -34,11 +34,15 @@ const client = createZeyosClient({
 
 ## Skills and references
 
-The task prompt names the skill that applies. Read these before acting:
+The task prompt starts with `/zeyos`. Treat that as the general ZeyOS entrypoint. If the
+runner has not expanded the slash command, read the generic skill yourself and let it
+route to any specialized `zeyos-*` skill from the actual user request.
 
-1. `$ZEYOS_REPO_ROOT/agents/shared/zeyos-query-patterns.md` — default playbook.
-2. `$ZEYOS_REPO_ROOT/agents/<skill>/SKILL.md` and its `references/workflows.md`.
-3. `$ZEYOS_REPO_ROOT/agents/shared/zeyos-entity-reference.md` when an entity is unclear.
+1. `$ZEYOS_REPO_ROOT/agents/zeyos/SKILL.md` — entrypoint and routing rules.
+2. `$ZEYOS_REPO_ROOT/agents/shared/zeyos-query-patterns.md` — default playbook.
+3. The specialized `$ZEYOS_REPO_ROOT/agents/zeyos-*/SKILL.md` and `references/workflows.md`
+   chosen by `/zeyos` for the task.
+4. `$ZEYOS_REPO_ROOT/agents/shared/zeyos-entity-reference.md` when an entity is unclear.
 
 Include `visibility: 0` in filters on resources that **have** a `visibility` column (e.g.
 tickets, accounts, items) unless the task explicitly wants archived records. Some resources

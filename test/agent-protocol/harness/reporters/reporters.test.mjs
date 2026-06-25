@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 
 import { toJUnitXml } from './junit.mjs';
 import { computeCoverage, renderCoverageMarkdown, scenarioDimensions } from './coverage.mjs';
+import { renderHtmlScorecardDocument, recordStats, transcriptSection } from './html.mjs';
 
 const records = [
   { id: 'a01', layer: 'a', title: 'CRUD', classification: 'PASS', attempts: [{ model: 'm', pass: true, durationMs: 1000 }] },
@@ -52,4 +53,95 @@ test('computeCoverage tallies totals and pass counts per dimension', () => {
   assert.equal(cov.dimensions.entity.tickets.total, 1);
   assert.equal(cov.dimensions.entity.transactions.pass, 0); // b24 is a defect in records
   assert.match(renderCoverageMarkdown(cov), /# Coverage/);
+});
+
+test('renderHtmlScorecardDocument creates an expandable single-file report', () => {
+  const transcript = [
+    '# scenario: b02-answer',
+    '',
+    '===== PROMPT =====',
+    '/zeyos',
+    'Count customers.',
+    '',
+    '===== STDOUT =====',
+    'RESULT: 42',
+    '',
+    '===== STDERR =====',
+    '$ zeyos count accounts --filter \'{"type":1}\' --json',
+    '42'
+  ].join('\n');
+  const transcripts = new Map([['transcripts/b02.txt', transcript]]);
+  const reportRecords = [{
+    id: 'b02-account-customer-count',
+    layer: 'b',
+    title: 'Count customers',
+    classification: 'PASS',
+    attempts: [{
+      model: 'openrouter/deepseek/deepseek-v4-flash',
+      pass: true,
+      durationMs: 1234,
+      expected: 42,
+      actual: 42,
+      transcriptPath: 'transcripts/b02.txt',
+      traceSummary: { apiErrors: 0 }
+    }]
+  }];
+
+  const html = renderHtmlScorecardDocument({
+    runId: 'html-test',
+    instance: 'demo',
+    baseUrl: 'https://cloud.zeyos.com/demo',
+    models: ['openrouter/deepseek/deepseek-v4-flash'],
+    records: reportRecords,
+    generatedAt: '2026-06-25T00:00:00.000Z',
+    transcriptsByPath: transcripts
+  });
+
+  assert.match(html, /Name of test case/);
+  assert.match(html, /Time to complete/);
+  assert.match(html, /ZeyOS command calls/);
+  assert.match(html, /Total tool calls/);
+  assert.match(html, /API errors/);
+  assert.match(html, /Pass\/Fail/);
+  assert.match(html, /data-detail-id="details-0"/);
+  assert.match(html, /\/zeyos/);
+  assert.match(html, /Expected Result/);
+  assert.match(html, /Agent Protocol/);
+  assert.match(html, /1\.2s/);
+
+  assert.deepEqual(recordStats(reportRecords[0], transcripts), {
+    durationMs: 1234,
+    zeyosCalls: 1,
+    zeyosCallsKnown: true,
+    toolCalls: 1,
+    toolCallsKnown: true,
+    apiErrors: 0,
+    verdict: 'PASS'
+  });
+  assert.equal(transcriptSection(transcript, 'PROMPT'), '/zeyos\nCount customers.');
+});
+
+test('recordStats marks command counts unknown when API trace exists without a tool stream', () => {
+  const record = {
+    id: 'b02',
+    classification: 'PASS',
+    attempts: [{
+      model: 'm',
+      pass: true,
+      durationMs: 100,
+      transcriptPath: 'missing.txt',
+      toolSummary: { source: 'runner-transcript', observed: false, totalCalls: 0, zeyosCalls: 0 },
+      traceSummary: { count: 1, apiErrors: 0 }
+    }]
+  };
+
+  assert.deepEqual(recordStats(record, new Map()), {
+    durationMs: 100,
+    zeyosCalls: 0,
+    zeyosCallsKnown: false,
+    toolCalls: 0,
+    toolCallsKnown: false,
+    apiErrors: 0,
+    verdict: 'PASS'
+  });
 });

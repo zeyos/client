@@ -20,7 +20,7 @@ import {
   orphanSweep,
   passwordLogin
 } from './verify.mjs';
-import { extractUsageFromText, openCodeUsageFromRow, runAgent } from './opencode-adapter.mjs';
+import { extractUsageFromText, openCodeUsageFromRow, runAgent, summarizeToolCalls } from './opencode-adapter.mjs';
 import {
   BENCHMARK_MODELS,
   BENCHMARK_SCENARIO_IDS,
@@ -28,9 +28,11 @@ import {
   classify,
   globToRe,
   buildPrompt,
+  buildContinuationPrompt,
   detectPlannedNotExecuted,
   detectFailureKind,
   mergeTraceSummaries,
+  mergeToolSummaries,
   runScenario
 } from './run.mjs';
 import {
@@ -674,28 +676,45 @@ test('detectFailureKind tags common failed attempt causes', () => {
   );
 });
 
-test('buildPrompt omits the inlined operating contract in bare-skill mode', () => {
-  const scenario = { skill: 'zeyos-billing-insights', interface: 'cli', prompt: 'compute last year revenue' };
+test('buildPrompt starts with /zeyos and omits the inlined operating contract in bare-skill mode', () => {
+  const scenario = { skill: 'zeyos-billing-insights', interface: 'cli', prompt: 'Using the billing-insights skill, compute last year revenue' };
   const ctx = { runId: 'run-1', recordPrefix: 'AGENTTEST' };
 
   const harness = buildPrompt(scenario, ctx);
   const bare = buildPrompt(scenario, ctx, { bareSkill: true });
 
+  assert.equal(harness.split(/\r?\n/)[0], '/zeyos');
+  assert.equal(bare.split(/\r?\n/)[0], '/zeyos');
   // Harness mode inlines AGENTS.md (marked by the TASK separator); bare-skill mode does not.
   assert.match(harness, /--- TASK ---/);
   assert.doesNotMatch(bare, /--- TASK ---/);
-  // Both still point the agent at the skill files and demand the RESULT line.
+  // Both point only at the generic entrypoint; /zeyos is responsible for specialized routing.
   for (const p of [harness, bare]) {
-    assert.match(p, /\$ZEYOS_SKILL_ROOT\/zeyos-billing-insights\/SKILL\.md/);
+    assert.match(p, /\$ZEYOS_SKILL_ROOT\/zeyos\/SKILL\.md/);
+    assert.doesNotMatch(p, /\$ZEYOS_SKILL_ROOT\/zeyos-billing-insights\/SKILL\.md/);
+    assert.doesNotMatch(p, /^Using the billing-insights skill,/m);
+    assert.match(p, /Compute last year revenue/);
     assert.match(p, /printf "%s\\n" "\$ZEYOS_SKILL_ROOT"/);
     assert.match(p, /RESULT:/);
   }
 });
 
-test('buildPrompt can label an explicit skill root', () => {
+test('buildPrompt can label an explicit zeyos skill root', () => {
   const scenario = { skill: 'zeyos-billing-insights', interface: 'cli', prompt: 'count transactions' };
   const prompt = buildPrompt(scenario, ctxBase, { bareSkill: true, skillRootLabel: '/tmp/skills' });
-  assert.match(prompt, /\/tmp\/skills\/zeyos-billing-insights\/SKILL\.md/);
+  assert.match(prompt, /\/tmp\/skills\/zeyos\/SKILL\.md/);
+});
+
+test('buildContinuationPrompt also starts with /zeyos', () => {
+  const prompt = buildContinuationPrompt(
+    { prompt: 'Using the work-management skill, confirm the draft.', id: 'confirm' },
+    [{ prompt: 'Using the work-management skill, prepare a draft.', stdout: 'RESULT: ready' }],
+    ctxBase
+  );
+  assert.equal(prompt.split(/\r?\n/)[0], '/zeyos');
+  assert.doesNotMatch(prompt, /Using the work-management skill/);
+  assert.match(prompt, /USER: Prepare a draft\./);
+  assert.match(prompt, /USER: Confirm the draft\./);
 });
 
 test('globToRe: ** crosses path separators, * stays within a segment', () => {
@@ -914,6 +933,25 @@ test('opencode DB rows normalize to actual cost and token usage', () => {
   });
 });
 
+test('summarizeToolCalls counts shell, read, and zeyos command calls from runner text', () => {
+  const summary = summarizeToolCalls([
+    '\u001b[0m$ \u001b[0mprintf "%s\\n" "$ZEYOS_SKILL_ROOT"',
+    '\u001b[0m→ \u001b[0mRead agents/zeyos/SKILL.md',
+    '\u001b[0m$ \u001b[0mzeyos count accounts --filter \'{"type":1}\' --json',
+    '$ node cli/bin/zeyos.mjs list tickets --json',
+    'plain output'
+  ].join('\n'));
+
+  assert.deepEqual(summary, {
+    source: 'runner-transcript',
+    observed: true,
+    totalCalls: 4,
+    shellCalls: 3,
+    zeyosCalls: 2,
+    otherToolCalls: 1
+  });
+});
+
 test('runScenario honors allModels after a passing first model', async () => {
   const dir = await mkdtemp(path.join(os.tmpdir(), 'ap-all-models-'));
   const scenario = {
@@ -1055,6 +1093,22 @@ test('trace summaries merge across turns for attempt-level reporting', () => {
       listTransactions: 1,
       listPayments: 2
     }
+  });
+});
+
+test('tool summaries merge across turns for attempt-level reporting', () => {
+  const summary = mergeToolSummaries([
+    { observed: true, totalCalls: 3, shellCalls: 2, zeyosCalls: 1, otherToolCalls: 1 },
+    { observed: true, totalCalls: 4, shellCalls: 3, zeyosCalls: 2, otherToolCalls: 1 }
+  ]);
+
+  assert.deepEqual(summary, {
+    source: 'runner-transcript',
+    observed: true,
+    totalCalls: 7,
+    shellCalls: 5,
+    zeyosCalls: 3,
+    otherToolCalls: 2
   });
 });
 

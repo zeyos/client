@@ -14,6 +14,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 const TRANSIENT_RE = /\b(429|rate.?limit|timed?.?out|ETIMEDOUT|ECONNRESET|ENOTFOUND|EAI_AGAIN|socket hang up|503|502|temporarily)\b/i;
+const ANSI_RE = /[\u001B\u009B][[\]()#;?]*(?:(?:(?:[a-zA-Z\d]*(?:;[a-zA-Z\d]*)*)?\u0007)|(?:(?:\d{1,4}(?:;\d{0,4})*)?[\dA-PR-TZcf-nq-uy=><~]))/g;
 
 /** Substitute {model} and {prompt} placeholders in the runner args. */
 function buildArgs(argsTemplate, { model, prompt }) {
@@ -148,6 +149,7 @@ export async function runAgent({ runner, model, prompt, env, repoRoot, resultsDi
     stdout: result.stdout,
     stderr: result.stderr
   });
+  const toolSummary = summarizeToolCalls(`${result.stdout || ''}\n${result.stderr || ''}`);
 
   const transcriptPath = await writeTranscript({
     resultsDir,
@@ -160,7 +162,8 @@ export async function runAgent({ runner, model, prompt, env, repoRoot, resultsDi
     workspacePath,
     skillRoot: attemptSkillRoot,
     env: childEnv,
-    usage
+    usage,
+    toolSummary
   });
 
   return {
@@ -175,11 +178,12 @@ export async function runAgent({ runner, model, prompt, env, repoRoot, resultsDi
     workspacePath,
     skillRoot: attemptSkillRoot,
     runnerError: Boolean(result.spawnError),
-    usage
+    usage,
+    toolSummary
   };
 }
 
-async function writeTranscript({ resultsDir, scenarioId, model, prompt, command, result, durationMs, workspacePath, skillRoot, env, usage }) {
+async function writeTranscript({ resultsDir, scenarioId, model, prompt, command, result, durationMs, workspacePath, skillRoot, env, usage, toolSummary }) {
   const safeModel = safeName(model);
   const dir = path.join(resultsDir, 'transcripts');
   await mkdir(dir, { recursive: true });
@@ -194,6 +198,7 @@ async function writeTranscript({ resultsDir, scenarioId, model, prompt, command,
     `# workspace: ${workspacePath || '(repo root)'}`,
     `# skillRoot: ${skillRoot || '(default)'}`,
     `# usage: ${formatUsage(usage)}`,
+    `# toolCalls: total=${toolSummary?.totalCalls ?? 0} zeyos=${toolSummary?.zeyosCalls ?? 0}`,
     '',
     '===== PROMPT =====',
     prompt,
@@ -207,6 +212,48 @@ async function writeTranscript({ resultsDir, scenarioId, model, prompt, command,
   ].join('\n');
   await writeFile(file, body, 'utf8');
   return file;
+}
+
+function summarizeToolCalls(text) {
+  const clean = stripAnsi(text);
+  let shellCalls = 0;
+  let zeyosCalls = 0;
+  let otherToolCalls = 0;
+  let observed = false;
+  for (const line of clean.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (/^>\s+\S+/.test(trimmed)) observed = true;
+    const shell = trimmed.match(/^\$\s+(.+)$/);
+    if (shell) {
+      observed = true;
+      shellCalls += 1;
+      if (isZeyosShellCommand(shell[1])) zeyosCalls += 1;
+      continue;
+    }
+    if (/^->\s+[A-Z][A-Za-z0-9_-]*\b/.test(trimmed) || /^→\s+[A-Z][A-Za-z0-9_-]*\b/.test(trimmed)) {
+      observed = true;
+      otherToolCalls += 1;
+    }
+  }
+  return {
+    source: 'runner-transcript',
+    observed,
+    totalCalls: shellCalls + otherToolCalls,
+    shellCalls,
+    zeyosCalls,
+    otherToolCalls
+  };
+}
+
+function stripAnsi(text) {
+  return String(text || '').replace(ANSI_RE, '');
+}
+
+function isZeyosShellCommand(commandLine) {
+  const command = String(commandLine || '').trim();
+  if (!command) return false;
+  return /(^|[;&|()]\s*)(?:env\s+(?:[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|[^\s]+)\s+)*)?(?:\.\/)?zeyos(\s|$|[;&|])/.test(command) ||
+    /(^|[;&|()]\s*)(?:node\s+)?(?:\.\/)?cli\/bin\/zeyos\.mjs(\s|$|[;&|])/.test(command);
 }
 
 async function captureUsage({ runner, args, cwd, repoRoot, model, started, ended, stdout, stderr }) {
@@ -385,4 +432,4 @@ function formatUsage(usage) {
   return parts.join(' ');
 }
 
-export { extractUsageFromText, normalizeUsage, openCodeUsageFromRow };
+export { extractUsageFromText, normalizeUsage, openCodeUsageFromRow, summarizeToolCalls, stripAnsi };
