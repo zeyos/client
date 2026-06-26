@@ -39,6 +39,9 @@ jobs:
       - name: Test (zero-dependency offline suite)
         run: npm test
 
+      - name: Install local client for CLI tests
+        run: npm install --prefix cli --no-save --ignore-scripts "$PWD"
+
       - name: Test CLI package
         run: npm --prefix cli test
 
