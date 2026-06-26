@@ -8,13 +8,28 @@
   "tags": ["work-management", "enums", "semantics"],
   "prompt": "Using the work-management skill, answer: how many open, high-priority tickets are there right now? Treat \"high priority\" as priority HIGH or HIGHEST, and \"open\" as any ticket whose status is not COMPLETED, CANCELLED, or FAILED. Restrict to active records (visibility 0). Output just the number on the RESULT line, e.g. `RESULT: 12`.",
   "expect": {
-    "kind": "computeCount",
-    "op": "listTickets",
-    "params": { "filters": { "visibility": 0 }, "limit": 10000 },
-    "predicates": [
-      { "field": "priority", "in": [3, 4] },
-      { "field": "status", "notIn": [8, 9, 10] }
-    ],
-    "match": "exact"
+    "kind": "all",
+    "expectations": [
+      {
+        "kind": "computeCount",
+        "op": "listTickets",
+        "params": { "filters": { "visibility": 0 }, "limit": 10000 },
+        "predicates": [
+          { "field": "priority", "in": [3, 4] },
+          { "field": "status", "notIn": [8, 9, 10] }
+        ],
+        "match": "exact"
+      },
+      {
+        "kind": "verifyTrace",
+        "severity": "efficiency",
+        "require": [{ "operation": "listTickets", "min": 1, "max": 1 }],
+        "requireFilters": [{ "operation": "listTickets", "fields": ["visibility", "priority", "status"] }],
+        "maxUpstreamRequests": 2,
+        "maxApiErrors": 0,
+        "maxToolCalls": 8,
+        "maxZeyosCliCalls": 4
+      }
+    ]
   }
 }

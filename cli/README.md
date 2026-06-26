@@ -80,13 +80,23 @@ Inspect dynamic schema definitions:
 ```bash
 zeyos count customfields --json
 zeyos list customfields --fields ID,name,identifier,context,type --json
+zeyos count dunning --json
 ```
 
 Inspect actionsteps/time-entry evidence and ticket mail:
 
 ```bash
 zeyos list actionsteps --fields ID,name,status,date,duedate,effort,ticket,account --json
+zeyos sum actionsteps effort --filter '{"status":[1,3]}' --json
 zeyos list messages --fields ID,date,mailbox,subject,sender_email,to_email,ticket,reference --filter '{"ticket":42}' --json
+```
+
+Filters accept common agent-generated shapes and normalize them to the native ZeyOS
+request form. Use `--query --json` to inspect the request without sending it:
+
+```bash
+zeyos list tickets --filter '{"status":{"$nin":[8,9,10]},"priority":[3,4]}' --query --json
+zeyos list accounts --filter '{"name__like":"Acme%","ID__in":[1,2,3]}' --query --json
 ```
 
 Create, update, and delete:

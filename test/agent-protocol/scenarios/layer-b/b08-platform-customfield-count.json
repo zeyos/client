@@ -6,12 +6,26 @@
   "interface": "either",
   "mutates": false,
   "tags": ["platform-and-schema", "resource-discovery", "operationid-trap"],
-  "prompt": "Using the platform-and-schema skill, answer: how many custom fields are defined in total? Note: the customfields resource has no `visibility` field, so do not filter on it. The DB noun is `customfields`, but the client/CLI operation is not named `listCustomfields` — discover the correct operation before calling it. Output just the number on the RESULT line, e.g. `RESULT: 9`.",
+  "prompt": "Using the platform-and-schema skill, answer: how many custom fields are defined in total? Use the direct CLI alias `zeyos count customfields`. Note: the customfields resource has no `visibility` field, so do not filter on it. Output just the number on the RESULT line, e.g. `RESULT: 9`.",
   "expect": {
-    "kind": "computeCount",
-    "op": "listCustomFields",
-    "params": { "limit": 10000 },
-    "predicates": [],
-    "match": "exact"
+    "kind": "all",
+    "expectations": [
+      {
+        "kind": "computeCount",
+        "op": "listCustomFields",
+        "params": { "limit": 10000 },
+        "predicates": [],
+        "match": "exact"
+      },
+      {
+        "kind": "verifyTrace",
+        "severity": "efficiency",
+        "require": [{ "operation": "listCustomFields", "min": 1, "max": 1 }],
+        "maxUpstreamRequests": 2,
+        "maxApiErrors": 0,
+        "maxToolCalls": 6,
+        "maxZeyosCliCalls": 1
+      }
+    ]
   }
 }

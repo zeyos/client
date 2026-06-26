@@ -20,7 +20,7 @@
  *     --layer <a|b>        restrict to a layer
  *     --models <csv>       override the rotation
  *     --all-models         run every selected model even after a pass
- *     --benchmark          fixed read-only OpenRouter model matrix for model selection
+ *     --benchmark          fixed read-only DeepSeek benchmark set (strict one-attempt by default)
  *     --timeout-ms <n>     per-attempt runner timeout override
  *     --transient-retries <n>
  *                          override retry count for transient runner failures
@@ -67,11 +67,7 @@ const REPO_ROOT = path.resolve(__dirname, '../../..');
 const PROTOCOL_DIR = path.resolve(__dirname, '..');
 const SCENARIO_DIR = path.join(PROTOCOL_DIR, 'scenarios');
 const BENCHMARK_MODELS = [
-  'openrouter/openai/gpt-oss-120b',
-  'openrouter/xiaomi/mimo-v2.5',
-  'openrouter/z-ai/glm-5.2',
-  'openrouter/deepseek/deepseek-v4-flash',
-  'openrouter/moonshotai/kimi-k2.7-code'
+  'openrouter/deepseek/deepseek-v4-flash'
 ];
 const BENCHMARK_SCENARIO_IDS = [
   'b01-work-open-high-priority',
@@ -171,6 +167,7 @@ function parseArgs(argv) {
     opts.readOnly = true;
     opts.allModels = true;
     if (!opts.models) opts.models = BENCHMARK_MODELS;
+    if (opts.transientRetries == null) opts.transientRetries = 0;
   }
   return opts;
 }
@@ -266,7 +263,9 @@ const NON_DEFECT_FAILURE_KINDS = new Set([
   'runner_error',
   'no_result',
   'planned_not_executed',
-  'tool_misuse'
+  'tool_misuse',
+  'environment_defect',
+  'efficiency_regression'
 ]);
 
 function detectToolMisuse(stdout, stderr) {
@@ -278,6 +277,8 @@ function isNonDefectFailureSet(attempts) {
 }
 
 function nonDefectClassification(attempts) {
+  if (attempts.every((a) => a.failureKind === 'environment_defect')) return 'ENVIRONMENT_DEFECT';
+  if (attempts.every((a) => a.failureKind === 'efficiency_regression')) return 'EFFICIENCY_REGRESSION';
   if (attempts.every((a) => a.failureKind === 'runner_timeout' || a.failureKind === 'runner_error')) return 'RUNNER_FAILURE';
   return 'MODEL_NONCOMPLETION';
 }
@@ -285,6 +286,8 @@ function nonDefectClassification(attempts) {
 function detectFailureKind({ agent, resultRaw, evalRes }) {
   if (evalRes.pass === true) return null;
   if (evalRes.pass === null) return 'manual_review';
+  if (/ENVIRONMENT_DEFECT/i.test(String(evalRes.detail || ''))) return 'environment_defect';
+  if (/EFFICIENCY_REGRESSION/i.test(String(evalRes.detail || ''))) return 'efficiency_regression';
   if (agent.timedOut) return 'runner_timeout';
   if (agent.runnerError) return 'runner_error';
   if (detectPlannedNotExecuted(agent.stdout, resultRaw)) return 'planned_not_executed';
@@ -292,6 +295,30 @@ function detectFailureKind({ agent, resultRaw, evalRes }) {
   if (resultRaw == null) return agent.code !== 0 ? 'runner_error' : 'no_result';
   if (/SAFETY VIOLATION/i.test(String(evalRes.detail || ''))) return 'safety_violation';
   return 'assertion_mismatch';
+}
+
+const RUNNER_GLOBAL_SKILL_PATH_RE = /(?:~|\$HOME|\/Users\/[^/\s]+|\/home\/[^/\s]+)[^\n\r'"`<>]*(?:\.config\/opencode\/skills|\.opencode\/skills|\.claude\/skills|\.codex\/skills)/i;
+
+function detectSkillPathLeak(stdout = '', stderr = '', env = process.env) {
+  const text = `${stdout || ''}\n${stderr || ''}`;
+  const home = env?.HOME || env?.USERPROFILE || '';
+  const patterns = [
+    RUNNER_GLOBAL_SKILL_PATH_RE,
+    /\/\.config\/opencode\/skills\b/i,
+    /\/\.opencode\/skills\b/i,
+    /\/\.claude\/skills\b/i,
+    /\/\.codex\/skills\b/i
+  ];
+  if (home) {
+    const escapedHome = home.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const normalizedHome = escapedHome.replace(/\/+$/, '');
+    patterns.unshift(new RegExp(`${normalizedHome}[^\\n\\r'"\\\`<>]*(?:\\.config\\/opencode\\/skills|\\.opencode\\/skills|\\.claude\\/skills|\\.codex\\/skills)`, 'i'));
+  }
+  for (const re of patterns) {
+    const match = text.match(re);
+    if (match) return { sample: match[0].slice(0, 240), pattern: String(re) };
+  }
+  return null;
 }
 
 // ── main ──────────────────────────────────────────────────────────────────────
@@ -498,7 +525,7 @@ async function main() {
   }
 
   // Release-blocking: real client/skill defects + any observed/attempted unsafe action.
-  const defects = records.filter((r) => ['CLIENT_DEFECT', 'SAFETY_REGRESSION', 'POLICY_BLOCKED_UNSAFE_ATTEMPT'].includes(r.classification));
+  const defects = records.filter((r) => ['CLIENT_DEFECT', 'SAFETY_REGRESSION', 'POLICY_BLOCKED_UNSAFE_ATTEMPT', 'ENVIRONMENT_DEFECT'].includes(r.classification));
   if (typeof opts.maxCost === 'number') {
     const modelScorecard = buildModelScorecard(records);
     const knownCost = modelScorecard.reduce((sum, row) => sum + (Number.isFinite(row.costUsd) ? row.costUsd : 0), 0);
@@ -658,7 +685,7 @@ async function runModelAttempt(a) {
     const ctx = {
       client: verifyClient, result: resultRaw, resultValue: resolved.value, resultError: resolved.error,
       rawStdout: agent.stdout, runId, recordPrefix, me, myGroup, seed,
-      trace, stateBefore, stateAfter, secrets: runtime?.secrets || []
+      trace, stateBefore, stateAfter, secrets: runtime?.secrets || [], toolSummary: agent.toolSummary || null
     };
 
     let evalRes;
@@ -669,7 +696,31 @@ async function runModelAttempt(a) {
     } else {
       evalRes = await evaluateExpect(turn.expect, ctx);
     }
-    turnRecords.push({ id: turn.id, pass: evalRes.pass, detail: evalRes.detail, expected: evalRes.expected, actual: evalRes.actual, resultRaw, failureKind: detectFailureKind({ agent, resultRaw, evalRes }), traceSummary: summarizeTrace(trace), toolSummary: agent.toolSummary || null });
+    const environmentLeak = detectSkillPathLeak(agent.stdout, agent.stderr, agentEnv);
+    if (environmentLeak) {
+      evalRes = {
+        pass: false,
+        detail: `ENVIRONMENT_DEFECT: runner-global skill path leaked into transcript (${environmentLeak.sample})`,
+        expected: 'no runner-global skill path in transcript',
+        actual: environmentLeak.sample
+      };
+    }
+    const traceSummary = summarizeTrace(trace);
+    const failureKind = detectFailureKind({ agent, resultRaw, evalRes });
+    const successfulApiTrace = evalRes.pass === false && isPostTraceRunnerFailure({ failureKind, traceSummary });
+    turnRecords.push({
+      id: turn.id,
+      pass: evalRes.pass,
+      detail: evalRes.detail,
+      expected: evalRes.expected,
+      actual: evalRes.actual,
+      resultRaw,
+      failureKind,
+      traceSummary,
+      toolSummary: agent.toolSummary || null,
+      environmentLeak,
+      successfulApiTrace
+    });
   }
 
   // Aggregate turns into the attempt: fail if any turn failed; review if any manual-null.
@@ -693,8 +744,16 @@ async function runModelAttempt(a) {
     workspacePath: lastAgent?.workspacePath || null,
     skillRoot: lastAgent?.skillRoot || childEnv.ZEYOS_SKILL_ROOT || null,
     usage: lastAgent?.usage || null,
-    toolSummary: mergeToolSummaries(turnRecords.map((t) => t.toolSummary))
+    toolSummary: mergeToolSummaries(turnRecords.map((t) => t.toolSummary)),
+    environmentLeaks: turnRecords.map((t) => t.environmentLeak).filter(Boolean),
+    successfulApiTrace: turnRecords.some((t) => t.successfulApiTrace)
   };
+}
+
+function isPostTraceRunnerFailure({ failureKind, traceSummary }) {
+  return ['runner_error', 'runner_timeout', 'no_result'].includes(failureKind) &&
+    (Number(traceSummary?.upstream) || 0) > 0 &&
+    (Number(traceSummary?.apiErrors) || 0) === 0;
 }
 
 function mergeTraceSummaries(summaries = []) {
@@ -908,7 +967,13 @@ async function writeScorecards({ resultsDir, runId, instance, baseUrl, models, r
   if (defects.length === 0) lines.push('_None — every scenario either passed or was explained by model flakiness._', '');
   for (const r of defects) lines.push(...scenarioBlock(r));
 
+  const expensive = by('EFFICIENCY_REGRESSION');
+  lines.push(`## 🟣 EFFICIENCY_REGRESSION (${expensive.length}) — pass-but-expensive`, '');
+  if (expensive.length === 0) lines.push('_None — no scenario passed correctness while exceeding its efficiency budget._', '');
+  for (const r of expensive) lines.push(...scenarioBlock(r));
+
   for (const [title, cls] of [
+    ['🟧 ENVIRONMENT_DEFECT', 'ENVIRONMENT_DEFECT'],
     ['⚫ RUNNER_FAILURE', 'RUNNER_FAILURE'],
     ['⚪ MODEL_NONCOMPLETION', 'MODEL_NONCOMPLETION'],
     ['🟤 ENVIRONMENT_SKIP', 'ENVIRONMENT_SKIP'],
@@ -1012,7 +1077,9 @@ function scenarioBlock(r) {
     const exp = a.expected !== undefined ? ` · expected=${JSON.stringify(a.expected)} actual=${JSON.stringify(a.actual)}` : '';
     const planned = a.notExecuted ? ' · 🧭 planned-not-executed' : '';
     const kind = a.failureKind ? ` · kind=${a.failureKind}` : '';
-    out.push(`- \`${a.model}\` → **${verdict}** (${a.durationMs}ms${a.transient ? ', transient' : ''})${exp}${planned}${kind} — ${a.detail || ''}`);
+    const postTrace = a.successfulApiTrace ? ` · post-trace runner/provider failure (upstream=${a.traceSummary?.upstream || 0}, API errors=${a.traceSummary?.apiErrors || 0})` : '';
+    const leak = a.environmentLeaks?.length ? ` · environment leak=${JSON.stringify(a.environmentLeaks[0].sample)}` : '';
+    out.push(`- \`${a.model}\` → **${verdict}** (${a.durationMs}ms${a.transient ? ', transient' : ''})${exp}${planned}${kind}${postTrace}${leak} — ${a.detail || ''}`);
     out.push(`  - transcript: \`${a.transcriptPath}\``);
   }
   out.push('');
@@ -1022,12 +1089,13 @@ function scenarioBlock(r) {
 function summaryCounts(records) {
   const c = (cls) => records.filter((r) => r.classification === cls).length;
   const safety = c('SAFETY_REGRESSION') + c('POLICY_BLOCKED_UNSAFE_ATTEMPT');
-  return `**${records.length} scenarios** — 🟢 ${c('PASS')} pass · 🛑 ${safety} safety · 🔴 ${c('CLIENT_DEFECT')} defect · 🟡 ${c('MODEL_FLAKE')} flake · 🟠 ${c('MODEL_DIVERGENCE')} divergence · ⚫ ${c('RUNNER_FAILURE')} runner · ⚪ ${c('MODEL_NONCOMPLETION')} incomplete · 🟤 ${c('ENVIRONMENT_SKIP')} skip · 🔵 ${c('MANUAL_REVIEW')} review`;
+  return `**${records.length} scenarios** — 🟢 ${c('PASS')} pass · 🟣 ${c('EFFICIENCY_REGRESSION')} expensive · 🛑 ${safety} safety · 🔴 ${c('CLIENT_DEFECT')} defect · 🟧 ${c('ENVIRONMENT_DEFECT')} env defect · 🟡 ${c('MODEL_FLAKE')} flake · 🟠 ${c('MODEL_DIVERGENCE')} divergence · ⚫ ${c('RUNNER_FAILURE')} runner · ⚪ ${c('MODEL_NONCOMPLETION')} incomplete · 🟤 ${c('ENVIRONMENT_SKIP')} skip · 🔵 ${c('MANUAL_REVIEW')} review`;
 }
 
 function badge(cls) {
   return {
     PASS: '🟢 PASS  ', CLIENT_DEFECT: '🔴 DEFECT', SAFETY_REGRESSION: '🛑 SAFETY', POLICY_BLOCKED_UNSAFE_ATTEMPT: '🛑 BLOCK ',
+    EFFICIENCY_REGRESSION: '🟣 COSTLY', ENVIRONMENT_DEFECT: '🟧 ENV   ',
     MODEL_FLAKE: '🟡 FLAKE ', MODEL_DIVERGENCE: '🟠 DIVERG', RUNNER_FAILURE: '⚫ RUNNER', MODEL_NONCOMPLETION: '⚪ INCOMP',
     ENVIRONMENT_SKIP: '🟤 SKIP  ', MANUAL_REVIEW: '🔵 REVIEW'
   }[cls] || cls;
@@ -1068,6 +1136,7 @@ export {
   detectPlannedNotExecuted,
   detectFailureKind,
   detectToolMisuse,
+  detectSkillPathLeak,
   normalizeRunner,
   runScenario,
   buildModelScorecard,

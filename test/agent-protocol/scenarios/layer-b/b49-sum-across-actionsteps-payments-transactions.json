@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 2,
+  "id": "b49-sum-across-actionsteps-payments-transactions",
+  "layer": "b",
+  "title": "Sum actionsteps, payments, and transactions with CLI aggregate path",
+  "suite": ["regression", "aggregates"],
+  "tags": ["sum", "actionsteps", "payments", "transactions", "efficiency"],
+  "knowledge": { "primarySkill": "zeyos", "okfConcepts": ["concepts/filters-vs-filter"] },
+  "interface": { "preferred": "cli", "required": ["cli"] },
+  "effects": { "fixtureMutates": true, "agentMode": "read-only" },
+  "seed": [
+    { "op": "createAccount", "as": "account", "data": { "lastname": "{recordPrefix}-{runId} sum", "firstname": "", "type": 1, "currency": "EUR", "visibility": 0 } },
+    { "op": "createActionStep", "as": "asCompleted", "data": { "account": "$SEED.account.ID", "name": "{recordPrefix}-{runId} sum completed", "status": 1, "effort": 30, "duedate": 1893456000 } },
+    { "op": "createActionStep", "as": "asBooked", "data": { "account": "$SEED.account.ID", "name": "{recordPrefix}-{runId} sum booked", "status": 3, "effort": 45, "duedate": 1893456000 } },
+    { "op": "createActionStep", "as": "asIgnored", "data": { "account": "$SEED.account.ID", "name": "{recordPrefix}-{runId} sum ignored", "status": 2, "effort": 999, "duedate": 1893456000 } },
+    { "op": "createPayment", "as": "payA", "data": { "account": "$SEED.account.ID", "date": 1893456000, "amount": 40.25, "status": 1, "subject": "{recordPrefix}-{runId} sum pay A" } },
+    { "op": "createPayment", "as": "payB", "data": { "account": "$SEED.account.ID", "date": 1893542400, "amount": 59.75, "status": 1, "subject": "{recordPrefix}-{runId} sum pay B" } },
+    { "op": "createTransaction", "as": "invA", "data": { "account": "$SEED.account.ID", "transactionnum": "{recordPrefix}-{runId} sum inv A", "type": 3, "date": 1893456000, "netamount": 100.00, "currency": "EUR", "status": 1 } },
+    { "op": "createTransaction", "as": "invB", "data": { "account": "$SEED.account.ID", "transactionnum": "{recordPrefix}-{runId} sum inv B", "type": 3, "date": 1893542400, "netamount": 25.50, "currency": "EUR", "status": 1 } },
+    { "op": "createTransaction", "as": "creditIgnored", "data": { "account": "$SEED.account.ID", "transactionnum": "{recordPrefix}-{runId} sum credit ignored", "type": 4, "date": 1893542400, "netamount": 999.00, "currency": "EUR", "status": 1 } }
+  ],
+  "turns": [
+    {
+      "id": "answer",
+      "prompt": "For the account named exactly \"{recordPrefix}-{runId} sum\", use `zeyos sum` for three simple totals: actionstep `effort` where status is COMPLETED or BOOKED, payment `amount`, and invoice transaction `netamount` where type is 3. Keep the actionsteps page-size at the CLI default. Return JSON as {\"actionstepEffort\":75,\"paymentAmount\":100,\"transactionNet\":125.5}.",
+      "result": { "mode": "inline", "format": "json", "schema": { "type": "object", "required": ["actionstepEffort", "paymentAmount", "transactionNet"] } },
+      "expect": {
+        "kind": "all",
+        "expectations": [
+          {
+            "kind": "computeProjection",
+            "sources": { "x": { "op": "listActionSteps", "params": { "filters": { "account": "$SEED.account.ID", "status": { "IN": [1, 3] } }, "fields": ["ID", "effort"], "limit": 1000 } } },
+            "pipeline": [{ "aggregate": { "total": { "sum": "effort" } } }],
+            "select": "$.total",
+            "compareTo": "$RESULT.actionstepEffort",
+            "comparator": "number"
+          },
+          {
+            "kind": "computeProjection",
+            "sources": { "x": { "op": "listPayments", "params": { "filters": { "account": "$SEED.account.ID", "subject": { "~~*": "{recordPrefix}-{runId} sum pay%" } }, "fields": ["ID", "amount"], "limit": 1000 } } },
+            "pipeline": [{ "aggregate": { "total": { "sum": "amount" } } }],
+            "select": "$.total",
+            "compareTo": "$RESULT.paymentAmount",
+            "comparator": "number",
+            "tolerance": 0.005
+          },
+          {
+            "kind": "computeProjection",
+            "sources": { "x": { "op": "listTransactions", "params": { "filters": { "account": "$SEED.account.ID", "type": 3, "transactionnum": { "~~*": "{recordPrefix}-{runId} sum inv%" } }, "fields": ["ID", "netamount"], "limit": 1000 } } },
+            "pipeline": [{ "aggregate": { "total": { "sum": "netamount" } } }],
+            "select": "$.total",
+            "compareTo": "$RESULT.transactionNet",
+            "comparator": "number",
+            "tolerance": 0.005
+          },
+          {
+            "kind": "verifyTrace",
+            "severity": "efficiency",
+            "require": [
+              { "operation": "listActionSteps", "min": 1, "max": 1 },
+              { "operation": "listPayments", "min": 1, "max": 1 },
+              { "operation": "listTransactions", "min": 1, "max": 1 }
+            ],
+            "requireFilters": [
+              { "operation": "listActionSteps", "fields": ["account", "status"] },
+              { "operation": "listPayments", "fields": ["account", "subject"] },
+              { "operation": "listTransactions", "fields": ["account", "type", "transactionnum"] }
+            ],
+            "maxUpstreamRequests": 3,
+            "maxApiErrors": 0,
+            "maxZeyosCliCalls": 3,
+            "maxToolCalls": 10
+          }
+        ]
+      }
+    }
+  ],
+  "cleanup": "auto",
+  "coverage": { "entities": ["actionsteps", "payments", "transactions"], "operations": ["listActionSteps", "listPayments", "listTransactions"], "formats": ["json"], "rules": ["R-013", "R-022"] }
+}

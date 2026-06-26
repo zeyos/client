@@ -8,10 +8,24 @@
   "tags": ["account-intelligence", "enums"],
   "prompt": "Using the account-intelligence skill, answer: how many accounts have the account type CUSTOMER exactly? Restrict to active records (visibility 0). Output just the number on the RESULT line, e.g. `RESULT: 42`.",
   "expect": {
-    "kind": "computeCount",
-    "op": "listAccounts",
-    "params": { "filters": { "visibility": 0 }, "limit": 10000 },
-    "predicates": [ { "field": "type", "equals": 1 } ],
-    "match": "exact"
+    "kind": "all",
+    "expectations": [
+      {
+        "kind": "computeCount",
+        "op": "listAccounts",
+        "params": { "filters": { "visibility": 0 }, "limit": 10000 },
+        "predicates": [ { "field": "type", "equals": 1 } ],
+        "match": "exact"
+      },
+      {
+        "kind": "verifyTrace",
+        "severity": "efficiency",
+        "require": [{ "operation": "listAccounts", "min": 1, "max": 1 }],
+        "maxUpstreamRequests": 2,
+        "maxApiErrors": 0,
+        "maxToolCalls": 8,
+        "maxZeyosCliCalls": 4
+      }
+    ]
   }
 }

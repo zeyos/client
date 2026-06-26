@@ -211,6 +211,18 @@ test('resources supports JSON output for automation', async () => {
   const dunning = resources.find((resource) => resource.name === 'dunning');
   assert.ok(dunning);
   assert.deepEqual(dunning.operations, ['list', 'get', 'create', 'update', 'delete']);
+
+  const mailingrecipient = resources.find((resource) => resource.name === 'mailingrecipient');
+  assert.ok(mailingrecipient);
+  assert.deepEqual(mailingrecipient.operations, ['list', 'get', 'create', 'update', 'delete']);
+
+  const pricelistaccount = resources.find((resource) => resource.name === 'pricelistaccount');
+  assert.ok(pricelistaccount);
+  assert.deepEqual(pricelistaccount.operations, ['list', 'get', 'create', 'update', 'delete']);
+
+  const groupuser = resources.find((resource) => resource.name === 'groupuser');
+  assert.ok(groupuser);
+  assert.deepEqual(groupuser.operations, ['list', 'get']);
 });
 
 test('actionstep aliases and schema are available offline', async () => {
@@ -646,6 +658,17 @@ test('list and count normalize common Mongo-style range filter operators', async
     status: { '!IN': [8, 9, 10] }
   });
 
+  const notInAlt = await cli(
+    ['count', 'tickets', '--filter', '{"visibility":0,"status":{"$notIn":[8,9,10]},"priority":{"nin":[0,1]}}', '--query', '--json'],
+    { cwd, env: isolatedEnv(cwd, CREDENTIALS) }
+  );
+  assert.equal(notInAlt.code, 0, notInAlt.stderr);
+  assert.deepEqual(JSON.parse(notInAlt.stdout).body.filters, {
+    visibility: 0,
+    status: { '!IN': [8, 9, 10] },
+    priority: { '!IN': [0, 1] }
+  });
+
   const bareOperator = await cli(
     ['count', 'tickets', '--filter', '{"visibility":0,"status":{"gt":-1}}', '--query', '--json'],
     { cwd, env: isolatedEnv(cwd, CREDENTIALS) }
@@ -654,6 +677,16 @@ test('list and count normalize common Mongo-style range filter operators', async
   assert.deepEqual(JSON.parse(bareOperator.stdout).body.filters, {
     visibility: 0,
     status: { '>': -1 }
+  });
+
+  const suffixNegative = await cli(
+    ['count', 'tickets', '--filter', '{"visibility":0,"status__nin":[8,9,10]}', '--query', '--json'],
+    { cwd, env: isolatedEnv(cwd, CREDENTIALS) }
+  );
+  assert.equal(suffixNegative.code, 0, suffixNegative.stderr);
+  assert.deepEqual(JSON.parse(suffixNegative.stdout).body.filters, {
+    visibility: 0,
+    status: { '!IN': [8, 9, 10] }
   });
 
   const addresses = await cli(
@@ -695,6 +728,24 @@ test('list normalizes common suffix filter operators and account name aliases', 
     customernum: { '!=': null },
     ID: { '>': 4000 }
   });
+
+  const suffixes = await cli(
+    [
+      'list',
+      'accounts',
+      '--filter',
+      '{"name__like":"Bureau3%","ID__in":[1,2,3],"customernum__contains":"42"}',
+      '--query',
+      '--json'
+    ],
+    { cwd, env: isolatedEnv(cwd, CREDENTIALS) }
+  );
+  assert.equal(suffixes.code, 0, suffixes.stderr);
+  assert.deepEqual(JSON.parse(suffixes.stdout).body.filters, {
+    lastname: { '~~*': 'Bureau3%' },
+    ID: { IN: [1, 2, 3] },
+    customernum: { '~~*': '%42%' }
+  });
 });
 
 test('count customfields uses the listCustomFields operation', async (t) => {
@@ -723,6 +774,30 @@ test('count dunning uses the listDunningNotices operation', async (t) => {
   assert.equal(descriptor.operationId, 'listDunningNotices');
   assert.deepEqual(descriptor.body, { count: true });
   assert.match(descriptor.url, /\/api\/v1\/dunning$/);
+});
+
+test('CLI aliases resolve common nouns whose operationIds use generated names', async (t) => {
+  const cwd = await tempDir(t);
+  const cases = [
+    ['dunning2transactions', 'listDunningToTransactions', /\/api\/v1\/dunning2transactions$/],
+    ['mailing-recipients', 'listMailingRecipients', /\/api\/v1\/mailingrecipients$/],
+    ['price-lists', 'listPriceLists', /\/api\/v1\/pricelists$/],
+    ['price-list-accounts', 'listPriceListsToAccounts', /\/api\/v1\/pricelists2accounts$/],
+    ['groups-to-users', 'listGroupsToUsers', /\/api\/v1\/groups2users$/]
+  ];
+
+  for (const [resource, operationId, urlPattern] of cases) {
+    const result = await cli(
+      ['count', resource, '--query', '--json'],
+      { cwd, env: isolatedEnv(cwd, CREDENTIALS) }
+    );
+
+    assert.equal(result.code, 0, `${resource}: ${result.stderr}`);
+    const descriptor = JSON.parse(result.stdout);
+    assert.equal(descriptor.operationId, operationId, resource);
+    assert.deepEqual(descriptor.body, { count: true });
+    assert.match(descriptor.url, urlPattern);
+  }
 });
 
 test('--filter-file errors do not echo file contents', async (t) => {
@@ -818,22 +893,48 @@ test('count --json emits a stable object', async (t) => {
   assert.deepEqual(JSON.parse(server.requests[0].body), { count: true });
 });
 
-test('sum dry-run builds a paged list request and normalizes array filters', async (t) => {
+test('sum dry-run builds paged list requests and normalizes filters across supported resources', async (t) => {
   const cwd = await tempDir(t);
-  const result = await cli(
-    ['sum', 'actionsteps', 'effort', '--filter', '{"status":[1,3]}', '--query', '--json'],
-    { cwd, env: isolatedEnv(cwd, CREDENTIALS) }
-  );
+  const cases = [
+    {
+      args: ['sum', 'actionsteps', 'effort', '--filter', '{"status":[1,3]}', '--query', '--json'],
+      operationId: 'listActionSteps',
+      body: {
+        fields: ['effort'],
+        filters: { status: { IN: [1, 3] } },
+        limit: 50,
+        offset: 0
+      }
+    },
+    {
+      args: ['sum', 'payments', 'amount', '--filter', '{"date":{"$gte":1893456000,"$lt":1896048000}}', '--query', '--json'],
+      operationId: 'listPayments',
+      body: {
+        fields: ['amount'],
+        filters: { date: { '>=': 1893456000, '<': 1896048000 } },
+        limit: 50,
+        offset: 0
+      }
+    },
+    {
+      args: ['sum', 'transactions', 'netamount', '--filter', '{"type":3,"status__nin":[8,9,10]}', '--query', '--json'],
+      operationId: 'listTransactions',
+      body: {
+        fields: ['netamount'],
+        filters: { type: 3, status: { '!IN': [8, 9, 10] } },
+        limit: 50,
+        offset: 0
+      }
+    }
+  ];
 
-  assert.equal(result.code, 0, result.stderr);
-  const descriptor = JSON.parse(result.stdout);
-  assert.equal(descriptor.operationId, 'listActionSteps');
-  assert.deepEqual(descriptor.body, {
-    fields: ['effort'],
-    filters: { status: { IN: [1, 3] } },
-    limit: 50,
-    offset: 0
-  });
+  for (const { args, operationId, body } of cases) {
+    const result = await cli(args, { cwd, env: isolatedEnv(cwd, CREDENTIALS) });
+    assert.equal(result.code, 0, result.stderr);
+    const descriptor = JSON.parse(result.stdout);
+    assert.equal(descriptor.operationId, operationId);
+    assert.deepEqual(descriptor.body, body);
+  }
 });
 
 test('sum pages through matching records and emits a numeric total', async (t) => {
@@ -873,6 +974,30 @@ test('sum pages through matching records and emits a numeric total', async (t) =
     limit: 2,
     offset: 4
   });
+});
+
+test('sum surfaces the documented actionsteps oversized-page failure instead of retrying silently', async (t) => {
+  const cwd = await tempDir(t);
+  const server = await jsonServer(t, (_req, res, body) => {
+    const parsed = JSON.parse(body || '{}');
+    if (parsed.limit > 50) {
+      res.writeHead(500, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: 'terminated: page too large' }));
+      return;
+    }
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify([]));
+  });
+
+  const result = await cli(
+    ['sum', 'actionsteps', 'effort', '--filter', '{"status":[1,3]}', '--page-size', '100', '--json'],
+    { cwd, env: isolatedEnv(cwd, { ...CREDENTIALS, ZEYOS_BASE_URL: server.baseUrl }) }
+  );
+
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /API error/i);
+  assert.equal(server.requests.length, 1);
+  assert.equal(JSON.parse(server.requests[0].body).limit, 100);
 });
 
 test('read-only resources reject unsupported write actions before auth', async (t) => {

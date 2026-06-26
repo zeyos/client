@@ -16,9 +16,10 @@ first (it establishes that you have tools and the CLI is already authenticated),
 
 ## Route first, then execute
 
-When `/zeyos` is invoked, inspect the user request and read the matching specialized
-skill before querying. Do not ask the user to pick the skill and do not answer from this
-generic guide if the request needs domain rules.
+When this guide is used, inspect the user request and read the matching specialized skill
+before querying. Do not depend on a runner-global slash command, do not ask the user to
+pick the skill, and do not answer from this generic guide if the request needs domain
+rules.
 
 | Request area | Read this guide |
 | --- | --- |
@@ -41,6 +42,10 @@ generic guide if the request needs domain rules.
 If multiple domains apply, read each relevant specialized guide plus
 [../shared/zeyos-entity-map.md](../shared/zeyos-entity-map.md), then choose the smallest
 query plan that answers the user.
+
+For simple counts where the user already names the resource and filter constraints, run
+the direct `zeyos count <resource> --filter '{...}'` command and stop after the successful
+count. Do not add a discovery round-trip unless the resource or field is unclear.
 
 ## Do this, don't just describe it
 

@@ -6,12 +6,26 @@
   "interface": "either",
   "mutates": false,
   "tags": ["collections-and-dunning", "operationId-drift", "footgun"],
-  "prompt": "Using the collections-and-dunning skill, answer: how many dunning notices currently exist in total? Note: the dunning-notices resource has no `visibility` field, so do not filter on it. Output just the number on the RESULT line, e.g. `RESULT: 9`. (The DB noun is `dunning`, but the client/CLI operation is not named `listDunning` — discover the correct operation before calling it.)",
+  "prompt": "Using the collections-and-dunning skill, answer: how many dunning notices currently exist in total? Use the direct CLI alias `zeyos count dunning`. Note: the dunning-notices resource has no `visibility` field, so do not filter on it. Output just the number on the RESULT line, e.g. `RESULT: 9`.",
   "expect": {
-    "kind": "computeCount",
-    "op": "listDunningNotices",
-    "params": { "limit": 10000 },
-    "predicates": [],
-    "match": "exact"
+    "kind": "all",
+    "expectations": [
+      {
+        "kind": "computeCount",
+        "op": "listDunningNotices",
+        "params": { "limit": 10000 },
+        "predicates": [],
+        "match": "exact"
+      },
+      {
+        "kind": "verifyTrace",
+        "severity": "efficiency",
+        "require": [{ "operation": "listDunningNotices", "min": 1, "max": 1 }],
+        "maxUpstreamRequests": 2,
+        "maxApiErrors": 0,
+        "maxToolCalls": 4,
+        "maxZeyosCliCalls": 2
+      }
+    ]
   }
 }

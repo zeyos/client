@@ -137,7 +137,7 @@ contract above as checkable invariants.
 - **R-010 External side effects are high risk.** Email, campaign, dunning and calendar-invitation dispatch are never automatic. In protocol tests they are prohibited; interactively they require sender/audience/content/time preview and confirmation.
 - **R-011 High-impact state transitions.** Final, approved, booked, paid, cancelled, archived, deleted, sent and similar terminal states require exact target preview and confirmation.
 - **R-012 Conditional visibility.** Use `visibility:0` only when the resource exposes `visibility`; inspect the schema first.
-- **R-013 Count and sum discipline.** Use server-side count for counts. For sums, page through every matching row and aggregate the documented numeric field client-side.
+- **R-013 Count and sum discipline.** Use server-side count for counts. For simple ungrouped sums, use `zeyos sum`; for grouped, joined, or conditional sums, page through every matching row and aggregate the documented numeric field client-side.
 - **R-014 Time and timezone discipline.** ZeyOS timestamps are Unix seconds. State timezone, window boundaries and whether the end is inclusive or exclusive.
 - **R-015 Operation discovery.** Use `zeyos resources`, `zeyos describe`, `client.schema`, or OKF operation metadata before guessing resource names or operationIds.
 - **R-016 Financial basis separation.** Invoices, credits, payments, receivables and dunning are different facts. State invoiced/cash/collection basis, currency and credit treatment.

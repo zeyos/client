@@ -277,6 +277,11 @@ export function resolveResult(stdout, contract = {}, { workspaceDir } = {}) {
   if (!markers) return { value: null, mode: null, format: null, raw: null, error: 'no RESULT marker found' };
 
   const format = contract.format || markers.format || 'scalar';
+  if (contract.mode && markers.mode !== contract.mode) {
+    const expected = contract.mode === 'file' ? 'RESULT_FILE' : contract.mode === 'block' ? 'RESULT_BEGIN/RESULT_END' : 'RESULT';
+    const got = markers.mode === 'file' ? 'RESULT_FILE' : markers.mode === 'block' ? 'RESULT_BEGIN/RESULT_END' : 'RESULT';
+    return { value: null, mode: markers.mode, format, raw: markers.raw, filePath: markers.filePath, error: `result contract expected ${expected}, got ${got}` };
+  }
   try {
     if (markers.mode === 'file') {
       const content = readResultFile(markers.filePath, workspaceDir);

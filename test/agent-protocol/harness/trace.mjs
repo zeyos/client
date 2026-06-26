@@ -141,6 +141,7 @@ export function verifyTrace(expect, ctx) {
     const n = countMatching(events, req);
     const min = req.min ?? 1;
     if (n < min) failures.push(`required operation ${req.operation} seen ${n}× (min ${min})`);
+    if (typeof req.max === 'number' && n > req.max) failures.push(`operation ${req.operation} seen ${n}× (max ${req.max})`);
   }
 
   for (const forb of expect.forbid || []) {
@@ -202,6 +203,26 @@ export function verifyTrace(expect, ctx) {
     }
   }
 
+  if (typeof expect.maxToolCalls === 'number') {
+    const tools = ctx.toolSummary || {};
+    if (tools.observed === false || tools.observed == null) {
+      failures.push(`tool calls unavailable for budget ${expect.maxToolCalls}`);
+    } else {
+      const n = Number(tools.totalCalls) || 0;
+      if (n > expect.maxToolCalls) failures.push(`observed tool calls ${n} > budget ${expect.maxToolCalls}`);
+    }
+  }
+
+  if (typeof expect.maxZeyosCliCalls === 'number') {
+    const tools = ctx.toolSummary || {};
+    if (tools.observed === false || tools.observed == null) {
+      failures.push(`ZeyOS CLI calls unavailable for budget ${expect.maxZeyosCliCalls}`);
+    } else {
+      const n = Number(tools.zeyosCalls) || 0;
+      if (n > expect.maxZeyosCliCalls) failures.push(`ZeyOS CLI calls ${n} > budget ${expect.maxZeyosCliCalls}`);
+    }
+  }
+
   for (const a of expect.assertions || []) {
     const { values, found } = jsonPath({ events }, a.path);
     if (a.absent === true && found) safety.push(`assertion ${a.path} expected absent but present (${JSON.stringify(values)})`);
@@ -214,7 +235,9 @@ export function verifyTrace(expect, ctx) {
   }
   return {
     pass: failures.length === 0,
-    detail: failures.length === 0 ? 'trace satisfied required/forbidden/ordered/interface assertions' : `TRACE_MISMATCH: ${failures.join('; ')}`
+    detail: failures.length === 0
+      ? 'trace satisfied required/forbidden/ordered/interface assertions'
+      : `${expect.severity === 'efficiency' ? 'EFFICIENCY_REGRESSION' : 'TRACE_MISMATCH'}: ${failures.join('; ')}`
   };
 }
 

@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 2,
+  "id": "a24-result-file-output-contract",
+  "layer": "a",
+  "title": "NDJSON result files must be written, not named on RESULT",
+  "suite": ["regression", "output-contract"],
+  "tags": ["result-file", "ndjson", "output-contract"],
+  "knowledge": { "primarySkill": "zeyos", "okfConcepts": ["concepts/output-contracts"] },
+  "interface": { "preferred": "cli" },
+  "effects": { "fixtureMutates": true, "agentMode": "read-only" },
+  "seed": [
+    { "op": "createTicket", "as": "a", "data": { "name": "{recordPrefix}-{runId} file-contract A", "status": 4, "priority": 3, "visibility": 0 } },
+    { "op": "createTicket", "as": "b", "data": { "name": "{recordPrefix}-{runId} file-contract B", "status": 4, "priority": 2, "visibility": 0 } }
+  ],
+  "turns": [
+    {
+      "id": "answer",
+      "prompt": "Find tickets named exactly with prefix \"{recordPrefix}-{runId} file-contract\". Write an NDJSON file at out/tickets.ndjson with one JSON object per line and keys ticketId and name. End with `RESULT_FILE: out/tickets.ndjson`; do not put the path on a `RESULT:` line.",
+      "result": { "mode": "file", "format": "ndjson", "path": "out/tickets.ndjson" },
+      "expect": {
+        "kind": "all",
+        "expectations": [
+          { "kind": "verifyFile", "headers": ["ticketId", "name"], "rowCount": 2, "rowSchema": { "type": "object", "required": ["ticketId", "name"] } },
+          {
+            "kind": "computeProjection",
+            "sources": {
+              "t": { "op": "listTickets", "params": { "filters": { "visibility": 0, "name": { "~~*": "{recordPrefix}-{runId} file-contract%" } }, "fields": ["ID", "name"], "limit": 1000 } }
+            },
+            "pipeline": [
+              { "from": { "source": "t" } },
+              { "project": { "value": "ID" } }
+            ],
+            "compareTo": "$RESULT[*].ticketId",
+            "comparator": "set"
+          }
+        ]
+      }
+    }
+  ],
+  "cleanup": "auto",
+  "coverage": { "entities": ["tickets"], "operations": ["listTickets"], "formats": ["ndjson"], "rules": ["R-022"] }
+}

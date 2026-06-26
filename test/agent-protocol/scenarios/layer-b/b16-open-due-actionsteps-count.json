@@ -6,15 +6,30 @@
   "interface": "either",
   "mutates": false,
   "tags": ["work-management", "actionsteps", "due", "read-only"],
-  "prompt": "Using the work-management skill, answer: how many open actionsteps have status DRAFT (0) and a due date at or before Unix timestamp 4102444800? Output just the number on the RESULT line, e.g. `RESULT: 12`.",
+  "prompt": "Using the work-management skill, answer: how many open actionsteps have status DRAFT (0) and a due date at or before Unix timestamp 4102444800? This is a simple single-resource count: after any local schema check, use one direct actionsteps count with the status and duedate filters, and if that count is 0, accept it without listing broader actionsteps to verify. Output just the number on the RESULT line, e.g. `RESULT: 12`.",
   "expect": {
-    "kind": "computeCount",
-    "op": "listActionSteps",
-    "params": { "limit": 10000 },
-    "predicates": [
-      { "field": "status", "equals": 0 },
-      { "field": "duedate", "lte": 4102444800 }
-    ],
-    "match": "exact"
+    "kind": "all",
+    "expectations": [
+      {
+        "kind": "computeCount",
+        "op": "listActionSteps",
+        "params": { "limit": 10000 },
+        "predicates": [
+          { "field": "status", "equals": 0 },
+          { "field": "duedate", "lte": 4102444800 }
+        ],
+        "match": "exact"
+      },
+      {
+        "kind": "verifyTrace",
+        "severity": "efficiency",
+        "require": [{ "operation": "listActionSteps", "min": 1, "max": 1 }],
+        "requireFilters": [{ "operation": "listActionSteps", "fields": ["status", "duedate"] }],
+        "maxUpstreamRequests": 2,
+        "maxApiErrors": 0,
+        "maxToolCalls": 10,
+        "maxZeyosCliCalls": 4
+      }
+    ]
   }
 }

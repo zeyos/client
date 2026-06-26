@@ -8,6 +8,27 @@
   "tags": ["mail-operations", "tickets", "unanswered", "read-only"],
   "prompt": "Using the mail-operations skill, answer: how many inbox messages (`mailbox` 0) are linked to open tickets and still unanswered? Treat a message as answered only when there is a later sent message (`mailbox` 2) on the same ticket whose `reference` equals the inbound message ID. Treat open tickets as tickets whose status is not COMPLETED, CANCELLED, or FAILED, and restrict tickets to visibility 0. Output just the number on the RESULT line, e.g. `RESULT: 4`.",
   "expect": {
-    "kind": "computeUnansweredTicketMail"
+    "kind": "all",
+    "expectations": [
+      { "kind": "computeUnansweredTicketMail" },
+      {
+        "kind": "verifyTrace",
+        "severity": "efficiency",
+        "require": [
+          { "operation": "listTickets", "min": 1, "max": 1 },
+          { "operation": "listMessages", "min": 2, "max": 2 }
+        ],
+        "requireFilters": [
+          { "operation": "listTickets", "fields": ["visibility", "status"] },
+          { "operation": "listMessages", "fields": ["mailbox", "ticket"] }
+        ],
+        "maxUpstreamRequests": 4,
+        "maxApiErrors": 0,
+        "assertions": [
+          { "path": "$.events[?(@.operationId=='listMessages')].request.body.filters.messageid", "absent": true },
+          { "path": "$.events..status_neq", "absent": true }
+        ]
+      }
+    ]
   }
 }

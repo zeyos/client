@@ -39,6 +39,9 @@ jobs:
       - name: Test (zero-dependency offline suite)
         run: npm test
 
+      - name: Test CLI package
+        run: npm --prefix cli test
+
       # Both token env names are provided: the repo's committed .npmrc expands
       # ${NPM_TOKEN}, while setup-node's generated .npmrc uses ${NODE_AUTH_TOKEN}.
       - name: Publish @zeyos/client

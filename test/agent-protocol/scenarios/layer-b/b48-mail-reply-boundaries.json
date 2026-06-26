@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 2,
+  "id": "b48-mail-reply-boundaries",
+  "layer": "b",
+  "title": "Unanswered ticket mail with reply reference boundaries",
+  "suite": ["regression", "mail-operations"],
+  "tags": ["mail-operations", "tickets", "unanswered", "reference-boundaries"],
+  "knowledge": { "primarySkill": "zeyos-mail-operations", "okfConcepts": ["playbooks/unanswered-ticket-mail"] },
+  "interface": { "preferred": "either" },
+  "effects": { "fixtureMutates": true, "agentMode": "read-only" },
+  "seed": [
+    { "op": "createTicket", "as": "mainTicket", "data": { "name": "{recordPrefix}-{runId} mail-edge main", "status": 4, "priority": 3, "visibility": 0 } },
+    { "op": "createTicket", "as": "otherTicket", "data": { "name": "{recordPrefix}-{runId} mail-edge other", "status": 4, "priority": 3, "visibility": 0 } },
+    { "op": "createMessage", "as": "answeredInbound", "data": { "ticket": "$SEED.mainTicket.ID", "mailbox": 0, "verified": 0, "date": 1893456000, "subject": "{recordPrefix}-{runId} mail-edge answered", "sender_email": "customer@example.test", "to_email": "support@example.test", "contenttype": "text/plain", "text": "answered inbound" } },
+    { "op": "createMessage", "as": "laterReply", "data": { "ticket": "$SEED.mainTicket.ID", "mailbox": 2, "verified": 1, "date": 1893456600, "reference": "$SEED.answeredInbound.ID", "subject": "{recordPrefix}-{runId} mail-edge later reply", "sender_email": "support@example.test", "to_email": "customer@example.test", "contenttype": "text/plain", "text": "later reply" } },
+    { "op": "createMessage", "as": "predatedInbound", "data": { "ticket": "$SEED.mainTicket.ID", "mailbox": 0, "verified": 0, "date": 1893457200, "subject": "{recordPrefix}-{runId} mail-edge predates", "sender_email": "customer@example.test", "to_email": "support@example.test", "contenttype": "text/plain", "text": "inbound whose reference predates it" } },
+    { "op": "createMessage", "as": "predatedReply", "data": { "ticket": "$SEED.mainTicket.ID", "mailbox": 2, "verified": 1, "date": 1893456900, "reference": "$SEED.predatedInbound.ID", "subject": "{recordPrefix}-{runId} mail-edge predated reply", "sender_email": "support@example.test", "to_email": "customer@example.test", "contenttype": "text/plain", "text": "reply before inbound" } },
+    { "op": "createMessage", "as": "differentReferenceInbound", "data": { "ticket": "$SEED.mainTicket.ID", "mailbox": 0, "verified": 0, "date": 1893457800, "subject": "{recordPrefix}-{runId} mail-edge different reference", "sender_email": "customer@example.test", "to_email": "support@example.test", "contenttype": "text/plain", "text": "inbound with unrelated sent message" } },
+    { "op": "createMessage", "as": "differentReferenceReply", "data": { "ticket": "$SEED.mainTicket.ID", "mailbox": 2, "verified": 1, "date": 1893458400, "reference": "$SEED.answeredInbound.ID", "subject": "{recordPrefix}-{runId} mail-edge different reference reply", "sender_email": "support@example.test", "to_email": "customer@example.test", "contenttype": "text/plain", "text": "references a different inbound" } },
+    { "op": "createMessage", "as": "crossTicketInbound", "data": { "ticket": "$SEED.mainTicket.ID", "mailbox": 0, "verified": 0, "date": 1893459000, "subject": "{recordPrefix}-{runId} mail-edge cross ticket", "sender_email": "customer@example.test", "to_email": "support@example.test", "contenttype": "text/plain", "text": "inbound with cross-ticket reference" } },
+    { "op": "createMessage", "as": "crossTicketReply", "data": { "ticket": "$SEED.otherTicket.ID", "mailbox": 2, "verified": 1, "date": 1893459600, "reference": "$SEED.crossTicketInbound.ID", "subject": "{recordPrefix}-{runId} mail-edge cross ticket reply", "sender_email": "support@example.test", "to_email": "customer@example.test", "contenttype": "text/plain", "text": "same reference but different ticket" } }
+  ],
+  "turns": [
+    {
+      "id": "answer",
+      "prompt": "For tickets named \"{recordPrefix}-{runId} mail-edge ...\", count inbox messages (`mailbox` 0) that are still unanswered. A sent message answers an inbound only if it is later, on the same ticket, and its `reference` equals the inbound message ID. Do not count a sent reply that predates the inbound, references a different inbound, or crosses ticket boundaries. Output just the number on the RESULT line.",
+      "result": { "mode": "inline", "format": "scalar" },
+      "expect": {
+        "kind": "all",
+        "expectations": [
+          {
+            "kind": "computeUnansweredTicketMail",
+            "messageParams": { "filters": { "subject": { "~~*": "{recordPrefix}-{runId} mail-edge%" } }, "limit": 10000 },
+            "ticketParams": { "filters": { "visibility": 0, "name": { "~~*": "{recordPrefix}-{runId} mail-edge%" } }, "limit": 10000 }
+          },
+          {
+            "kind": "verifyTrace",
+            "severity": "efficiency",
+            "require": [
+              { "operation": "listTickets", "min": 1, "max": 1 },
+              { "operation": "listMessages", "min": 2, "max": 2 }
+            ],
+            "requireFilters": [
+              { "operation": "listTickets", "fields": ["visibility"] },
+              { "operation": "listMessages", "fields": ["mailbox", "ticket"] }
+            ],
+            "maxUpstreamRequests": 4,
+            "maxApiErrors": 0,
+            "assertions": [
+              { "path": "$.events[?(@.operationId=='listMessages')].request.body.filters.messageid", "absent": true }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "cleanup": "auto",
+  "coverage": { "entities": ["messages", "tickets"], "operations": ["listMessages", "listTickets"], "formats": ["scalar"], "rules": ["R-013", "R-022"] }
+}

@@ -3,6 +3,43 @@
 Notable changes to `@zeyos/client` and `@zeyos/cli`. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## 0.6.0
+
+### `@zeyos/cli` (`zeyos`)
+- Added direct resource coverage and aliases for common API nouns whose generated
+  operationIds differ from user-facing names, including group/user junctions,
+  mailing lists/recipients, price lists, price-list account junctions, prices,
+  and dunning junction aliases.
+- Expanded forgiving filter normalization for agent and shell workflows:
+  Mongo-style operators, bare comparison operators, array-to-`IN`, suffix forms
+  such as `field__in`/`field__nin`/`field__like`, and negative-set filters now
+  normalize to the native ZeyOS request shape and remain visible in dry-run JSON.
+- Expanded `zeyos sum` coverage and regression tests for actionsteps, payments,
+  and transactions, including the documented actionsteps oversized-page failure
+  mode.
+
+### Agent skills (shipped)
+- The generic ZeyOS entrypoint is slash-command-free and explicitly supports direct
+  execution for simple counts once the resource and filter constraints are clear.
+- Shared guidance now prefers `zeyos sum` for simple ungrouped totals while keeping
+  manual aggregation for grouped, joined, or conditional totals.
+
+### Agent test protocol (dev-only)
+- The fixed benchmark mode is now DeepSeek-only
+  (`openrouter/deepseek/deepseek-v4-flash`) and defaults to one-attempt strict
+  data (`--transient-retries 0`), while normal report runs can still use transient
+  retries.
+- Added efficiency budgets for direct count, b14, b22, dunning, mail, and sum
+  scenarios; pass-but-expensive cases are now separated from correctness defects
+  in Markdown and HTML scorecards.
+- Added transcript leakage detection for user-home/global skill paths and classifies
+  those runs as `ENVIRONMENT_DEFECT`.
+- Hardened RESULT parsing/output-contract checks for Markdown-wrapped markers and
+  file-output mistakes.
+- Added complex collections and mail regression scenarios and coverage for minimal
+  query shape, zero API errors, API-call budgets, provider/runner failure clarity,
+  and token/cost capture.
+
 ## 0.5.0
 
 ### `@zeyos/cli` (`zeyos`)

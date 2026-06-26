@@ -14,6 +14,8 @@ import {
 test('parseResultMarkers distinguishes inline, block and file forms', () => {
   assert.deepEqual(parseResultMarkers('noise\nRESULT: 42'), { mode: 'inline', format: null, raw: '42', filePath: null });
   assert.deepEqual(parseResultMarkers('**RESULT: 42**'), { mode: 'inline', format: null, raw: '42', filePath: null });
+  assert.deepEqual(parseResultMarkers('RESULT: **42**'), { mode: 'inline', format: null, raw: '42', filePath: null });
+  assert.deepEqual(parseResultMarkers('RESULT: `42`'), { mode: 'inline', format: null, raw: '42', filePath: null });
   const block = parseResultMarkers('text\nRESULT_BEGIN json\n{"a":1}\nRESULT_END\ntail');
   assert.equal(block.mode, 'block');
   assert.equal(block.format, 'json');
@@ -93,6 +95,18 @@ test('resolveResult parses a CSV result file from the workspace', async () => {
     await writeFile(path.join(dir, 'r.csv'), 'account_id,name\n10,Acme\n', 'utf8');
     const out = resolveResult('done\nRESULT_FILE: r.csv', { mode: 'file', format: 'csv' }, { workspaceDir: dir });
     assert.deepEqual(out.value, [{ account_id: '10', name: 'Acme' }]);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('resolveResult rejects inline path strings when the contract requires a file marker', async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'ap-result3-'));
+  try {
+    await writeFile(path.join(dir, 'r.csv'), 'account_id,name\n10,Acme\n', 'utf8');
+    const out = resolveResult('RESULT: r.csv', { mode: 'file', format: 'csv' }, { workspaceDir: dir });
+    assert.equal(out.value, null);
+    assert.match(out.error, /expected RESULT_FILE, got RESULT/);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

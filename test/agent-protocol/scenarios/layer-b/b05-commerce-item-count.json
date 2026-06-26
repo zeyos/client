@@ -8,10 +8,24 @@
   "tags": ["commerce-and-inventory", "resource-discovery"],
   "prompt": "Using the commerce-and-inventory skill, answer: how many catalog items (products) exist? Restrict to active records (visibility 0). Output just the number on the RESULT line, e.g. `RESULT: 56`.",
   "expect": {
-    "kind": "computeCount",
-    "op": "listItems",
-    "params": { "filters": { "visibility": 0 }, "limit": 10000 },
-    "predicates": [],
-    "match": "exact"
+    "kind": "all",
+    "expectations": [
+      {
+        "kind": "computeCount",
+        "op": "listItems",
+        "params": { "filters": { "visibility": 0 }, "limit": 10000 },
+        "predicates": [],
+        "match": "exact"
+      },
+      {
+        "kind": "verifyTrace",
+        "severity": "efficiency",
+        "require": [{ "operation": "listItems", "min": 1, "max": 1 }],
+        "maxUpstreamRequests": 2,
+        "maxApiErrors": 0,
+        "maxToolCalls": 6,
+        "maxZeyosCliCalls": 2
+      }
+    ]
   }
 }

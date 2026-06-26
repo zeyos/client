@@ -12,7 +12,7 @@ const events = [
 
 test('verifyTrace passes when required and ordered operations are present', () => {
   const res = verifyTrace({
-    require: [{ operation: 'listAccounts', min: 1 }, { operation: 'listTransactions', min: 1 }],
+    require: [{ operation: 'listAccounts', min: 1, max: 1 }, { operation: 'listTransactions', min: 1, max: 1 }],
     ordered: [['listAccounts', 'listTransactions']],
     interface: { require: ['cli'] },
     maxUpstreamRequests: 8
@@ -52,6 +52,27 @@ test('verifyTrace JSONPath assertion can require a filter to be absent', () => {
 test('verifyTrace enforces an upstream request budget', () => {
   const many = Array.from({ length: 10 }, () => ({ source: 'cli', operationId: 'listTickets', policy: 'allowed' }));
   assert.equal(verifyTrace({ maxUpstreamRequests: 8 }, { trace: many }).pass, false);
+});
+
+test('verifyTrace enforces per-operation and observed tool-call budgets as efficiency regressions', () => {
+  const many = [
+    { source: 'cli', operationId: 'listTickets', policy: 'allowed', status: 200 },
+    { source: 'cli', operationId: 'listTickets', policy: 'allowed', status: 200 }
+  ];
+  const res = verifyTrace({
+    severity: 'efficiency',
+    require: [{ operation: 'listTickets', min: 1, max: 1 }],
+    maxToolCalls: 3,
+    maxZeyosCliCalls: 1
+  }, {
+    trace: many,
+    toolSummary: { observed: true, totalCalls: 4, zeyosCalls: 2 }
+  });
+  assert.equal(res.pass, false);
+  assert.match(res.detail, /EFFICIENCY_REGRESSION/);
+  assert.match(res.detail, /operation listTickets seen 2/);
+  assert.match(res.detail, /observed tool calls 4/);
+  assert.match(res.detail, /ZeyOS CLI calls 2/);
 });
 
 test('verifyTrace can require filters on specific operations', () => {

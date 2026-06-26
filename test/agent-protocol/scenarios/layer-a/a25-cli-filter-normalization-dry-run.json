@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 2,
+  "id": "a25-cli-filter-normalization-dry-run",
+  "layer": "a",
+  "title": "CLI filter normalization is visible in dry-run descriptors",
+  "suite": ["regression", "cli"],
+  "tags": ["cli", "filters", "dry-run", "normalization"],
+  "knowledge": { "primarySkill": "zeyos-platform-and-schema", "okfConcepts": ["concepts/filters-vs-filter"] },
+  "interface": { "preferred": "cli", "required": ["cli"] },
+  "effects": { "fixtureMutates": false, "agentMode": "offline-read-only" },
+  "turns": [
+    {
+      "id": "answer",
+      "prompt": "Run CLI dry-runs with `--query --json` only, then return the normalized descriptor body filters as JSON with keys range, arrayIn, suffix, and negative. Cover: actionsteps `{\"status\":0,\"duedate\":{\"$lte\":4102444800}}`; addresses `{\"account\":[4628,4629],\"type\":[0,1]}`; accounts `{\"name__startswith\":\"AGENTTEST\",\"ID__gt\":4000}`; tickets `{\"status\":{\"$notIn\":[8,9,10]}}`. Do not send live API requests.",
+      "result": { "mode": "inline", "format": "json", "schema": { "type": "object", "required": ["range", "arrayIn", "suffix", "negative"] } },
+      "expect": {
+        "kind": "all",
+        "expectations": [
+          {
+            "kind": "verifyResult",
+            "assertions": [
+              { "path": "$.range.status", "equals": 0 },
+              { "path": "$.range.duedate['<=']", "equals": 4102444800 },
+              { "path": "$.arrayIn.account.IN", "present": true },
+              { "path": "$.arrayIn.type.IN", "present": true },
+              { "path": "$.suffix.lastname['~~*']", "equals": "AGENTTEST%" },
+              { "path": "$.suffix.ID['>']", "equals": 4000 },
+              { "path": "$.negative.status['!IN']", "present": true }
+            ]
+          },
+          { "kind": "verifyTrace", "severity": "efficiency", "maxUpstreamRequests": 0, "maxApiErrors": 0 }
+        ]
+      }
+    }
+  ],
+  "cleanup": "auto",
+  "coverage": { "entities": ["actionsteps", "addresses", "accounts", "tickets"], "operations": ["listActionSteps", "listAddresses", "listAccounts", "listTickets"], "formats": ["json"], "rules": ["R-012", "R-013"] }
+}

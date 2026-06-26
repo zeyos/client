@@ -21,9 +21,10 @@ export function renderHtmlScorecardDocument({ runId, instance, baseUrl, models =
     out.costUsd += row.stats.costUsd;
     out.tokens += row.stats.tokens;
     if (row.stats.verdict === 'PASS') out.pass += 1;
+    else if (row.stats.verdict === 'EXPENSIVE') out.expensive += 1;
     else out.fail += 1;
     return out;
-  }, { durationMs: 0, zeyosCalls: 0, zeyosUnknown: 0, toolCalls: 0, toolUnknown: 0, upstreamCalls: 0, apiErrors: 0, costUsd: 0, tokens: 0, pass: 0, fail: 0 });
+  }, { durationMs: 0, zeyosCalls: 0, zeyosUnknown: 0, toolCalls: 0, toolUnknown: 0, upstreamCalls: 0, apiErrors: 0, costUsd: 0, tokens: 0, pass: 0, expensive: 0, fail: 0 });
 
   return `<!doctype html>
 <html lang="en">
@@ -42,6 +43,7 @@ export function renderHtmlScorecardDocument({ runId, instance, baseUrl, models =
   --pass: #18794e;
   --fail: #b42318;
   --review: #8a5a00;
+  --expensive: #6b3fa0;
   --code: #101828;
 }
 * { box-sizing: border-box; }
@@ -64,6 +66,7 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: now
 .verdict-pass { color: var(--pass); }
 .verdict-fail { color: var(--fail); }
 .verdict-review { color: var(--review); }
+.verdict-expensive { color: var(--expensive); }
 .detail-cell { background: #fbfcfd; padding: 0; }
 .detail-wrap { padding: 16px; display: grid; gap: 16px; }
 .detail-section { border: 1px solid var(--line); border-radius: 6px; background: var(--panel); overflow: hidden; }
@@ -93,6 +96,7 @@ pre { margin: 0; padding: 12px; overflow: auto; color: var(--code); background: 
   <div class="summary">
     <span class="metric">${records.length} test cases</span>
     <span class="metric">${totals.pass} pass</span>
+    <span class="metric">${totals.expensive} pass but expensive</span>
     <span class="metric">${totals.fail} non-pass</span>
     <span class="metric">${formatDuration(totals.durationMs)} total</span>
     <span class="metric">${formatAggregateCount(totals.zeyosCalls, totals.zeyosUnknown)} zeyos calls</span>
@@ -150,7 +154,10 @@ function toggle(row) {
 
   function renderRecordRows({ record, index, stats }) {
     const detailId = `details-${index}`;
-    const verdictClass = stats.verdict === 'PASS' ? 'verdict-pass' : stats.verdict === 'FAIL' ? 'verdict-fail' : 'verdict-review';
+    const verdictClass = stats.verdict === 'PASS'
+      ? 'verdict-pass'
+      : stats.verdict === 'EXPENSIVE' ? 'verdict-expensive'
+        : stats.verdict === 'FAIL' ? 'verdict-fail' : 'verdict-review';
     return `<tr class="summary-row" tabindex="0" aria-expanded="false" data-detail-id="${detailId}">
   <td><div class="case-title">${esc(record.title || record.id)}</div><div class="case-id">${esc(record.id || '')}${record.classification ? ` - ${esc(record.classification)}` : ''}</div></td>
   <td class="num">${esc(formatDuration(stats.durationMs))}</td>
@@ -207,6 +214,7 @@ function recordStats(record, transcriptsByPath) {
     ...summary,
     verdict: record.classification === 'PASS'
       ? 'PASS'
+      : record.classification === 'EFFICIENCY_REGRESSION' ? 'EXPENSIVE'
       : record.classification === 'MANUAL_REVIEW' ? 'REVIEW'
         : record.classification === 'ENVIRONMENT_SKIP' ? 'SKIP'
           : 'FAIL'
@@ -245,6 +253,8 @@ function renderAttempt(attempt, transcriptsByPath) {
   const tools = attemptToolSummary(attempt, transcriptsByPath);
   const known = tools.observed !== false || (Number(tools.totalCalls) || 0) > 0 || (Number(attempt.traceSummary?.count) || 0) === 0;
   const verdict = attempt.pass === true ? 'PASS' : attempt.pass === null ? 'REVIEW' : 'FAIL';
+  const postTrace = attempt.successfulApiTrace ? '<span>post-trace runner/provider failure</span>' : '';
+  const envLeak = attempt.environmentLeaks?.length ? `<span>environment leak: ${esc(attempt.environmentLeaks[0].sample)}</span>` : '';
   return `<article class="attempt-card">
   <div class="attempt-head">
     <strong>${esc(attempt.model || '(unknown model)')}</strong>
@@ -256,6 +266,8 @@ function renderAttempt(attempt, transcriptsByPath) {
     <span>${Number(attempt.traceSummary?.apiErrors) || 0} API errors</span>
     <span>${esc(formatMoney(Number(attempt.usage?.costUsd) || 0))}</span>
     <span>${esc(formatTokens(Number(attempt.usage?.tokens?.total) || 0))} tokens</span>
+    ${postTrace}
+    ${envLeak}
   </div>
   <pre>${esc(transcript)}</pre>
 </article>`;

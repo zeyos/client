@@ -31,6 +31,7 @@ import {
   buildContinuationPrompt,
   detectPlannedNotExecuted,
   detectFailureKind,
+  detectSkillPathLeak,
   normalizeRunner,
   mergeTraceSummaries,
   mergeToolSummaries,
@@ -633,6 +634,8 @@ test('classify separates runner/model non-completion from client defects', () =>
   assert.equal(classify([{ pass: false, failureKind: 'runner_timeout' }], false), 'RUNNER_FAILURE');
   assert.equal(classify([{ pass: false, failureKind: 'runner_error' }, { pass: false, failureKind: 'runner_timeout' }], false), 'RUNNER_FAILURE');
   assert.equal(classify([{ pass: false, failureKind: 'no_result' }, { pass: false, failureKind: 'tool_misuse' }], false), 'MODEL_NONCOMPLETION');
+  assert.equal(classify([{ pass: false, failureKind: 'environment_defect' }], false), 'ENVIRONMENT_DEFECT');
+  assert.equal(classify([{ pass: false, failureKind: 'efficiency_regression' }], false), 'EFFICIENCY_REGRESSION');
   assert.equal(classify([{ pass: false, failureKind: 'assertion_mismatch' }], false), 'CLIENT_DEFECT');
 });
 
@@ -677,6 +680,23 @@ test('detectFailureKind tags common failed attempt causes', () => {
     detectFailureKind({ agent: { timedOut: false, stdout: 'RESULT: done', stderr: '', code: 0 }, resultRaw: 'done', evalRes: { pass: false, detail: 'SAFETY VIOLATION: deleted' } }),
     'safety_violation'
   );
+  assert.equal(
+    detectFailureKind({ agent: { timedOut: false, stdout: 'RESULT: 3', stderr: '', code: 0 }, resultRaw: '3', evalRes: { pass: false, detail: 'EFFICIENCY_REGRESSION: upstream requests 5 > budget 2' } }),
+    'efficiency_regression'
+  );
+  assert.equal(
+    detectFailureKind({ agent: { timedOut: false, stdout: 'RESULT: 3', stderr: '', code: 0 }, resultRaw: '3', evalRes: { pass: false, detail: 'ENVIRONMENT_DEFECT: runner-global skill path leaked' } }),
+    'environment_defect'
+  );
+});
+
+test('detectSkillPathLeak flags runner-global skill paths but not workspace copies', () => {
+  const leaked = detectSkillPathLeak('read /Users/peter/.config/opencode/skills/zeyos/SKILL.md', '', { HOME: '/Users/peter' });
+  assert.ok(leaked);
+  assert.match(leaked.sample, /\.config\/opencode\/skills/);
+
+  const clean = detectSkillPathLeak('read /tmp/run/workspaces/attempt/agents/zeyos/SKILL.md', '', { HOME: '/Users/peter' });
+  assert.equal(clean, null);
 });
 
 test('buildPrompt points at the workspace skill root and omits the inlined operating contract in bare-skill mode', () => {
@@ -1048,13 +1068,9 @@ test('runScenario refreshes the subprocess token before an attempt', async () =>
   }
 });
 
-test('benchmark constants pin the OpenRouter matrix and read-only count set', () => {
+test('benchmark constants pin the DeepSeek-only fixed read-only count set', () => {
   assert.deepEqual(BENCHMARK_MODELS, [
-    'openrouter/openai/gpt-oss-120b',
-    'openrouter/xiaomi/mimo-v2.5',
-    'openrouter/z-ai/glm-5.2',
-    'openrouter/deepseek/deepseek-v4-flash',
-    'openrouter/moonshotai/kimi-k2.7-code'
+    'openrouter/deepseek/deepseek-v4-flash'
   ]);
   assert.ok(BENCHMARK_SCENARIO_IDS.includes('b02-account-customer-count'));
   assert.ok(BENCHMARK_SCENARIO_IDS.includes('b14-mail-unanswered-ticket-count'));

@@ -26,7 +26,22 @@
         "expectations": [
           { "kind": "computeProjection", "sources": { "tx": { "op": "listTransactions", "params": { "filters": { "account": "$SEED.account.ID", "type": 3 }, "fields": ["ID", "duedate"], "limit": 10000 } }, "d2t": { "op": "listDunningToTransactions", "params": { "fields": ["transaction", "dunning"], "limit": 10000 } } }, "pipeline": [{ "from": { "source": "tx" } }, { "where": { "field": "duedate", "lt": 1893456000 } }, { "join": { "source": "d2t", "on": { "left": "ID", "right": "transaction" } } }, { "distinct": { "by": "ID" } }, { "project": { "value": "ID" } }], "compareTo": "$RESULT.in_dunning[*].invoiceId", "comparator": "set" },
           { "kind": "computeProjection", "sources": { "tx": { "op": "listTransactions", "params": { "filters": { "account": "$SEED.account.ID", "type": 3 }, "fields": ["ID", "duedate"], "limit": 10000 } }, "d2t": { "op": "listDunningToTransactions", "params": { "fields": ["transaction", "dunning"], "limit": 10000 } } }, "pipeline": [{ "from": { "source": "tx" } }, { "where": { "field": "duedate", "lt": 1893456000 } }, { "antiJoin": { "source": "d2t", "on": { "left": "ID", "right": "transaction" } } }, { "project": { "value": "ID" } }], "compareTo": "$RESULT.overdue_not_in_dunning[*].invoiceId", "comparator": "set" },
-          { "kind": "verifyTrace", "require": [{ "operation": "listDunningNotices", "min": 1 }, { "operation": "listDunningToTransactions", "min": 1 }] }
+          { "kind": "computeProjection", "sources": { "tx": { "op": "listTransactions", "params": { "filters": { "account": "$SEED.account.ID", "type": 3 }, "fields": ["ID", "duedate"], "limit": 10000 } } }, "pipeline": [{ "from": { "source": "tx" } }, { "where": { "field": "duedate", "gte": 1893456000 } }, { "project": { "value": "ID" } }], "compareTo": "$RESULT.not_due[*].invoiceId", "comparator": "set" },
+          {
+            "kind": "verifyTrace",
+            "severity": "efficiency",
+            "require": [
+              { "operation": "listTransactions", "min": 1, "max": 1 },
+              { "operation": "listDunningNotices", "min": 1, "max": 1 },
+              { "operation": "listDunningToTransactions", "min": 1, "max": 1 }
+            ],
+            "requireFilters": [
+              { "operation": "listTransactions", "fields": ["account", "type"] },
+              { "operation": "listDunningNotices", "fields": ["account"] }
+            ],
+            "maxUpstreamRequests": 4,
+            "maxApiErrors": 0
+          }
         ]
       }
     }
