@@ -62,6 +62,7 @@ zeyos resources --json             # list every available resource type
 zeyos describe <resource>          # fields, types, enums, foreign keys (offline)
 
 zeyos count  <resource> --filter '{"status":1}'
+zeyos sum    <resource> <field> --filter '{"status":[1,3]}'
 zeyos list   <resource> --filter '{…}' --fields ID,name,status --sort -lastmodified --limit 50 --json
 zeyos get    <resource> <id> --json          # single record (alias: show)
 
@@ -84,13 +85,22 @@ you intend before hitting the live instance — especially before any write. Add
 - **Counting:** use `zeyos count <resource>`. Do **not** `zeyos list` and count rows —
   `list` defaults to `--limit 50`, so you get the page size, not the total. In `--json`
   the only truncation signal is a stderr `Showing X–Y of TOTAL` hint.
-- **Totals / sums:** there is no server-side sum. `list` the matching records with the
-  numeric field and a high `--limit` (up to 10000), then add them up yourself.
+- **Stop after count:** for a simple "how many" task, a successful `zeyos count` is
+  sufficient. Do not list records afterward unless the user asks for them or the count
+  command fails.
+- **Joined counts are not simple counts:** questions such as unanswered mail, missing
+  related records, or "with no later reply" require the domain workflow and usually a
+  small client-side join. Do not answer from a raw `zeyos count` on one resource.
+- **Totals / sums:** for a simple numeric total, use `zeyos sum <resource> <field>
+  --filter '{...}'`; it pages internally and prints the total. For grouped, conditional,
+  or joined totals, list the needed fields and aggregate client-side.
 - **Filters:** the flag is `--filter '{…}'` (JSON). The CLI writes it to the API's
   `filters` key internally, which is the form that works for foreign-key (GIN-indexed)
   fields like `account`, `project`, `ticket`. **Only filter on columns the resource
   actually has** — filtering an unknown field returns an opaque HTTP 400 with no hint
   which field was wrong. When unsure, run `zeyos describe <resource>` first.
+  Arrays in CLI filters normalize to `IN`, so `{"status":[1,3]}` is the compact form
+  for "status is 1 or 3".
 - **`visibility: 0`** hides archived/deleted records — but **only some resources have a
   `visibility` column** (e.g. `tickets`, `accounts`, `items` do; `transactions` does
   **not** — adding `"visibility":0` there 400s). Include it on resources that have it

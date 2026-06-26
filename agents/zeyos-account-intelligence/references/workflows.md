@@ -79,9 +79,15 @@ Use this for prompts like:
 
 Recommended approach:
 
-1. Query addresses with type `1` (`BILLING_BILLING`) for the population you care about.
-2. Compare against the account set client-side.
-3. Report missing accounts and, if useful, whether they still have shipping addresses.
+1. Query the customer account population first. Company names are in `accounts.lastname`,
+   not `accounts.name`:
+   `zeyos list accounts --filter '{"type":1,"visibility":0,"lastname":{"~~*":"<prefix>%"}}' --fields ID,lastname --limit 1000 --json`
+2. Query addresses for those accounts in one call. `addresses` has no `visibility`
+   column. Use type `1` for billing and type `0` for shipping:
+   `zeyos list addresses --filter '{"account":[<accountIds>],"type":[0,1]}' --fields ID,account,type --limit 1000 --json`
+3. Compare client-side: keep accounts with no type `1` row, and set `has_shipping`
+   from presence of a type `0` row. For CSV exports, write the file first and end with
+   the required `RESULT_FILE:` marker.
 
 ## Common Failure Modes
 

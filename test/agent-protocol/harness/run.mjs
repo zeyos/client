@@ -85,6 +85,7 @@ const BENCHMARK_SCENARIO_IDS = [
   'b14-mail-unanswered-ticket-count',
   'b16-open-due-actionsteps-count'
 ];
+const DEFAULT_RUNNER = { command: 'opencode', args: ['run', '--model', '{model}', '{prompt}'], cwd: '.', timeoutMs: 240000 };
 
 // The agent contract is inlined into every prompt so it does not depend on the
 // runner auto-discovering AGENTS.md (opencode scopes file access to its cwd).
@@ -313,7 +314,7 @@ async function main() {
   const ap = config.agentProtocol || {};
   const recordPrefix = ap.recordPrefix || 'AGENTTEST';
   const models = opts.models || ap.models || [];
-  const runner = { ...(ap.runner || { command: 'opencode', args: ['run', '--model', '{model}', '{prompt}'], cwd: '.', timeoutMs: 240000 }) };
+  const runner = normalizeRunner({ ...(ap.runner || DEFAULT_RUNNER) });
   if (opts.timeoutMs != null) runner.timeoutMs = opts.timeoutMs;
   const transientRetries = opts.transientRetries ?? ap.rotation?.transientRetries ?? 1;
   const canarySet = new Set(ap.rotation?.canaryIds || []);
@@ -757,7 +758,7 @@ function collectStateSnapshot(expect) {
 
 /** Continuation prompt for turn N>0: replay the conversation so the single-shot runner has context. */
 function buildContinuationPrompt(turn, prior, ctx) {
-  const lines = ['/zeyos', '', 'Continue the same session. Conversation so far:', ''];
+  const lines = ['ZeyOS benchmark task', '', 'Continue the same session. Conversation so far:', ''];
   for (const p of prior) {
     lines.push(`USER: ${prepareZeyosTaskText(p.prompt)}`, `ASSISTANT: ${String(p.stdout || '').slice(-1500)}`, '');
   }
@@ -770,7 +771,7 @@ function buildContinuationPrompt(turn, prior, ctx) {
 }
 
 function buildPrompt(scenario, ctx, opts = {}) {
-  const lines = ['/zeyos'];
+  const lines = ['ZeyOS benchmark task'];
   // Knowledge context: which body of guidance the agent is pointed at. `skills`
   // (default) preserves the original behaviour; `okf` points only at the OKF
   // bundle; `both` offers each. This is the axis the loop uses to measure OKF.
@@ -782,16 +783,15 @@ function buildPrompt(scenario, ctx, opts = {}) {
   // skill itself -- that is the self-containment test. Harness mode inlines AGENTS.md.
   if (!opts.bareSkill && AGENTS_CONTRACT) lines.push('', AGENTS_CONTRACT, '', '--- TASK ---', '');
   if (useSkill) {
-    // Every live runner prompt starts by invoking the generic /zeyos skill. The harness
-    // only points at that entrypoint; the skill is responsible for routing to any
-    // specialized zeyos-* guide based on the task itself.
+    // Avoid invoking a runner-global slash command here: the benchmark must use the
+    // copied attempt skill root, not whatever skills are installed in the user's home.
     const root = opts.skillRootLabel || '$ZEYOS_SKILL_ROOT';
     lines.push(
-      `This prompt intentionally enters through the /zeyos skill. If the runner did not ` +
-        `expand the slash command for you, read ${root}/zeyos/SKILL.md before acting. ` +
-        `Let /zeyos decide which specialized zeyos-* guide to load from the user's task; ` +
-        `do not rely on the harness to name a specialized guide. If your file-read tool ` +
-        `does not expand environment variables, first run ` +
+      `Use the workspace ZeyOS skill pack for this task. Read ${root}/zeyos/SKILL.md ` +
+        `before acting, then let that generic guide route to any specialized zeyos-* ` +
+        `guide required by the user's task. Do not invoke a slash command and do not ` +
+        `read skills from the runner's global config. If your file-read tool does not ` +
+        `expand environment variables, first run ` +
         '`printf "%s\\n" "$ZEYOS_SKILL_ROOT"` in the shell and read the absolute paths it prints.',
       ''
     );
@@ -1042,6 +1042,15 @@ function safeInstanceFromUrl(url) {
   }
 }
 
+function normalizeRunner(runner) {
+  const out = { ...runner, args: [...(runner.args || [])] };
+  const command = path.basename(String(out.command || ''));
+  if (command === 'opencode' && out.args[0] === 'run' && !out.args.includes('--pure')) {
+    out.args.splice(1, 0, '--pure');
+  }
+  return out;
+}
+
 function fail(msg) {
   console.error(`\n✖ ${msg}\n`);
   process.exit(1);
@@ -1059,6 +1068,7 @@ export {
   detectPlannedNotExecuted,
   detectFailureKind,
   detectToolMisuse,
+  normalizeRunner,
   runScenario,
   buildModelScorecard,
   mergeTraceSummaries,

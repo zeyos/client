@@ -41,21 +41,29 @@ and `zeyos resources` are offline and safe for orienting yourself.
 When you only have this skill text and a shell, keep the loop small:
 
 1. Pick the resource from the domain workflow.
-2. If the question says "how many", run `zeyos count …` first.
+2. If the question says "how many" and one filtered resource directly answers it, run
+   `zeyos count …` first. Joined/anti-join counts (for example unanswered mail, missing
+   related records, or "with no later reply") need the domain workflow instead.
 3. Put filters inline as single-quoted JSON: `--filter '{"visibility":0}'`.
 4. If a field is uncertain, run `zeyos describe <resource>` before filtering on it.
 5. Never answer from a plan. Run the command, read stdout/stderr, then report the result.
+
+For a simple single-resource count, a successful `zeyos count <resource> ...` is the
+answer. Do not follow it with `zeyos list` just to verify the number; listing costs an
+extra API call, can hit server limits, and is only needed when the user asks for the
+records or the count fails.
 
 ## First move for the common question shapes
 
 | The user asks… | Your first command |
 |----------------|--------------------|
-| "How many X …?" | `zeyos count <resource> --filter '{…}'` |
+| "How many X …?" where one resource/filter answers it | `zeyos count <resource> --filter '{…}'` |
 | "List / show X …" | `zeyos list <resource> --filter '{…}' --fields … --json` |
 | "Details of record N" | `zeyos get <resource> <id> --json` |
 | "What fields / enums does X have?" | `zeyos describe <resource>` |
 | "Is resource X even available?" | `zeyos resources --json` |
-| A total / sum (e.g. revenue) | `zeyos list <resource> --filter '{…}' --fields … --limit 10000 --json`, then sum client-side |
+| A simple numeric total / sum | `zeyos sum <resource> <field> --filter '{…}'` |
+| A grouped or joined total | `zeyos list <resource> --filter '{…}' --fields … --limit 10000 --json`, then aggregate client-side |
 | "Will this request do what I think?" | append `--query` to any data command to print the route + JSON body **without sending it** (preview a write before running it) |
 
 Then read [zeyos-query-patterns.md](./zeyos-query-patterns.md) for the rules that make
@@ -71,6 +79,7 @@ the matching domain skill for the metric definitions.
 - Prefer inline JSON for small filters. For complex filters, `zeyos list` and
   `zeyos count` support `--filter-file <path>`, while `zeyos create` and
   `zeyos update` support `--data-file <path>`.
+- In CLI filters, arrays normalize to `IN`: `--filter '{"status":[1,3]}'`.
 - Do not pass `@filter.json` or any other response-file syntax; use the documented
   `--filter-file` / `--data-file` flags when a file is safer than inline JSON.
 - For counts, use `zeyos count <resource>` rather than `zeyos list … --json | length`.

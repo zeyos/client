@@ -6,6 +6,8 @@ description: Detect duplicate accounts, completeness gaps, stale data and schema
 # ZeyOS Data Quality and Governance
 
 Read [../shared/zeyos-agent-operating-guide.md](../shared/zeyos-agent-operating-guide.md) and [../shared/zeyos-query-patterns.md](../shared/zeyos-query-patterns.md) first. See the OKF `playbooks/duplicate-account-review` playbook and `concepts/null-empty-missing` concept.
+Read [references/workflows.md](references/workflows.md) for concrete duplicate, anti-join,
+and remediation-preview query plans.
 
 > **Detection is not remediation.** Find and explain; never bulk-merge, archive or delete
 > from a fuzzy match. Each fix is a human decision on a named ID.
@@ -33,6 +35,23 @@ Typical prompts:
 5. Keep detection separate from remediation. For a "clean up" request, return a bounded
    preview: exact IDs + proposed per-ID action, and request a human decision (R-009, R-023).
 6. Re-query after any approved, bounded remediation.
+
+## Fast Path: Missing Billing Addresses
+
+For "active customers whose name starts with X and missing a billing address", use
+`accounts.lastname` with the ZeyOS pattern operator. Do **not** invent `name`,
+`name_starts`, or `lastname_starts` filters.
+If the prompt already states that billing is address type `1`, shipping is type `0`, and
+`addresses` has no visibility column, skip schema discovery and run the two list queries.
+Batch address lookup with `account:[ids]`; do not loop one account at a time.
+
+```bash
+zeyos list accounts --filter '{"type":1,"visibility":0,"lastname":{"~~*":"<prefix>%"}}' --fields ID,lastname --limit 1000 --json
+zeyos list addresses --filter '{"account":[<accountIds>],"type":[0,1]}' --fields ID,account,type --limit 1000 --json
+```
+
+`addresses` has no `visibility` column. Keep accounts with no type `1` address; derive
+`has_shipping` from presence of a type `0` address.
 
 ## Safety
 

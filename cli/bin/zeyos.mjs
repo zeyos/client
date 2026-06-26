@@ -10,6 +10,7 @@
  *   whoami               Show current user info
  *   list <resource>      List records
  *   count <resource>     Count records
+ *   sum <resource>       Sum a numeric field across matching records
  *   get <resource> <id>  Fetch a single record
  *   show <resource> <id> Alias for get
  *   create <resource>    Create a new record
@@ -42,6 +43,7 @@ ${_c.bold('Commands:')}
   ${_c.cyan('whoami')}               Show currently authenticated user
   ${_c.cyan('list')}   <resource>    List / query records
   ${_c.cyan('count')}  <resource>    Count records (with optional filter)
+  ${_c.cyan('sum')}    <resource> <field>  Sum a numeric field
   ${_c.cyan('get')}    <resource> <id>  Fetch a single record by ID
   ${_c.cyan('show')}   <resource> <id>  Alias for get
   ${_c.cyan('create')} <resource>    Create a new record
@@ -68,6 +70,7 @@ ${_c.bold('Examples:')}
   ${_z} list tickets --filter '{"status":1}' --sort -lastmodified
   ${_z} list tickets --filter-file ./filters/open-tickets.json
   ${_z} count tickets --filter '{"status":1}'
+  ${_z} sum actionsteps effort --filter '{"status":[1,3]}'
   ${_z} get ticket 42
   ${_z} get ticket 42 --all
   ${_z} create ticket --name "Fix login bug" --priority 3
@@ -105,6 +108,7 @@ const OPTIONS = {
   'sort':       { type: 'string' },
   'limit':      { type: 'string' },
   'offset':     { type: 'string' },
+  'page-size':  { type: 'string' },
   'expand':     { type: 'string' },
   'extdata':    { type: 'boolean' },
   'tags':       { type: 'boolean' },
@@ -127,6 +131,12 @@ const OPTIONS = {
   'from-current': { type: 'boolean' },
 };
 
+const COMMON_COMMAND_HELP = `\
+Global options:
+  --profile <name>     Use a named credential profile for this command
+  --no-color           Disable ANSI colors
+`;
+
 // ── Command registry ──────────────────────────────────────────────────────────
 // Maps every command and alias to the module that implements it.
 
@@ -136,6 +146,7 @@ const COMMANDS = {
   whoami:    '../commands/whoami.mjs',
   list:      '../commands/list.mjs',
   count:     '../commands/count.mjs',
+  sum:       '../commands/sum.mjs',
   get:       '../commands/get.mjs',
   show:      '../commands/get.mjs',
   create:    '../commands/create.mjs',
@@ -161,6 +172,7 @@ const COMMANDS = {
 // exception: they accept arbitrary `--<field>` flags, marked with `null` below.
 
 const ALWAYS_FLAGS = ['help', 'json', 'yaml', 'no-color', 'profile'];
+const LEADING_FLAGS = [...ALWAYS_FLAGS, 'version', 'query'];
 const SKILLS_FLAGS = ['target', 'dir', 'global', 'local', 'force', 'yes', 'no-logo'];
 const OKF_FLAGS    = ['dir', 'out', 'force', 'no-logo'];
 const PROFILE_FLAGS = ['base-url', 'client-id', 'secret', 'local', 'from-current'];
@@ -173,6 +185,7 @@ const COMMAND_FLAGS = {
   whoami:    ['show-token'],
   list:      ['fields', 'filter', 'filter-file', 'sort', 'limit', 'offset', 'extdata', 'expand', 'query'],
   count:     ['filter', 'filter-file', 'query'],
+  sum:       ['filter', 'filter-file', 'limit', 'offset', 'page-size', 'query'],
   get:       GET_FLAGS,
   show:      GET_FLAGS,
   create:    null,
@@ -210,16 +223,26 @@ async function main() {
     process.exit(0);
   }
 
-  const command = argv[0];
-
-  // A leading flag (e.g. `zeyos --invalid`) is not a command — surface it as a
-  // bad option rather than letting it masquerade as one.
-  if (command.startsWith('-')) {
-    process.stderr.write(`Unknown option: "${command}".  Run 'zeyos --help' for usage.\n`);
-    process.exit(1);
+  const lead = _splitLeadingFlags(argv);
+  if (lead.values.help && lead.argv.length === 0) {
+    process.stdout.write(HELP);
+    process.exit(0);
+  }
+  if (lead.values.version && lead.argv.length === 0) {
+    process.stdout.write(_VERSION + '\n');
+    process.exit(0);
+  }
+  if (lead.argv.length === 0) {
+    process.stdout.write(HELP);
+    process.exit(0);
   }
 
-  const rest    = argv.slice(1);
+  const command = lead.argv[0];
+  if (command.startsWith('-')) {
+    _failLeadingOption(command);
+  }
+
+  const rest    = lead.argv.slice(1);
 
   if (process.env.ZEYOS_CREDENTIALS_READONLY && CREDENTIAL_MUTATION_COMMANDS.has(command)) {
     process.stderr.write(`Credential command "${command}" is disabled because ZEYOS_CREDENTIALS_READONLY is set.\n`);
@@ -228,7 +251,9 @@ async function main() {
 
   // Parse remaining args permissively: known options are parsed normally and
   // unknown --key value flags are captured too (so create/update accept fields).
-  const { values, positional } = _parsePermissive(rest, OPTIONS);
+  const parsed = _parsePermissive(rest, OPTIONS);
+  const values = { ...lead.values, ...parsed.values };
+  const positional = parsed.positional;
 
   const modulePath = COMMANDS[command];
   if (!modulePath) {
@@ -239,7 +264,7 @@ async function main() {
   const mod = await import(modulePath);
 
   if (values.help) {
-    process.stdout.write(mod.USAGE ?? HELP);
+    process.stdout.write(_formatCommandHelp(mod.USAGE ?? HELP));
     process.exit(0);
   }
 
@@ -261,10 +286,120 @@ async function main() {
     }
   }
 
+  _validateKnownStringValues(values);
+
   await mod.run(values, positional);
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+/**
+ * Parse documented global flags that appear before the command name, e.g.
+ * `zeyos --profile dev whoami`. Command-specific flags remain after the
+ * command so the per-command allow-list can validate them.
+ */
+function _splitLeadingFlags(argv) {
+  const values = {};
+  let i = 0;
+
+  while (i < argv.length) {
+    const arg = argv[i];
+
+    if (arg === '--') {
+      return { values, argv: argv.slice(i + 1) };
+    }
+
+    if (arg.startsWith('--')) {
+      const eqIdx    = arg.indexOf('=');
+      const key      = eqIdx === -1 ? arg.slice(2) : arg.slice(2, eqIdx);
+      const inlineVal = eqIdx === -1 ? undefined : arg.slice(eqIdx + 1);
+      const opt      = OPTIONS[key];
+
+      if (!LEADING_FLAGS.includes(key)) {
+        _failLeadingOption(arg);
+      }
+
+      if (opt?.type === 'boolean') {
+        values[key] = true;
+        i++;
+        continue;
+      }
+
+      if (opt?.type === 'string') {
+        if (inlineVal !== undefined) {
+          values[key] = inlineVal;
+          i++;
+        } else {
+          const next = argv[i + 1];
+          if (next !== undefined && next.startsWith('--')) {
+            values[key] = '';
+            i++;
+          } else {
+            values[key] = next ?? '';
+            i += 2;
+          }
+        }
+        continue;
+      }
+    }
+
+    if (arg.startsWith('-') && arg.length === 2) {
+      const short = arg[1];
+      const match = Object.entries(OPTIONS).find(([, o]) => o.short === short);
+      if (!match || !LEADING_FLAGS.includes(match[0])) {
+        _failLeadingOption(arg);
+      }
+
+      const [key, opt] = match;
+      if (opt.type === 'boolean') {
+        values[key] = true;
+        i++;
+      } else {
+        const next = argv[i + 1];
+        if (next !== undefined && next.startsWith('--')) {
+          values[key] = '';
+          i++;
+        } else {
+          values[key] = next ?? '';
+          i += 2;
+        }
+      }
+      continue;
+    }
+
+    break;
+  }
+
+  return { values, argv: argv.slice(i) };
+}
+
+function _failLeadingOption(flag) {
+  process.stderr.write(`Unknown option: "${flag}".  Run 'zeyos --help' for usage.\n`);
+  process.exit(1);
+}
+
+function _formatCommandHelp(usage) {
+  if (usage === HELP || /--profile\s+<name>/.test(usage)) {
+    return usage;
+  }
+  if (/Global options:\n/.test(usage)) {
+    return usage.replace(
+      /Global options:\n/,
+      `Global options:\n  --profile <name>           Use a named credential profile for this command\n  --no-color                 Disable ANSI colors\n`
+    );
+  }
+  const trimmed = usage.endsWith('\n') ? usage : `${usage}\n`;
+  return `${trimmed}\n${COMMON_COMMAND_HELP}`;
+}
+
+function _validateKnownStringValues(values) {
+  for (const [key, value] of Object.entries(values)) {
+    if (OPTIONS[key]?.type === 'string' && value === '') {
+      process.stderr.write(`Option --${key} requires a value.\n`);
+      process.exit(1);
+    }
+  }
+}
 
 /**
  * Parse argv with known options; capture unknown --key value pairs too.

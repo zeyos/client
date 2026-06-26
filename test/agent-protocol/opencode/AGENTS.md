@@ -34,20 +34,32 @@ const client = createZeyosClient({
 
 ## Skills and references
 
-The task prompt starts with `/zeyos`. Treat that as the general ZeyOS entrypoint. If the
-runner has not expanded the slash command, read the generic skill yourself and let it
-route to any specialized `zeyos-*` skill from the actual user request.
+The task prompt points at the copied workspace skill root. Read the generic ZeyOS
+entrypoint yourself and let it route to any specialized `zeyos-*` skill from the actual
+user request. Do not invoke a runner-global slash command; benchmark runs must not depend
+on skills installed under the user's home directory.
 
 1. `$ZEYOS_REPO_ROOT/agents/zeyos/SKILL.md` — entrypoint and routing rules.
 2. `$ZEYOS_REPO_ROOT/agents/shared/zeyos-query-patterns.md` — default playbook.
 3. The specialized `$ZEYOS_REPO_ROOT/agents/zeyos-*/SKILL.md` and `references/workflows.md`
-   chosen by `/zeyos` for the task.
+   chosen by the generic ZeyOS guide for the task.
 4. `$ZEYOS_REPO_ROOT/agents/shared/zeyos-entity-reference.md` when an entity is unclear.
 
 Include `visibility: 0` in filters on resources that **have** a `visibility` column (e.g.
 tickets, accounts, items) unless the task explicitly wants archived records. Some resources
 (e.g. `transactions`) have no such column — filtering on it there returns an opaque HTTP
 400. Check with `zeyos describe <resource>` when unsure.
+
+For simple "how many" tasks, run `zeyos count <resource> ...` and stop after a successful
+count. Do not list records afterward merely to verify the number; the harness verifies the
+answer independently.
+
+Joined/anti-join counts are not simple counts. If the task asks for "with no later reply",
+"missing related row", "unanswered", or similar relationship logic, follow the relevant
+domain skill and list the minimal fields needed for the join.
+
+For simple numeric totals, run `zeyos sum <resource> <field> --filter '{...}'`. It pages
+internally and avoids ad hoc scripts for ungrouped sums.
 
 ## Safety rules (hard constraints)
 

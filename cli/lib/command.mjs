@@ -99,6 +99,134 @@ export function parseJsonOptionOrFile(values, flagName, fileFlagName = `${flagNa
   return undefined;
 }
 
+const FILTER_OPERATOR_ALIASES = {
+  $lt: '<',
+  $lte: '<=',
+  $gt: '>',
+  $gte: '>=',
+  $ne: '!=',
+  $in: 'IN',
+  $nin: '!IN',
+  $notIn: '!IN',
+  lt: '<',
+  lte: '<=',
+  gt: '>',
+  gte: '>=',
+  ne: '!=',
+  in: 'IN',
+  nin: '!IN',
+  notIn: '!IN',
+  notin: '!IN'
+};
+
+const FILTER_SUFFIX_OPERATOR_ALIASES = {
+  lt: '<',
+  lte: '<=',
+  gt: '>',
+  gte: '>=',
+  ne: '!=',
+  in: 'IN',
+  nin: '!IN',
+  notin: '!IN'
+};
+
+const FILTER_PATTERN_SUFFIXES = new Set([
+  'startswith',
+  'istartswith',
+  'like',
+  'ilike',
+  'contains',
+  'icontains',
+  'regex',
+  'iregex'
+]);
+
+export function normalizeFilterOperators(value, options = {}) {
+  if (Array.isArray(value)) {
+    return value.map((item) => normalizeFilterOperators(item, options));
+  }
+  if (!value || typeof value !== 'object') return value;
+
+  const out = {};
+  for (const [key, child] of Object.entries(value)) {
+    const suffixFilter = parseFilterSuffix(key, child, options);
+    if (suffixFilter) {
+      mergeFieldFilter(out, suffixFilter.field, suffixFilter.operator, suffixFilter.value);
+      continue;
+    }
+
+    const normalizedKey = FILTER_OPERATOR_ALIASES[key] || key;
+    const outputKey = isFilterOperatorKey(normalizedKey)
+      ? normalizedKey
+      : normalizeFieldAlias(normalizedKey, options);
+    const normalizedChild = normalizeFilterOperators(child, options);
+    out[outputKey] = Array.isArray(normalizedChild) && !isFilterOperatorKey(outputKey)
+      ? { IN: normalizedChild }
+      : normalizedChild;
+  }
+  return out;
+}
+
+function isFilterOperatorKey(key) {
+  return ['<', '<=', '>', '>=', '!=', 'IN', '!IN', '~~*'].includes(key);
+}
+
+function normalizeFieldAlias(field, options = {}) {
+  return options.fieldAliases?.[field] || field;
+}
+
+function parseFilterSuffix(key, child, options) {
+  const separator = key.lastIndexOf('__');
+  if (separator <= 0) return null;
+
+  const rawField = key.slice(0, separator);
+  const suffix = key.slice(separator + 2).toLowerCase();
+  const field = normalizeFieldAlias(rawField, options);
+
+  if (Object.prototype.hasOwnProperty.call(FILTER_SUFFIX_OPERATOR_ALIASES, suffix)) {
+    return {
+      field,
+      operator: FILTER_SUFFIX_OPERATOR_ALIASES[suffix],
+      value: normalizeFilterOperators(child, options)
+    };
+  }
+
+  if (FILTER_PATTERN_SUFFIXES.has(suffix)) {
+    return {
+      field,
+      operator: '~~*',
+      value: patternValueForSuffix(suffix, child)
+    };
+  }
+
+  return null;
+}
+
+function patternValueForSuffix(suffix, child) {
+  const value = String(child ?? '');
+  if (suffix === 'startswith' || suffix === 'istartswith') return `${value}%`;
+  if (suffix === 'contains' || suffix === 'icontains') return `%${value}%`;
+  if (suffix === 'regex' || suffix === 'iregex') return regexLikeToSqlLike(value);
+  return value;
+}
+
+function regexLikeToSqlLike(value) {
+  return String(value)
+    .replace(/^\^/, '')
+    .replace(/\$$/, '')
+    .replace(/\\.\\*/g, '%')
+    .replace(/\.\*/g, '%');
+}
+
+function mergeFieldFilter(out, field, operator, value) {
+  const existing = out[field];
+  if (existing && typeof existing === 'object' && !Array.isArray(existing)) {
+    out[field] = { ...existing, [operator]: value };
+    return;
+  }
+  out[field] = { [operator]: value };
+}
+
 /** Cheap structural check: does this string look like an intended JSON object? */
 function looksLikeJsonObject(value) {
   return typeof value === 'string' && value.trim().startsWith('{');

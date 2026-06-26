@@ -28,6 +28,27 @@ Typical prompts:
 7. Treat textual drafts as safe. Treat message record creation/update as a write and sending or marking `mailbox=2` as high risk; require explicit confirmation plus verified sender context before any real mail mutation.
 8. Escalate to `@zeyos/client` when you need binary content, MIME expansion, or richer message correlation than the CLI can express cleanly.
 
+## Fast Path: Unanswered Inbox Count On Open Tickets
+
+For "how many inbox messages (`mailbox` 0) are linked to open tickets and still
+unanswered", use the workflow directly. This is a joined count, not a simple
+`zeyos count messages` task.
+
+If the prompt already states mailbox values and closed ticket statuses, skip schema
+discovery. Do **not** use `notin`, `status_neq`, or `messageid` for this count.
+Use the CLI commands below directly; do not write a scratch JavaScript client script for
+this count because the CLI normalizes array filters to the API's native `IN` operator.
+
+```bash
+zeyos list tickets --fields ID,status --filter '{"visibility":0,"status":[0,1,2,3,4,5,6,7,11]}' --limit 10000 --json
+zeyos list messages --fields ID,ticket,reference,date --filter '{"mailbox":0,"ticket":[<ticketIds>]}' --limit 10000 --json
+zeyos list messages --fields ID,ticket,reference,date --filter '{"mailbox":2,"ticket":[<ticketIds>]}' --limit 10000 --json
+```
+
+Count inbound rows where no sent row has the same `ticket`, `reference == inbound.ID`,
+and `sent.date >= inbound.date`. Do not run a separate raw inbox count after listing the
+rows; the join logic is the answer.
+
 ## Safety
 
 - Never send email from an agent test or from a summary/draft request.

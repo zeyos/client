@@ -32,9 +32,15 @@ For cross-platform benchmark guidance, read [business-app-benchmarks.md](./busin
 - CLI filters are inline JSON strings. Use `--filter '{"field":123}'`; never run the raw
   JSON as a shell command, and do not use `@filter.json` unless the CLI help explicitly
   documents response-file support.
+- CLI filter arrays normalize to `IN`, e.g. `--filter '{"status":[1,3]}'`.
+- CLI filters also normalize common negative-set aliases to native `!IN`, e.g.
+  `--filter '{"status":{"$nin":[8,9,10]}}'`.
 - Do not invent filter operators. For text search use ZeyOS' documented
   case-insensitive LIKE operator, e.g. `{"lastname":{"~~*":"%Bureau3%"}}`; do not use
   `contains`, `like`, or `ilike` unless `zeyos describe` documents that exact operator.
+- For numeric/date comparisons, prefer native ZeyOS operators such as `<`, `<=`, `>`,
+  and `>=`. The CLI also normalizes common Mongo-style range aliases (`$lt`, `$lte`,
+  `$gt`, `$gte`) before sending, but use the native operators in examples and docs.
 - Creating accounts requires `currency` (e.g. `"EUR"`): the column is NOT NULL with no DB default, so a create that omits it fails with an opaque HTTP 500 even though the OpenAPI spec does not mark it required. `validate('createAccount', …)` now catches this; supply a currency code. (The spec carries no required-field metadata at all, so unknown required fields can still surface only as a server-side 500 — when a create 500s, suspect a missing NOT-NULL column.)
 - Use `visibility: 0` on resources that expose a `visibility` field, unless the user explicitly wants archived or deleted records. Not every resource has the column: `tickets`, `accounts`, and `items` do; **`transactions` does not — filtering `visibility` there returns an opaque HTTP 400**. More generally, filtering on any column a resource lacks 400s with no hint which field was wrong, so filter only on fields `zeyos describe <resource>` lists.
 - Treat list operations as `POST` queries.
@@ -47,6 +53,10 @@ For cross-platform benchmark guidance, read [business-app-benchmarks.md](./busin
   - `extdata` exposes custom fields
   - `expand` inlines JSON or binary columns
 - For a "how many?" question, count server-side: `zeyos count <resource>` on the CLI, or pass `count: true` to the list call on the client (e.g. `client.api.listItems({ filters: { visibility: 0 }, count: true })`). Never use `list` + array length. `zeyos list` defaults to `--limit 50` (the client default is 1000), so counting listed rows silently returns the page size, not the total. In `--json` mode the only truncation signal is a stderr "Showing X–Y of TOTAL" hint.
+- After a successful `zeyos count`, stop and report the count. Do not run `zeyos list` as a second check unless the user also asked for records or the count command failed.
+- For a simple numeric total, use `zeyos sum <resource> <field> --filter '{...}'`; it
+  pages internally. Use `list` and aggregate yourself only for grouped, conditional,
+  joined, or per-row outputs.
 - Treat `count: true` responses defensively because wrappers vary across resources and client layers.
 - Confirm delete, send, revoke, or bulk-update actions before executing them unless the workflow is already explicitly automated.
 

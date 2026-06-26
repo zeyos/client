@@ -203,6 +203,14 @@ test('resources supports JSON output for automation', async () => {
   const customfield = resources.find((resource) => resource.name === 'customfield');
   assert.ok(customfield);
   assert.deepEqual(customfield.operations, ['list', 'get']);
+
+  const address = resources.find((resource) => resource.name === 'address');
+  assert.ok(address);
+  assert.deepEqual(address.operations, ['list', 'get', 'create', 'update', 'delete']);
+
+  const dunning = resources.find((resource) => resource.name === 'dunning');
+  assert.ok(dunning);
+  assert.deepEqual(dunning.operations, ['list', 'get', 'create', 'update', 'delete']);
 });
 
 test('actionstep aliases and schema are available offline', async () => {
@@ -217,6 +225,39 @@ test('actionstep aliases and schema are available offline', async () => {
     1: 'COMPLETED',
     2: 'CANCELLED',
     3: 'BOOKED'
+  });
+});
+
+test('dunning aliases resolve to the dunning-notice schema offline', async () => {
+  const described = await cli(['describe', 'dunning-notices', '--json']);
+  assert.equal(described.code, 0, described.stderr);
+
+  const schema = JSON.parse(described.stdout);
+  assert.equal(schema.name, 'dunning');
+  assert.ok(schema.fields.dunningnum);
+  assert.deepEqual(schema.fields.status.enum, {
+    0: 'DRAFT',
+    1: 'BOOKED',
+    2: 'CANCELLED',
+    3: 'CLOSED'
+  });
+});
+
+test('address aliases resolve to address operations and schema offline', async () => {
+  const described = await cli(['describe', 'addresses', '--json']);
+  assert.equal(described.code, 0, described.stderr);
+
+  const schema = JSON.parse(described.stdout);
+  assert.equal(schema.name, 'addresses');
+  assert.ok(schema.fields.account);
+  assert.deepEqual(schema.fields.type.enum, {
+    0: 'BILLING_SHIPPING',
+    1: 'BILLING_BILLING',
+    2: 'PROCUREMENT_SHIPPING',
+    3: 'PROCUREMENT_BILLING',
+    4: 'COLLECTION',
+    5: 'BILLING_SELLER',
+    6: 'PROCUREMENT_SELLER'
   });
 });
 
@@ -355,6 +396,13 @@ test('help output is plain (no ANSI) when color is disabled', async () => {
   assert.match(result.stdout, /Commands:/);
 });
 
+test('command help includes shared global profile options', async () => {
+  const result = await cli(['whoami', '--help']);
+  assert.equal(result.code, 0);
+  assert.match(result.stdout, /Global options:/);
+  assert.match(result.stdout, /--profile <name>/);
+});
+
 test('invalid local credential config fails loudly', async (t) => {
   const cwd = await tempDir(t);
   await mkdir(join(cwd, '.zeyos'), { recursive: true });
@@ -479,6 +527,23 @@ test('a leading flag is reported as an unknown option, not a command', async () 
   assert.match(result.stderr, /Unknown option: "--invalid"/);
 });
 
+test('known string options require a value', async (t) => {
+  const cwd = await tempDir(t);
+  const profile = await cli(['whoami', '--profile', '--json'], {
+    cwd,
+    env: isolatedEnv(cwd, NO_CREDENTIALS)
+  });
+  assert.equal(profile.code, 1);
+  assert.match(profile.stderr, /Option --profile requires a value/);
+
+  const limit = await cli(['list', 'tickets', '--limit', '--query'], {
+    cwd,
+    env: isolatedEnv(cwd, CREDENTIALS)
+  });
+  assert.equal(limit.code, 1);
+  assert.match(limit.stderr, /Option --limit requires a value/);
+});
+
 test('create still accepts arbitrary --<field> flags', async (t) => {
   const cwd = await tempDir(t);
   const result = await cli(['create', 'tickets', '--name', 'Hi', '--anything', 'goes', '--query'], {
@@ -504,6 +569,19 @@ test('--query prints the route + JSON payload without sending a request', async 
   assert.match(result.stdout, /"filters"/);
   assert.match(result.stdout, /"status": 1/);
   assert.match(result.stdout, /"limit": 5/);
+});
+
+test('leading --query and --json are applied to the command', async (t) => {
+  const cwd = await tempDir(t);
+  const result = await cli(
+    ['--query', '--json', 'list', 'tickets', '--limit', '3'],
+    { cwd, env: isolatedEnv(cwd, CREDENTIALS) }
+  );
+
+  assert.equal(result.code, 0, result.stderr);
+  const descriptor = JSON.parse(result.stdout);
+  assert.equal(descriptor.operationId, 'listTickets');
+  assert.equal(descriptor.body.limit, 3);
 });
 
 test('list --filter-file reads JSON filters from disk', async (t) => {
@@ -536,6 +614,89 @@ test('count --filter-file reads JSON filters from disk', async (t) => {
   assert.deepEqual(descriptor.body, { count: true, filters: { status: 2 } });
 });
 
+test('list and count normalize common Mongo-style range filter operators', async (t) => {
+  const cwd = await tempDir(t);
+
+  const count = await cli(
+    ['count', 'actionsteps', '--filter', '{"status":0,"duedate":{"$lte":4102444800}}', '--query', '--json'],
+    { cwd, env: isolatedEnv(cwd, CREDENTIALS) }
+  );
+  assert.equal(count.code, 0, count.stderr);
+  assert.deepEqual(JSON.parse(count.stdout).body.filters, {
+    status: 0,
+    duedate: { '<=': 4102444800 }
+  });
+
+  const list = await cli(
+    ['list', 'transactions', '--filter', '{"date":{"$gte":1893456000,"$lt":1893715200}}', '--query', '--json'],
+    { cwd, env: isolatedEnv(cwd, CREDENTIALS) }
+  );
+  assert.equal(list.code, 0, list.stderr);
+  assert.deepEqual(JSON.parse(list.stdout).body.filters, {
+    date: { '>=': 1893456000, '<': 1893715200 }
+  });
+
+  const notIn = await cli(
+    ['count', 'tickets', '--filter', '{"visibility":0,"status":{"$nin":[8,9,10]}}', '--query', '--json'],
+    { cwd, env: isolatedEnv(cwd, CREDENTIALS) }
+  );
+  assert.equal(notIn.code, 0, notIn.stderr);
+  assert.deepEqual(JSON.parse(notIn.stdout).body.filters, {
+    visibility: 0,
+    status: { '!IN': [8, 9, 10] }
+  });
+
+  const bareOperator = await cli(
+    ['count', 'tickets', '--filter', '{"visibility":0,"status":{"gt":-1}}', '--query', '--json'],
+    { cwd, env: isolatedEnv(cwd, CREDENTIALS) }
+  );
+  assert.equal(bareOperator.code, 0, bareOperator.stderr);
+  assert.deepEqual(JSON.parse(bareOperator.stdout).body.filters, {
+    visibility: 0,
+    status: { '>': -1 }
+  });
+
+  const addresses = await cli(
+    ['list', 'addresses', '--filter', '{"account":[4628,4629,4630],"type":[0,1]}', '--fields', 'ID,account,type', '--query', '--json'],
+    { cwd, env: isolatedEnv(cwd, CREDENTIALS) }
+  );
+  assert.equal(addresses.code, 0, addresses.stderr);
+  const descriptor = JSON.parse(addresses.stdout);
+  assert.equal(descriptor.operationId, 'listAddresses');
+  assert.deepEqual(descriptor.body.filters, {
+    account: { IN: [4628, 4629, 4630] },
+    type: { IN: [0, 1] }
+  });
+  assert.deepEqual(descriptor.body.fields, { ID: 'ID', account: 'account', type: 'type' });
+});
+
+test('list normalizes common suffix filter operators and account name aliases', async (t) => {
+  const cwd = await tempDir(t);
+  const result = await cli(
+    [
+      'list',
+      'accounts',
+      '--filter',
+      '{"name__startswith":"AGENTTEST-run addr-","customernum__ne":null,"ID__gt":4000}',
+      '--fields',
+      'ID,name',
+      '--query',
+      '--json'
+    ],
+    { cwd, env: isolatedEnv(cwd, CREDENTIALS) }
+  );
+
+  assert.equal(result.code, 0, result.stderr);
+  const descriptor = JSON.parse(result.stdout);
+  assert.equal(descriptor.operationId, 'listAccounts');
+  assert.deepEqual(descriptor.body.fields, { ID: 'ID', name: 'lastname' });
+  assert.deepEqual(descriptor.body.filters, {
+    lastname: { '~~*': 'AGENTTEST-run addr-%' },
+    customernum: { '!=': null },
+    ID: { '>': 4000 }
+  });
+});
+
 test('count customfields uses the listCustomFields operation', async (t) => {
   const cwd = await tempDir(t);
   const result = await cli(
@@ -548,6 +709,20 @@ test('count customfields uses the listCustomFields operation', async (t) => {
   assert.equal(descriptor.operationId, 'listCustomFields');
   assert.deepEqual(descriptor.body, { count: true });
   assert.match(descriptor.url, /\/api\/v1\/customfields$/);
+});
+
+test('count dunning uses the listDunningNotices operation', async (t) => {
+  const cwd = await tempDir(t);
+  const result = await cli(
+    ['count', 'dunning', '--query', '--json'],
+    { cwd, env: isolatedEnv(cwd, CREDENTIALS) }
+  );
+
+  assert.equal(result.code, 0, result.stderr);
+  const descriptor = JSON.parse(result.stdout);
+  assert.equal(descriptor.operationId, 'listDunningNotices');
+  assert.deepEqual(descriptor.body, { count: true });
+  assert.match(descriptor.url, /\/api\/v1\/dunning$/);
 });
 
 test('--filter-file errors do not echo file contents', async (t) => {
@@ -641,6 +816,63 @@ test('count --json emits a stable object', async (t) => {
   assert.equal(server.requests[0].method, 'POST');
   assert.match(server.requests[0].url, /\/dev\/api\/v1\/tickets$/);
   assert.deepEqual(JSON.parse(server.requests[0].body), { count: true });
+});
+
+test('sum dry-run builds a paged list request and normalizes array filters', async (t) => {
+  const cwd = await tempDir(t);
+  const result = await cli(
+    ['sum', 'actionsteps', 'effort', '--filter', '{"status":[1,3]}', '--query', '--json'],
+    { cwd, env: isolatedEnv(cwd, CREDENTIALS) }
+  );
+
+  assert.equal(result.code, 0, result.stderr);
+  const descriptor = JSON.parse(result.stdout);
+  assert.equal(descriptor.operationId, 'listActionSteps');
+  assert.deepEqual(descriptor.body, {
+    fields: ['effort'],
+    filters: { status: { IN: [1, 3] } },
+    limit: 50,
+    offset: 0
+  });
+});
+
+test('sum pages through matching records and emits a numeric total', async (t) => {
+  const cwd = await tempDir(t);
+  const rows = [
+    { effort: 10 },
+    { effort: 20 },
+    { effort: null },
+    { effort: 5 },
+    { effort: 15 }
+  ];
+  const server = await jsonServer(t, (_req, res, body) => {
+    const parsed = JSON.parse(body || '{}');
+    const offset = parsed.offset || 0;
+    const limit = parsed.limit || 50;
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify(rows.slice(offset, offset + limit)));
+  });
+
+  const result = await cli(
+    ['sum', 'actionsteps', 'effort', '--filter', '{"status":[1,3]}', '--page-size', '2', '--json'],
+    { cwd, env: isolatedEnv(cwd, { ...CREDENTIALS, ZEYOS_BASE_URL: server.baseUrl }) }
+  );
+
+  assert.equal(result.code, 0, result.stderr);
+  assert.deepEqual(JSON.parse(result.stdout), { sum: 50, count: 5, field: 'effort' });
+  assert.equal(server.requests.length, 3);
+  assert.deepEqual(JSON.parse(server.requests[0].body), {
+    fields: ['effort'],
+    filters: { status: { IN: [1, 3] } },
+    limit: 2,
+    offset: 0
+  });
+  assert.deepEqual(JSON.parse(server.requests[2].body), {
+    fields: ['effort'],
+    filters: { status: { IN: [1, 3] } },
+    limit: 2,
+    offset: 4
+  });
 });
 
 test('read-only resources reject unsupported write actions before auth', async (t) => {
@@ -944,6 +1176,34 @@ test('whoami --json fetches user info and hides the access token by default', as
   assert.equal(server.requests[0].headers.authorization, 'Bearer access-token');
 });
 
+test('whoami accepts --profile before the command name', async (t) => {
+  const home = await tempDir(t);
+  const cwd = await tempDir(t);
+  const server = await jsonServer(t, (_req, res) => {
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ sub: 'profile-user', name: 'Profile User' }));
+  });
+
+  await writeProfilesFile(home, { active: null, profiles: {
+    dev: {
+      baseUrl: server.baseUrl,
+      clientId: 'client-id',
+      clientSecret: 'client-secret',
+      accessToken: 'profile-access-token'
+    }
+  } });
+
+  const result = await cli(['--profile', 'dev', 'whoami', '--json'], {
+    cwd,
+    env: isolatedEnv(home, { ...NO_CREDENTIALS, ZEYOS_PROFILE: '' })
+  });
+
+  assert.equal(result.code, 0, result.stderr);
+  assert.deepEqual(JSON.parse(result.stdout), { sub: 'profile-user', name: 'Profile User' });
+  assert.equal(server.requests.length, 1);
+  assert.equal(server.requests[0].headers.authorization, 'Bearer profile-access-token');
+});
+
 test('whoami reports invalid refresh tokens with platform and source details', async (t) => {
   const cwd = await tempDir(t);
   const server = await jsonServer(t, (req, res) => {
@@ -1244,6 +1504,24 @@ test('--profile flag overrides ZEYOS_PROFILE env and the active pointer', async 
   out = JSON.parse((await cli(['profile', 'current', '--profile', 'dev', '--json'], { cwd, env: isolatedEnv(home, { ...NO_CREDENTIALS, ZEYOS_PROFILE: 'prod' }) })).stdout);
   assert.equal(out.origin, 'flag');
   assert.equal(out.profile, 'dev');
+});
+
+test('leading --profile=value and --json are applied before command dispatch', async (t) => {
+  const home = await tempDir(t);
+  const cwd = await tempDir(t);
+  await writeProfilesFile(home, { active: 'dev', profiles: {
+    dev:  { baseUrl: 'https://zeyos.example.com/dev' },
+    prod: { baseUrl: 'https://cloud.zeyos.com/acme' }
+  } });
+
+  const out = JSON.parse((await cli(
+    ['--profile=prod', '--json', 'profile', 'current'],
+    { cwd, env: isolatedEnv(home, CLEAN_ENV) }
+  )).stdout);
+
+  assert.equal(out.origin, 'flag');
+  assert.equal(out.profile, 'prod');
+  assert.equal(out.baseUrl, 'https://cloud.zeyos.com/acme');
 });
 
 test('an unknown --profile fails loudly with the known profiles listed', async (t) => {

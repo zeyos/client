@@ -11,7 +11,7 @@
  */
 
 import { normalizeCountResult }    from '@zeyos/client';
-import { buildCliClient, callApi, maybeDryRun, parseJsonOptionOrFile, requireResource } from '../lib/command.mjs';
+import { buildCliClient, callApi, maybeDryRun, normalizeFilterOperators, parseJsonOptionOrFile, requireResource } from '../lib/command.mjs';
 import { outputMode, printJson, printYaml } from '../lib/output.mjs';
 
 export const USAGE = `\
@@ -24,6 +24,8 @@ Arguments:
 
 Options:
   --filter <json>     JSON filter object  e.g. '{"status":1}'
+                      Arrays normalize to IN; $lt/$lte/$gt/$gte/$ne/$in/$nin and suffix
+                      keys like field__startswith/field__gt normalize to native operators
   --filter-file <path>
                       Read JSON filter object from a file
   --json              Output as JSON ({ "count": N })
@@ -47,7 +49,7 @@ export async function run(values, positional) {
 
   const filters = parseJsonOptionOrFile(values, 'filter', 'filter-file');
   if (filters !== undefined) {
-    body.filters = filters;
+    body.filters = normalizeFilterOperators(filters, { fieldAliases: res.filterAliases });
   }
 
   // ── Call API ───────────────────────────────────────────────────────────────

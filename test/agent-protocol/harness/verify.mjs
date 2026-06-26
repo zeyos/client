@@ -23,6 +23,7 @@ import { computeProjection } from './projection.mjs';
 import { verifyResult, verifyFile } from './result-verify.mjs';
 import { verifyStateDiff } from './statediff.mjs';
 import { verifyTrace, verifyNoLeak } from './trace.mjs';
+import { cleanInlineResult } from './result.mjs';
 
 // ── Token / client ────────────────────────────────────────────────────────────
 
@@ -228,7 +229,7 @@ export function parseResultLine(stdout) {
     // (`RESULT: `{...}`` or the whole line as `` `RESULT: 2623` ``). Left in
     // place, a trailing backtick breaks JSON/number coercion and makes
     // $RESULT.field unreachable — a correct answer then scores as a false FAIL.
-    raw = raw.replace(/^`+/, '').replace(/`+$/, '').trim();
+    raw = cleanInlineResult(raw);
   }
   return raw; // null when the agent never produced a RESULT marker
 }

@@ -73,7 +73,7 @@ export function loadResourceConfig(name) {
 export function getListFields(res, name, override) {
   // 1. CLI override
   if (override) {
-    return _parseFieldsOverride(override);
+    return _parseFieldsOverride(override, res?.fieldAliases);
   }
 
   // 2. Config file
@@ -181,7 +181,7 @@ export function getGetParams(name) {
  * Parse a --fields override string.
  * Supports: comma-separated, JSON object, JSON array.
  */
-function _parseFieldsOverride(raw) {
+function _parseFieldsOverride(raw, fieldAliases = {}) {
   const trimmed = raw.trim();
 
   // JSON object: {"Alias": "path", ...}
@@ -189,7 +189,7 @@ function _parseFieldsOverride(raw) {
     try {
       const obj = JSON.parse(trimmed);
       if (typeof obj === 'object' && obj !== null && !Array.isArray(obj)) {
-        const apiFields = _toFieldAliasMap(obj);
+        const apiFields = _toFieldAliasMap(obj, fieldAliases);
         return { apiFields, displayColumns: Object.keys(apiFields) };
       }
     } catch (e) {
@@ -205,7 +205,7 @@ function _parseFieldsOverride(raw) {
       if (Array.isArray(arr)) {
         const paths = arr.map(String);
         const apiFields = {};
-        for (const p of paths) apiFields[p] = p;
+        for (const p of paths) apiFields[p] = normalizeFieldAlias(p, fieldAliases);
         return { apiFields, displayColumns: paths };
       }
     } catch (e) {
@@ -217,7 +217,7 @@ function _parseFieldsOverride(raw) {
   // Comma-separated: "ID,name,status"
   const paths = trimmed.split(',').map(s => s.trim()).filter(Boolean);
   const apiFields = {};
-  for (const p of paths) apiFields[p] = p;
+  for (const p of paths) apiFields[p] = normalizeFieldAlias(p, fieldAliases);
   return { apiFields, displayColumns: paths };
 }
 
@@ -227,12 +227,16 @@ function _parseFieldsOverride(raw) {
  * @param {Record<string, JsonValue>} value
  * @returns {Record<string,string>}
  */
-function _toFieldAliasMap(value) {
+function _toFieldAliasMap(value, fieldAliases = {}) {
   const fields = {};
   for (const [alias, field] of Object.entries(value)) {
-    fields[String(alias)] = String(field);
+    fields[String(alias)] = normalizeFieldAlias(String(field), fieldAliases);
   }
   return fields;
+}
+
+function normalizeFieldAlias(field, fieldAliases = {}) {
+  return fieldAliases[field] || field;
 }
 
 // ── Internals ────────────────────────────────────────────────────────────────

@@ -20,7 +20,7 @@ import {
   orphanSweep,
   passwordLogin
 } from './verify.mjs';
-import { extractUsageFromText, openCodeUsageFromRow, runAgent, summarizeToolCalls } from './opencode-adapter.mjs';
+import { extractUsageFromText, openCodeUsageFromRow, opencodeIsolationEnv, runAgent, summarizeToolCalls } from './opencode-adapter.mjs';
 import {
   BENCHMARK_MODELS,
   BENCHMARK_SCENARIO_IDS,
@@ -31,6 +31,7 @@ import {
   buildContinuationPrompt,
   detectPlannedNotExecuted,
   detectFailureKind,
+  normalizeRunner,
   mergeTraceSummaries,
   mergeToolSummaries,
   runScenario
@@ -61,6 +62,8 @@ test('parseResultLine takes the last RESULT marker and trims it', () => {
   // strips markdown code-span backticks models wrap the value (or whole line) in
   assert.equal(parseResultLine('`RESULT: {"accountId": 4513, "ticketId": 2264}`'), '{"accountId": 4513, "ticketId": 2264}');
   assert.equal(parseResultLine('RESULT: `2623`'), '2623');
+  assert.equal(parseResultLine('**RESULT: 3**'), '3');
+  assert.equal(parseResultLine('RESULT: **3**'), '3');
 });
 
 test('coerceResult parses numbers, JSON, and falls back to string', () => {
@@ -676,20 +679,22 @@ test('detectFailureKind tags common failed attempt causes', () => {
   );
 });
 
-test('buildPrompt starts with /zeyos and omits the inlined operating contract in bare-skill mode', () => {
+test('buildPrompt points at the workspace skill root and omits the inlined operating contract in bare-skill mode', () => {
   const scenario = { skill: 'zeyos-billing-insights', interface: 'cli', prompt: 'Using the billing-insights skill, compute last year revenue' };
   const ctx = { runId: 'run-1', recordPrefix: 'AGENTTEST' };
 
   const harness = buildPrompt(scenario, ctx);
   const bare = buildPrompt(scenario, ctx, { bareSkill: true });
 
-  assert.equal(harness.split(/\r?\n/)[0], '/zeyos');
-  assert.equal(bare.split(/\r?\n/)[0], '/zeyos');
+  assert.equal(harness.split(/\r?\n/)[0], 'ZeyOS benchmark task');
+  assert.equal(bare.split(/\r?\n/)[0], 'ZeyOS benchmark task');
   // Harness mode inlines AGENTS.md (marked by the TASK separator); bare-skill mode does not.
   assert.match(harness, /--- TASK ---/);
   assert.doesNotMatch(bare, /--- TASK ---/);
-  // Both point only at the generic entrypoint; /zeyos is responsible for specialized routing.
+  // Both point only at the generic entrypoint; it is responsible for specialized routing.
   for (const p of [harness, bare]) {
+    assert.doesNotMatch(p, /^\/zeyos\b/m);
+    assert.match(p, /Do not invoke a slash command/);
     assert.match(p, /\$ZEYOS_SKILL_ROOT\/zeyos\/SKILL\.md/);
     assert.doesNotMatch(p, /\$ZEYOS_SKILL_ROOT\/zeyos-billing-insights\/SKILL\.md/);
     assert.doesNotMatch(p, /^Using the billing-insights skill,/m);
@@ -705,13 +710,13 @@ test('buildPrompt can label an explicit zeyos skill root', () => {
   assert.match(prompt, /\/tmp\/skills\/zeyos\/SKILL\.md/);
 });
 
-test('buildContinuationPrompt also starts with /zeyos', () => {
+test('buildContinuationPrompt uses the isolated benchmark task header', () => {
   const prompt = buildContinuationPrompt(
     { prompt: 'Using the work-management skill, confirm the draft.', id: 'confirm' },
     [{ prompt: 'Using the work-management skill, prepare a draft.', stdout: 'RESULT: ready' }],
     ctxBase
   );
-  assert.equal(prompt.split(/\r?\n/)[0], '/zeyos');
+  assert.equal(prompt.split(/\r?\n/)[0], 'ZeyOS benchmark task');
   assert.doesNotMatch(prompt, /Using the work-management skill/);
   assert.match(prompt, /USER: Prepare a draft\./);
   assert.match(prompt, /USER: Confirm the draft\./);
@@ -893,6 +898,14 @@ test('runAgent isolates runner scratch files inside an attempt workspace', async
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+test('opencode isolation env points skills at the attempt root only', () => {
+  const env = opencodeIsolationEnv('/tmp/attempt/agents');
+  assert.equal(env.OPENCODE_PURE, '1');
+  assert.equal(env.OPENCODE_DISABLE_EXTERNAL_SKILLS, '1');
+  assert.equal(env.OPENCODE_DISABLE_CLAUDE_CODE_SKILLS, '1');
+  assert.deepEqual(JSON.parse(env.OPENCODE_CONFIG_CONTENT).skills.paths, ['/tmp/attempt/agents']);
 });
 
 test('usage parsing accepts runner JSON usage events', () => {
@@ -1114,7 +1127,7 @@ test('tool summaries merge across turns for attempt-level reporting', () => {
 
 test('loop runner presets produce expected command shapes', () => {
   const opencode = runnerPreset('opencode', 1234, '/tmp/ws');
-  assert.deepEqual(opencode.args, ['run', '--model', '{model}', '{prompt}']);
+  assert.deepEqual(opencode.args, ['run', '--pure', '--model', '{model}', '{prompt}']);
   assert.equal(opencode.timeoutMs, 1234);
   assert.equal(opencode.workspaceRoot, '/tmp/ws');
 
@@ -1124,6 +1137,21 @@ test('loop runner presets produce expected command shapes', () => {
   assert.ok(pi.args.includes('--no-context-files'));
   assert.ok(pi.args.includes('read,bash,grep,find,ls'));
   assert.equal(pi.timeoutMs, 5678);
+});
+
+test('protocol runner normalizes opencode runs into pure mode', () => {
+  assert.deepEqual(
+    normalizeRunner({ command: 'opencode', args: ['run', '--model', '{model}', '{prompt}'] }).args,
+    ['run', '--pure', '--model', '{model}', '{prompt}']
+  );
+  assert.deepEqual(
+    normalizeRunner({ command: 'opencode', args: ['run', '--pure', '--model', '{model}', '{prompt}'] }).args,
+    ['run', '--pure', '--model', '{model}', '{prompt}']
+  );
+  assert.deepEqual(
+    normalizeRunner({ command: 'pi', args: ['--model', '{model}', '--prompt', '{prompt}'] }).args,
+    ['--model', '{model}', '--prompt', '{prompt}']
+  );
 });
 
 test('loop args and protocol args support one-scenario runs', () => {

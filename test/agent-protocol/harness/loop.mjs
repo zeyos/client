@@ -208,7 +208,7 @@ function runnerPreset(agent, timeoutMs, workspaceRoot) {
   if (agent === 'opencode') {
     return {
       command: 'opencode',
-      args: ['run', '--model', '{model}', '{prompt}'],
+      args: ['run', '--pure', '--model', '{model}', '{prompt}'],
       cwd: '.',
       timeoutMs,
       workspaceRoot

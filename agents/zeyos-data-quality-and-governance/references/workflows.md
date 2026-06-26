@@ -27,8 +27,16 @@
 
 "Customers missing a billing address": list customers, list `addresses` of `type: 1`
 (billing), keep customers with no matching `account`. `addresses` has **no** `visibility`
-column — do not filter it. State whether you treat empty string, null and missing the same
-(R-020); by default they are distinct.
+column — do not filter it. For scoped/prefix tasks, batch address lookup with
+`account:[ids]`; do not loop one account at a time. Use:
+
+```bash
+zeyos list accounts --filter '{"type":1,"visibility":0,"lastname":{"~~*":"<prefix>%"}}' --fields ID,lastname --limit 1000 --json
+zeyos list addresses --filter '{"account":[<accountIds>],"type":[0,1]}' --fields ID,account,type --limit 1000 --json
+```
+
+State whether you treat empty string, null and missing the same (R-020); by default they
+are distinct.
 
 ## Remediation is a preview, not an action
 

@@ -16,11 +16,14 @@ export function renderHtmlScorecardDocument({ runId, instance, baseUrl, models =
     else out.zeyosUnknown += 1;
     if (row.stats.toolCallsKnown) out.toolCalls += row.stats.toolCalls;
     else out.toolUnknown += 1;
+    out.upstreamCalls += row.stats.upstreamCalls;
     out.apiErrors += row.stats.apiErrors;
+    out.costUsd += row.stats.costUsd;
+    out.tokens += row.stats.tokens;
     if (row.stats.verdict === 'PASS') out.pass += 1;
     else out.fail += 1;
     return out;
-  }, { durationMs: 0, zeyosCalls: 0, zeyosUnknown: 0, toolCalls: 0, toolUnknown: 0, apiErrors: 0, pass: 0, fail: 0 });
+  }, { durationMs: 0, zeyosCalls: 0, zeyosUnknown: 0, toolCalls: 0, toolUnknown: 0, upstreamCalls: 0, apiErrors: 0, costUsd: 0, tokens: 0, pass: 0, fail: 0 });
 
   return `<!doctype html>
 <html lang="en">
@@ -94,7 +97,10 @@ pre { margin: 0; padding: 12px; overflow: auto; color: var(--code); background: 
     <span class="metric">${formatDuration(totals.durationMs)} total</span>
     <span class="metric">${formatAggregateCount(totals.zeyosCalls, totals.zeyosUnknown)} zeyos calls</span>
     <span class="metric">${formatAggregateCount(totals.toolCalls, totals.toolUnknown)} tool calls</span>
+    <span class="metric">${totals.upstreamCalls} upstream calls</span>
     <span class="metric">${totals.apiErrors} API errors</span>
+    <span class="metric">${formatMoney(totals.costUsd)} cost</span>
+    <span class="metric">${formatTokens(totals.tokens)} tokens</span>
   </div>
 </header>
 <main>
@@ -105,7 +111,10 @@ pre { margin: 0; padding: 12px; overflow: auto; color: var(--code); background: 
         <th class="num">Time to complete</th>
         <th class="num">ZeyOS command calls</th>
         <th class="num">Total tool calls</th>
+        <th class="num">Upstream API calls</th>
         <th class="num">API errors</th>
+        <th class="num">Cost</th>
+        <th class="num">Tokens</th>
         <th>Pass/Fail</th>
       </tr>
     </thead>
@@ -147,11 +156,14 @@ function toggle(row) {
   <td class="num">${esc(formatDuration(stats.durationMs))}</td>
   <td class="num">${formatCount(stats.zeyosCalls, stats.zeyosCallsKnown)}</td>
   <td class="num">${formatCount(stats.toolCalls, stats.toolCallsKnown)}</td>
+  <td class="num">${stats.upstreamCalls}</td>
   <td class="num">${stats.apiErrors}</td>
+  <td class="num">${esc(formatMoney(stats.costUsd))}</td>
+  <td class="num">${esc(formatTokens(stats.tokens))}</td>
   <td><span class="verdict ${verdictClass}">${esc(stats.verdict)}</span></td>
 </tr>
 <tr id="${detailId}" hidden>
-  <td class="detail-cell" colspan="6">${renderRecordDetail(record, transcriptsByPath)}</td>
+  <td class="detail-cell" colspan="9">${renderRecordDetail(record, transcriptsByPath)}</td>
 </tr>`;
   }
 }
@@ -185,9 +197,12 @@ function recordStats(record, transcriptsByPath) {
       out.zeyosCallsKnown = false;
       out.toolCallsKnown = false;
     }
+    out.upstreamCalls += Number(attempt.traceSummary?.upstream) || 0;
     out.apiErrors += Number(attempt.traceSummary?.apiErrors) || 0;
+    out.costUsd += Number(attempt.usage?.costUsd) || 0;
+    out.tokens += Number(attempt.usage?.tokens?.total) || 0;
     return out;
-  }, { durationMs: 0, zeyosCalls: 0, zeyosCallsKnown: true, toolCalls: 0, toolCallsKnown: true, apiErrors: 0 });
+  }, { durationMs: 0, zeyosCalls: 0, zeyosCallsKnown: true, toolCalls: 0, toolCallsKnown: true, upstreamCalls: 0, apiErrors: 0, costUsd: 0, tokens: 0 });
   return {
     ...summary,
     verdict: record.classification === 'PASS'
@@ -237,7 +252,10 @@ function renderAttempt(attempt, transcriptsByPath) {
     <span>${esc(formatDuration(Number(attempt.durationMs) || 0))}</span>
     <span>${formatCount(Number(tools.zeyosCalls) || 0, known)} zeyos calls</span>
     <span>${formatCount(Number(tools.totalCalls) || 0, known)} tool calls</span>
+    <span>${Number(attempt.traceSummary?.upstream) || 0} upstream calls</span>
     <span>${Number(attempt.traceSummary?.apiErrors) || 0} API errors</span>
+    <span>${esc(formatMoney(Number(attempt.usage?.costUsd) || 0))}</span>
+    <span>${esc(formatTokens(Number(attempt.usage?.tokens?.total) || 0))} tokens</span>
   </div>
   <pre>${esc(transcript)}</pre>
 </article>`;
@@ -292,6 +310,16 @@ function formatCount(value, known) {
 function formatAggregateCount(value, unknownRows) {
   const rendered = String(Number(value) || 0);
   return unknownRows ? `${rendered} + ${unknownRows} n/a` : rendered;
+}
+
+function formatMoney(value) {
+  const n = Number(value) || 0;
+  return `$${n.toFixed(6)}`;
+}
+
+function formatTokens(value) {
+  const n = Number(value) || 0;
+  return n.toLocaleString('en-US');
 }
 
 function esc(value) {

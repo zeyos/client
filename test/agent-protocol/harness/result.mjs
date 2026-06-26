@@ -24,6 +24,19 @@ import { isUnsafeResultPath } from './scenario-schema.mjs';
 const MAX_RESULT_FILE_BYTES = 5 * 1024 * 1024; // 5 MB
 const MAX_RESULT_FILE_LINES = 100000;
 
+export function cleanInlineResult(raw) {
+  let value = String(raw ?? '').trim();
+  value = value.replace(/^`+/, '').replace(/`+$/, '').trim();
+  for (const marker of ['**', '__']) {
+    if (value.startsWith(marker) && value.endsWith(marker) && value.length >= marker.length * 2) {
+      value = value.slice(marker.length, -marker.length).trim();
+    } else if (value.endsWith(marker)) {
+      value = value.slice(0, -marker.length).trim();
+    }
+  }
+  return value;
+}
+
 /**
  * Find the result the agent emitted, preferring (last) block, then file, then inline.
  * Returns `{ mode, format, raw, filePath }` or null when no marker is present.
@@ -54,7 +67,7 @@ export function parseResultMarkers(stdout) {
   let inlineRaw = null;
   while ((m = inlineRe.exec(text)) !== null) inlineRaw = m[1].trim();
   if (inlineRaw != null) {
-    inlineRaw = inlineRaw.replace(/^`+/, '').replace(/`+$/, '').trim();
+    inlineRaw = cleanInlineResult(inlineRaw);
     return { mode: 'inline', format: null, raw: inlineRaw, filePath: null };
   }
   return null;

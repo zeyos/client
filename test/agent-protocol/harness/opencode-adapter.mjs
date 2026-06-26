@@ -89,7 +89,8 @@ export async function runAgent({ runner, model, prompt, env, repoRoot, resultsDi
     ...env,
     PWD: cwd,
     ZEYOS_SKILL_ROOT: attemptSkillRoot,
-    ...(workspacePath ? { ZEYOS_ATTEMPT_WORKSPACE: workspacePath } : {})
+    ...(workspacePath ? { ZEYOS_ATTEMPT_WORKSPACE: workspacePath } : {}),
+    ...(isOpenCodeRunner(runner) ? opencodeIsolationEnv(attemptSkillRoot) : {})
   };
   const args = buildArgs(runner.args || [], { model, prompt });
   const timeoutMs = runner.timeoutMs ?? 240000;
@@ -180,6 +181,22 @@ export async function runAgent({ runner, model, prompt, env, repoRoot, resultsDi
     runnerError: Boolean(result.spawnError),
     usage,
     toolSummary
+  };
+}
+
+function isOpenCodeRunner(runner) {
+  return path.basename(String(runner?.command || '')) === 'opencode';
+}
+
+function opencodeIsolationEnv(skillRoot) {
+  return {
+    OPENCODE_PURE: '1',
+    OPENCODE_DISABLE_EXTERNAL_SKILLS: '1',
+    OPENCODE_DISABLE_CLAUDE_CODE_SKILLS: '1',
+    OPENCODE_CONFIG_CONTENT: JSON.stringify({
+      $schema: 'https://opencode.ai/config.json',
+      skills: { paths: [skillRoot] }
+    })
   };
 }
 
@@ -432,4 +449,4 @@ function formatUsage(usage) {
   return parts.join(' ');
 }
 
-export { extractUsageFromText, normalizeUsage, openCodeUsageFromRow, summarizeToolCalls, stripAnsi };
+export { extractUsageFromText, normalizeUsage, openCodeUsageFromRow, opencodeIsolationEnv, summarizeToolCalls, stripAnsi };

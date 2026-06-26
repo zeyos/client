@@ -98,6 +98,26 @@ Recommended approach:
 
 For an operational count, use this exact definition unless the user specifies another one: inbox message (`mailbox = 0`) linked to an open ticket, with no later sent message (`mailbox = 2`) whose `reference` points back to that inbound message.
 
+Fast path for "how many inbox messages on open tickets are still unanswered":
+
+1. If the prompt already states mailbox values and closed ticket statuses, skip schema
+   discovery. Do not use `notin`; open tickets are status `IN [0,1,2,3,4,5,6,7,11]`
+   with `visibility:0`.
+   Use the CLI commands below directly; do not write a scratch JavaScript client script
+   for this count because the CLI normalizes array filters to the API's native `IN`
+   operator.
+2. Query open ticket IDs once:
+   `zeyos list tickets --fields ID,status --filter '{"visibility":0,"status":[0,1,2,3,4,5,6,7,11]}' --limit 10000 --json`
+3. Query inbox and sent messages for those ticket IDs using batched `ticket:[ids]`:
+   `zeyos list messages --fields ID,ticket,reference,date --filter '{"mailbox":0,"ticket":[<ticketIds>]}' --limit 10000 --json`
+   `zeyos list messages --fields ID,ticket,reference,date --filter '{"mailbox":2,"ticket":[<ticketIds>]}' --limit 10000 --json`
+4. Count inbound rows where no sent row has the same `ticket`, `reference == inbound.ID`,
+   and `sent.date >= inbound.date`. Do not run a separate `zeyos count messages` after
+   listing the rows; the join logic, not the raw inbox count, is the answer.
+
+For this operational count, do not select `messageid`; `ID`, `ticket`, `reference`, and
+`date` are sufficient, and some instances reject `messageid` in list field selection.
+
 ## Pattern: Draft A Reply
 
 Use this for prompts like:

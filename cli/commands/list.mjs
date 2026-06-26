@@ -26,6 +26,7 @@ import {
   callApi,
   fail,
   maybeDryRun,
+  normalizeFilterOperators,
   parseJsonOptionOrFile,
   requireApiMethod,
   requireResource
@@ -42,6 +43,8 @@ Arguments:
 Options:
   --fields <list>     Field selection (see formats below)
   --filter <json>     JSON filter object  e.g. '{"status":1}'
+                      Arrays normalize to IN; $lt/$lte/$gt/$gte/$ne/$in/$nin and suffix
+                      keys like field__startswith/field__gt normalize to native operators
   --filter-file <path>
                       Read JSON filter object from a file
   --sort <fields>     Sort expression  e.g. '-lastmodified'
@@ -86,7 +89,7 @@ export async function run(values, positional) {
 
   const filters = parseJsonOptionOrFile(values, 'filter', 'filter-file');
   if (filters !== undefined) {
-    body.filters = filters;
+    body.filters = normalizeFilterOperators(filters, { fieldAliases: res.filterAliases });
   }
 
   if (values.sort) body.sort = values.sort.split(',').map(s => s.trim()).filter(Boolean);

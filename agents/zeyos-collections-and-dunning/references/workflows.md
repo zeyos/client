@@ -2,8 +2,9 @@
 
 ## Primary Resources
 
-The DB-table noun is not the operationId. Use the operationIds below with `@zeyos/client`
-(`client.api.<operationId>(...)`); see [../../shared/zeyos-entity-reference.md](../../shared/zeyos-entity-reference.md#entity-noun-to-rest-operationid) for the full mapping.
+The DB-table noun is not always the operationId. Use the CLI resource names below for
+`zeyos count/list ...`; use the operationIds below with `@zeyos/client`
+(`client.api.<operationId>(...)`). See [../../shared/zeyos-entity-reference.md](../../shared/zeyos-entity-reference.md#entity-noun-to-rest-operationid) for the full mapping.
 
 | Concept | dbref noun | list operationId | single-record operationIds |
 |---------|------------|------------------|----------------------------|
@@ -14,8 +15,10 @@ The DB-table noun is not the operationId. Use the operationIds below with `@zeyo
 | Dunning-to-transaction links | `dunning2transactions` | `listDunningToTransactions` | `getDunningToTransaction`, `createDunningToTransaction`, `deleteDunningToTransaction` |
 
 Note: `dunning` is the **`DunningNotice`** entity (not `Dunning`), and `dunning2transactions`
-is the `DunningToTransaction` junction. Calling `client.api.listDunning(...)` or
-`client.api.listDunning2transactions(...)` will fail with "operation not found".
+is the `DunningToTransaction` junction. The CLI maps those nouns directly, so
+`zeyos count dunning` is the shortest path for a notice count. Calling
+`client.api.listDunning(...)` or `client.api.listDunning2transactions(...)` will fail with
+"operation not found"; use the operationIds in the table when writing JavaScript.
 
 ## Important Status Caution
 

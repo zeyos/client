@@ -18,7 +18,9 @@
  *   update?: string,
  *   delete?: string,
  *   fields: string[],
- *   idField?: string
+ *   idField?: string,
+ *   fieldAliases?: Record<string,string>,
+ *   filterAliases?: Record<string,string>
  * }} ResourceDef
  */
 

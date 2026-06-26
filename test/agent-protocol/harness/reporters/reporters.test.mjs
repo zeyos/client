@@ -60,7 +60,7 @@ test('renderHtmlScorecardDocument creates an expandable single-file report', () 
     '# scenario: b02-answer',
     '',
     '===== PROMPT =====',
-    '/zeyos',
+    'ZeyOS benchmark task',
     'Count customers.',
     '',
     '===== STDOUT =====',
@@ -83,7 +83,8 @@ test('renderHtmlScorecardDocument creates an expandable single-file report', () 
       expected: 42,
       actual: 42,
       transcriptPath: 'transcripts/b02.txt',
-      traceSummary: { apiErrors: 0 }
+      traceSummary: { upstream: 1, apiErrors: 0 },
+      usage: { costUsd: 0.001234, tokens: { total: 12345 } }
     }]
   }];
 
@@ -101,10 +102,13 @@ test('renderHtmlScorecardDocument creates an expandable single-file report', () 
   assert.match(html, /Time to complete/);
   assert.match(html, /ZeyOS command calls/);
   assert.match(html, /Total tool calls/);
+  assert.match(html, /Upstream API calls/);
   assert.match(html, /API errors/);
+  assert.match(html, /Cost/);
+  assert.match(html, /Tokens/);
   assert.match(html, /Pass\/Fail/);
   assert.match(html, /data-detail-id="details-0"/);
-  assert.match(html, /\/zeyos/);
+  assert.match(html, /ZeyOS benchmark task/);
   assert.match(html, /Expected Result/);
   assert.match(html, /Agent Protocol/);
   assert.match(html, /1\.2s/);
@@ -115,10 +119,13 @@ test('renderHtmlScorecardDocument creates an expandable single-file report', () 
     zeyosCallsKnown: true,
     toolCalls: 1,
     toolCallsKnown: true,
+    upstreamCalls: 1,
     apiErrors: 0,
+    costUsd: 0.001234,
+    tokens: 12345,
     verdict: 'PASS'
   });
-  assert.equal(transcriptSection(transcript, 'PROMPT'), '/zeyos\nCount customers.');
+  assert.equal(transcriptSection(transcript, 'PROMPT'), 'ZeyOS benchmark task\nCount customers.');
 });
 
 test('recordStats marks command counts unknown when API trace exists without a tool stream', () => {
@@ -131,7 +138,8 @@ test('recordStats marks command counts unknown when API trace exists without a t
       durationMs: 100,
       transcriptPath: 'missing.txt',
       toolSummary: { source: 'runner-transcript', observed: false, totalCalls: 0, zeyosCalls: 0 },
-      traceSummary: { count: 1, apiErrors: 0 }
+      traceSummary: { count: 1, upstream: 1, apiErrors: 0 },
+      usage: { costUsd: 0.002, tokens: { total: 20 } }
     }]
   };
 
@@ -141,7 +149,10 @@ test('recordStats marks command counts unknown when API trace exists without a t
     zeyosCallsKnown: false,
     toolCalls: 0,
     toolCallsKnown: false,
+    upstreamCalls: 1,
     apiErrors: 0,
+    costUsd: 0.002,
+    tokens: 20,
     verdict: 'PASS'
   });
 });

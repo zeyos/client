@@ -41,10 +41,11 @@ The DB-table noun (from `dbref.json`, also the REST URL path segment) is **not**
 operationId. The `@zeyos/client` methods and the names you reason about are CamelCase
 compound operationIds, and several diverge from a naive "capitalize + pluralize the noun".
 
-**Agent rule: when calling `@zeyos/client` (`client.api.<operationId>(...)`) or constructing
-CLI resource names, use the operationIds below, not the raw `dbref.json` table noun.** Building
-`client.api.listDunning(...)` or `zeyos list dunning` from the noun will fail with
-"operation not found".
+**Agent rule: when calling `@zeyos/client` (`client.api.<operationId>(...)`), use the
+operationIds below, not the raw `dbref.json` table noun.** Building
+`client.api.listDunning(...)` from the noun will fail with "operation not found". The CLI
+accepts curated resource aliases for common divergent nouns, including
+`zeyos count/list dunning` and `zeyos list dunning2transactions`.
 
 ### The regular rule (most entities)
 

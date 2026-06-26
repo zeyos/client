@@ -32,7 +32,7 @@ Typical prompts:
    - use `transactions` for invoice and credit value
    - use `payments` for cash movement
    - use `documents` only when the question is about the formal document artifact
-   - use `dunning` plus `dunning2transactions` when the question is really about receivables follow-up or collection state (operationIds: `listDunningNotices`, `listDunningToTransactions` — these dbref nouns do not map naively; see [../shared/zeyos-entity-reference.md](../shared/zeyos-entity-reference.md#entity-noun-to-rest-operationid))
+   - use `dunning` plus `dunning2transactions` when the question is really about receivables follow-up or collection state. In the CLI, call `zeyos count/list dunning` and `zeyos list dunning2transactions`; in `@zeyos/client`, call `listDunningNotices` and `listDunningToTransactions`.
 4. State the default metric if the prompt is ambiguous. Do not silently switch between net, gross, invoiced, and paid.
 5. Pull line-item detail only when necessary, usually with `expand: ['items']` through `@zeyos/client`.
 6. If the prompt is mainly about overdue notices, reminder stages, or next collection actions, treat that as a collections workflow rather than a pure revenue workflow.

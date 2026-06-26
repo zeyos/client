@@ -190,7 +190,9 @@ Recommended approach:
 1. Resolve the anchor and the date window.
 2. Query `actionsteps` with fields `ID`, `date`, `status`, `effort`, and the relevant FK (`ticket`, `task`, `account`, or `transaction`).
 3. Include statuses `1` COMPLETED and `3` BOOKED for time-entry totals unless the user asks for drafts/open follow-ups.
-4. Sum `effort` as minutes; convert to hours only if the user asked for hours.
+4. For a simple ungrouped total, run `zeyos sum actionsteps effort --filter '{"status":[1,3]}'`.
+   For anchored or grouped totals, list the needed rows and sum `effort` as minutes.
+   Convert to hours only if the user asked for hours.
 5. For ticket-level totals, roll task time up to the ticket:
    - direct ticket time is `actionsteps.ticket = <ticketId>`
    - task ticket time is `actionsteps.task = <taskId>` where `tasks.ticket = <ticketId>`

@@ -125,7 +125,9 @@ test('shared operating guide keeps shell-safe bare-skill guidance', () => {
     '@filter.json',
     '--filter-file <path>',
     '--data-file <path>',
-    'zeyos count <resource>'
+    'zeyos count <resource>',
+    'Joined/anti-join counts',
+    'unanswered mail'
   ]) {
     assert.ok(content.includes(expected), `missing shared guidance: ${expected}`);
   }
@@ -207,6 +209,32 @@ test('billing and shared query guidance prevent account schema and filter-operat
   }
 });
 
+test('account data-quality workflows document efficient missing-billing anti-joins', () => {
+  const account = readFileSync(path.join(ROOT, 'agents/zeyos-account-intelligence/references/workflows.md'), 'utf8');
+  const dataQuality = readFileSync(path.join(ROOT, 'agents/zeyos-data-quality-and-governance/references/workflows.md'), 'utf8');
+  const dataQualitySkill = readFileSync(path.join(ROOT, 'agents/zeyos-data-quality-and-governance/SKILL.md'), 'utf8');
+
+  for (const [name, content] of [
+    ['account intelligence', account],
+    ['data quality', dataQuality],
+    ['data quality skill', dataQualitySkill]
+  ]) {
+    for (const expected of [
+      `zeyos list accounts --filter '{"type":1,"visibility":0,"lastname":{"~~*":"<prefix>%"}}'`,
+      `zeyos list addresses --filter '{"account":[<accountIds>],"type":[0,1]}'`
+    ]) {
+      assert.ok(content.includes(expected), `${name} workflow missing: ${expected}`);
+    }
+    assert.ok(content.includes('addresses') && content.includes('visibility'), `${name} workflow missing address visibility warning`);
+  }
+
+  assert.ok(dataQualitySkill.includes('name_starts'), 'data quality skill should warn about invented prefix filters');
+  assert.ok(dataQualitySkill.includes('lastname_starts'), 'data quality skill should warn about invented prefix filters');
+  assert.ok(dataQualitySkill.includes('skip schema discovery'), 'data quality skill should avoid redundant describes for explicit address-type prompts');
+  assert.ok(dataQualitySkill.includes('do not loop one account at a time'), 'data quality skill should require batched address lookup');
+  assert.ok(dataQuality.includes('do not loop one account at a time'), 'data quality workflow should require batched address lookup');
+});
+
 test('work-management workflow documents actionstep operation IDs and effort semantics', () => {
   const content = readFileSync(path.join(ROOT, 'agents/zeyos-work-management/references/workflows.md'), 'utf8');
 
@@ -239,4 +267,35 @@ test('time-summary workflows roll task-linked actionsteps up to tickets', () => 
       assert.ok(content.includes(expected), `${relativeFile} missing ticket task-time rollup guidance: ${expected}`);
     }
   }
+});
+
+test('mail workflow documents efficient unanswered-ticket count path', () => {
+  const files = [
+    'agents/zeyos-mail-operations/SKILL.md',
+    'agents/zeyos-mail-operations/references/workflows.md'
+  ];
+
+  for (const relativeFile of files) {
+    const content = readFileSync(path.join(ROOT, relativeFile), 'utf8');
+    for (const expected of [
+      'skip schema',
+      '{"visibility":0,"status":[0,1,2,3,4,5,6,7,11]}',
+      `--filter '{"mailbox":0,"ticket":[<ticketIds>]}'`,
+      `--filter '{"mailbox":2,"ticket":[<ticketIds>]}'`,
+      'the join logic',
+      'do not write a scratch JavaScript client script',
+      'CLI normalizes array filters'
+    ]) {
+      assert.ok(content.includes(expected), `${relativeFile} missing: ${expected}`);
+    }
+  }
+
+  const workflow = readFileSync(path.join(ROOT, 'agents/zeyos-mail-operations/references/workflows.md'), 'utf8');
+  assert.ok(workflow.includes('Do not use `notin`'), 'mail workflow should reject notin');
+  assert.ok(workflow.includes('Do not run a separate `zeyos count messages`'), 'mail workflow should avoid redundant raw count');
+  assert.ok(workflow.includes('do not select `messageid`'), 'mail workflow should avoid messageid for this count');
+
+  const skill = readFileSync(path.join(ROOT, 'agents/zeyos-mail-operations/SKILL.md'), 'utf8');
+  assert.ok(skill.includes('status_neq'), 'mail skill should warn about status_neq');
+  assert.ok(skill.includes('messageid'), 'mail skill should warn about messageid');
 });

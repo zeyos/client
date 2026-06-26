@@ -18,6 +18,13 @@ These options work with any command:
 | `--no-color` | Disable ANSI color output |
 | `-h`, `--help` | Show help for a command |
 
+Global options may be placed before or after the command name:
+
+```bash
+zeyos --profile dev whoami
+zeyos whoami --profile dev
+```
+
 ---
 
 ## login
@@ -169,6 +176,14 @@ The `--fields` option supports three formats:
 | JSON object (with aliases) | `--fields '{"Name":"lastname","City":"contact.city"}'` |
 | JSON array | `--fields '["ID","name","status"]'` |
 
+**Filter compatibility:**
+
+The CLI normalizes common agent-generated filter forms before sending the request:
+arrays become `IN`, `$lt`/`$lte`/`$gt`/`$gte`/`$ne`/`$in`/`$nin` become native ZeyOS
+operators, and suffix keys such as `lastname__startswith`, `lastname__like`, `ID__gt`,
+`status__in`, and `status__nin` become native filters. On `accounts`, `name` in filters
+or `--fields` resolves to `lastname`.
+
 **Examples:**
 
 ```bash
@@ -241,6 +256,37 @@ zeyos count tickets --filter-file ./filters/open-tickets.json
 # JSON output for scripting
 zeyos count accounts --json
 # → {"count": 156}
+```
+
+---
+
+## sum
+
+Sum a numeric field across matching records. The CLI pages internally, so this is the
+short path for simple totals that would otherwise require `list` plus a script.
+
+```
+zeyos sum <resource> <field> [options]
+```
+
+| Option | Description |
+|--------|-------------|
+| `--filter <json>` | Filter criteria — JSON object. Arrays normalize to `IN`, e.g. `{"status":[1,3]}` |
+| `--filter-file <path>` | Read filter criteria from a JSON file |
+| `--page-size <n>` | Records per API page (default: 50) |
+| `--limit <n>` | Maximum records to inspect |
+| `--offset <n>` | Initial offset |
+| `--json` | Output as `{"sum": N, "count": N, "field": "..."}` |
+| `--yaml` | YAML output |
+
+**Examples:**
+
+```bash
+# Completed or booked effort minutes
+zeyos sum actionsteps effort --filter '{"status":[1,3]}'
+
+# Invoice net amount as JSON
+zeyos sum transactions netamount --filter '{"type":3}' --json
 ```
 
 ---

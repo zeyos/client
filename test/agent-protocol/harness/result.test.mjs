@@ -13,6 +13,7 @@ import {
 
 test('parseResultMarkers distinguishes inline, block and file forms', () => {
   assert.deepEqual(parseResultMarkers('noise\nRESULT: 42'), { mode: 'inline', format: null, raw: '42', filePath: null });
+  assert.deepEqual(parseResultMarkers('**RESULT: 42**'), { mode: 'inline', format: null, raw: '42', filePath: null });
   const block = parseResultMarkers('text\nRESULT_BEGIN json\n{"a":1}\nRESULT_END\ntail');
   assert.equal(block.mode, 'block');
   assert.equal(block.format, 'json');
