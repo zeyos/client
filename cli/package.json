@@ -22,7 +22,8 @@
     "api"
   ],
   "bin": {
-    "zeyos": "bin/zeyos.mjs"
+    "zeyos": "bin/zeyos.mjs",
+    "zeyos-mcp": "bin/zeyos-mcp.mjs"
   },
   "exports": {
     ".": "./bin/zeyos.mjs"

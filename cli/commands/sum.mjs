@@ -7,10 +7,10 @@
 import { normalizeListResult } from '@zeyos/client';
 import {
   buildCliClient,
+  buildPresetFilters,
   callApi,
   fail,
   maybeDryRun,
-  normalizeFilterOperators,
   parseJsonOptionOrFile,
   requireResource
 } from '../lib/command.mjs';
@@ -32,12 +32,14 @@ Options:
                       keys like field__startswith/field__gt normalize to native operators
   --filter-file <path>
                       Read JSON filter object from a file
+  --preset <name>     Apply a business filter preset before --filter
   --page-size <n>     Records per API page (default: 50)
   --limit <n>         Maximum records to inspect
   --offset <n>        Initial offset (default: 0)
   --json              Output as JSON ({ "sum": N, "count": N })
   --yaml              Output as YAML
-  --query             Print the first page request without sending it
+  --dry-run           Print the first page request without sending it
+  --no-validate       Skip schema validation
   -h, --help          Show this help
 
 Examples:
@@ -56,8 +58,8 @@ export async function run(values, positional) {
   let offset = values.offset == null ? 0 : parseNonNegativeInt(values.offset, '--offset');
 
   const body = { fields: [field], limit: Math.min(pageSize, maxRows), offset };
-  const filters = parseJsonOptionOrFile(values, 'filter', 'filter-file');
-  if (filters !== undefined) body.filters = normalizeFilterOperators(filters, { fieldAliases: res.filterAliases });
+  const filters = buildPresetFilters(res, resourceName, values.preset, parseJsonOptionOrFile(values, 'filter', 'filter-file'));
+  if (filters !== undefined) body.filters = filters;
 
   const clientState = buildCliClient(values);
   if (await maybeDryRun(clientState, res.list, body, values)) return;

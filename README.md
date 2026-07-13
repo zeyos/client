@@ -200,6 +200,7 @@ zeyos <command> [options] [args…]
 | `logout` | Revoke session and clear stored credentials | `zeyos logout` |
 | `whoami` | Show the authenticated user | `zeyos whoami --json` |
 | `list <resource>` | List / query records | `zeyos list tickets --filter '{"status":4}' --sort -lastmodified` |
+| `find <resource> <text>` | Resolve human text to record IDs | `zeyos find accounts "Zfx Lyon"` |
 | `count <resource>` | Count records (true total) | `zeyos count tickets --filter '{"status":4}'` |
 | `sum <resource> <field>` | Sum a numeric field across matching records | `zeyos sum actionsteps effort --filter '{"status":[1,3]}'` |
 | `get <resource> <id>` | Fetch one record (`show` is an alias) | `zeyos get ticket 42 --all` |
@@ -224,8 +225,12 @@ zeyos list accounts --fields '{"Name": "lastname", "City": "contact.city"}'
 zeyos list tickets --filter '{"status":4,"priority":4}' --sort -lastmodified
 
 # Agent-friendly filter normalization: arrays become IN, Mongo/suffix operators
-# are normalized before the request is sent and are visible with --query --json.
-zeyos list tickets --filter '{"status":{"$nin":[8,9,10]},"priority":[3,4]}' --query --json
+# are normalized before the request is sent and are visible with --dry-run --json.
+zeyos list tickets --filter '{"status":{"$nin":[8,9,10]},"priority":[3,4]}' --dry-run --json
+
+# Business vocabulary presets and full-text entity resolution
+zeyos list transactions --preset open-invoices --json
+zeyos find accounts "Zfx Lyon" --json
 
 # Pagination
 zeyos list tickets --limit 100 --offset 100

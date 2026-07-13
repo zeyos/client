@@ -35,7 +35,8 @@ Options:
   --<field> <value>   Set individual fields  e.g. --status 2
   --json              Output updated record as JSON
   --yaml              Output updated record as YAML
-  --query             Print the request route + JSON body without sending it
+  --dry-run           Print the request route + JSON body without sending it
+  --no-validate       Skip schema validation
   -h, --help          Show this help
 
 Examples:

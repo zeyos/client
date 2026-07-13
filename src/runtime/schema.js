@@ -39,6 +39,11 @@ function baseFieldName(ref) {
   return head || null;
 }
 
+function sortFieldName(ref) {
+  if (typeof ref !== 'string') return null;
+  return ref.trim().replace(/^[+-]/, '').replace(/:(?:asc|desc)$/i, '');
+}
+
 /**
  * Build the read-only `client.schema` surface: runtime introspection of
  * resources, fields, enums and operations, plus best-effort input validation
@@ -96,9 +101,9 @@ export function createSchema({ services, schema }) {
   function checkField(resourceFields, fieldDefs, ref, value, errors) {
     const base = baseFieldName(ref);
     if (!base) return;
-    // Dot-notation joins and extended/custom fields can't be validated against
-    // the base table — accept them rather than emit false positives.
-    if (base === 'extdata' || base !== ref) return;
+    // Extended/custom fields cannot be validated against the base table.
+    // Dot-notation joins are validated against their head field only.
+    if (base === 'extdata') return;
     if (!resourceFields.includes(base)) {
       const suggestion = suggestClosest(base, resourceFields);
       errors.push({
@@ -166,8 +171,14 @@ export function createSchema({ services, schema }) {
       const sel = data.fields;
       const selValues = Array.isArray(sel) ? sel : (sel && typeof sel === 'object' ? Object.values(sel) : []);
       for (const ref of selValues) checkField(resourceFields, fieldDefs, ref, undefined, errors);
+      const sort = data.sort;
+      const sortValues = Array.isArray(sort) ? sort : (typeof sort === 'string' ? sort.split(',') : []);
+      for (const ref of sortValues) checkField(resourceFields, fieldDefs, sortFieldName(ref), undefined, errors);
     } else {
-      for (const [key, value] of Object.entries(data)) {
+      const payload = data.body && typeof data.body === 'object' && !Array.isArray(data.body)
+        ? data.body
+        : (data.data && typeof data.data === 'object' && !Array.isArray(data.data) ? data.data : data);
+      for (const [key, value] of Object.entries(payload)) {
         if (CONTROL_KEYS.has(key) || QUERY_DIRECTIVES.has(key)) continue;
         if (entry.operation.parameterNames?.path?.includes(key)) continue;
         if (entry.operation.parameterNames?.query?.includes(key)) continue;
@@ -179,7 +190,7 @@ export function createSchema({ services, schema }) {
       // nature, so the check applies to `create*` operations only.
       if (/^create/i.test(operationId)) {
         for (const field of REQUIRED_CREATE_FIELDS[entry.resource] || []) {
-          if (!Object.prototype.hasOwnProperty.call(data, field) || data[field] == null) {
+          if (!Object.prototype.hasOwnProperty.call(payload, field) || payload[field] == null) {
             errors.push({
               field,
               message: `Missing required field "${field}" for ${entry.resource} — it is NOT NULL with no default, so the API rejects a create without it.`,

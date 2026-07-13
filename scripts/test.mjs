@@ -560,7 +560,14 @@ if (wantsLiveOAuth && livePort == null) {
 runOrExit(process.execPath, [path.join(ROOT, 'scripts/generate-client.mjs')], { cwd: ROOT });
 
 const testFiles = collectTestFiles(path.join(ROOT, 'test'));
-runOrExit(process.execPath, ['--test', ...passthrough, ...testFiles], { cwd: ROOT, env: process.env });
+// CLI suites: offline.mjs (spawns the CLI binary against local mock servers)
+// deliberately lacks the `.test.` suffix so a bare `node --test cli/test` does
+// not pick it up, and integration.mjs (live credentials) must stay excluded.
+const cliTestFiles = [
+  path.join(ROOT, 'cli/test/offline.mjs'),
+  ...collectTestFiles(path.join(ROOT, 'cli/test'))
+];
+runOrExit(process.execPath, ['--test', ...passthrough, ...testFiles, ...cliTestFiles], { cwd: ROOT, env: process.env });
 
 if (wantsLiveOAuth) {
   const resolvedClientId = await promptForClientId(clientIdArg);

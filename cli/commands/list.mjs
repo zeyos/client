@@ -23,10 +23,10 @@ import { getListFields }                 from '../lib/resource-config.mjs';
 import { outputMode, printJson, printYaml, printTable, buildDateFormatters, buildEnumFormatters, info } from '../lib/output.mjs';
 import {
   buildCliClient,
+  buildPresetFilters,
   callApi,
   fail,
   maybeDryRun,
-  normalizeFilterOperators,
   parseJsonOptionOrFile,
   requireApiMethod,
   requireResource
@@ -47,6 +47,8 @@ Options:
                       keys like field__startswith/field__gt normalize to native operators
   --filter-file <path>
                       Read JSON filter object from a file
+  --search <text>     Full-text search
+  --preset <name>     Apply a business filter preset before --filter
   --sort <fields>     Sort expression  e.g. '-lastmodified'
   --limit <n>         Max records (default: 50)
   --offset <n>        Skip first N records (default: 0)
@@ -54,7 +56,8 @@ Options:
   --expand <list>     Expand JSON/binary columns (e.g. binfile, items)
   --json              Output as JSON
   --yaml              Output as YAML
-  --query             Print the request route + JSON body without sending it
+  --dry-run           Print the request route + JSON body without sending it
+  --no-validate       Skip schema validation
   -h, --help          Show this help
 
 Fields format:
@@ -62,10 +65,14 @@ Fields format:
   JSON object:        --fields '{"Id": "ID", "Name": "name", "City": "contact.city"}'
   JSON array:         --fields '["ID", "name", "status"]'
 
+Transaction presets:
+  quotes, orders, invoices, credits, open-invoices, overdue-invoices, paid-invoices
+
 Examples:
   zeyos list tickets
   zeyos list tickets --filter '{"status":1}' --sort -lastmodified
   zeyos list tickets --filter-file ./filters/open-tickets.json
+  zeyos list transactions --preset open-invoices
   zeyos list tickets --fields ID,name,status --limit 10
   zeyos list accounts --fields '{"Name": "lastname", "City": "contact.city"}'
   zeyos list tickets --extdata
@@ -87,10 +94,17 @@ export async function run(values, positional) {
   // Pass configured fields to the API for server-side field selection
   if (apiFields) body.fields = apiFields;
 
-  const filters = parseJsonOptionOrFile(values, 'filter', 'filter-file');
+  const filters = buildPresetFilters(
+    res,
+    resourceName,
+    values.preset,
+    parseJsonOptionOrFile(values, 'filter', 'filter-file')
+  );
   if (filters !== undefined) {
-    body.filters = normalizeFilterOperators(filters, { fieldAliases: res.filterAliases });
+    body.filters = filters;
   }
+
+  if (values.search != null) body.query = values.search;
 
   if (values.sort) body.sort = values.sort.split(',').map(s => s.trim()).filter(Boolean);
 
@@ -140,7 +154,6 @@ export async function run(values, positional) {
     // QW-7: an empty result is a neutral fact, not a warning — use the info `·`
     // glyph rather than the `⚠` glyph (which reads as an error).
     info(`No ${resourceName} match.`);
-    return;
   } else {
     const cfg = loadConfig();
     const dateFormat = cfg.dateFormat ?? 'YYYY-MM-DD';
@@ -160,6 +173,10 @@ export async function run(values, positional) {
     printTable(records, displayColumns, {}, { ...enumFormatters, ...dateFormatters });
   }
 
+  if (records.length === 0 && (values.filter != null || values['filter-file'] != null || values.search != null)) {
+    info(`Hint: 0 results. If a filter field or value might be wrong, check 'zeyos describe <resource>' or resolve records with 'zeyos find <resource> "<text>"'.`);
+  }
+
   // ── Pagination / truncation hint ──────────────────────────────────────────
   // Emitted to stderr in EVERY output mode (including --json), so an agent that
   // pipes `list … --json` into a counter gets a signal that the default
@@ -172,6 +189,7 @@ export async function run(values, positional) {
     try {
       const countBody = { count: true };
       if (body.filters) countBody.filters = body.filters;
+      if (body.query) countBody.query = body.query;
       const countResult = await fn(countBody);
       const total = countResult?.count ?? null;
       if (total !== null && total > records.length) {

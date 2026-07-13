@@ -80,6 +80,15 @@ Use these defaults unless the target instance clearly behaves differently:
 
 ## Default Resolution Patterns
 
+### Resolve entities first
+
+Use `zeyos find <resource> "<text>"` to resolve a human label, then filter related records
+by the returned ID, for example `--filter '{"account":4628}'`. Unknown CLI filter fields
+now fail before any request with a closest-field suggestion and the valid-field list.
+
+For transactions, prefer the business presets `quotes`, `orders`, `invoices`, `credits`,
+`open-invoices`, `overdue-invoices`, and `paid-invoices` on `list`, `count`, or `sum`.
+
 - Resolve a user with `users.name` or `users.email` first.
 - Resolve a customer with `accounts.customernum`, `accounts.lastname`, `accounts.firstname`, then `contacts.email` or contact name if needed. Company names live in `accounts.lastname`; there is no generic `accounts.name` column.
 - Resolve a project with `projects.projectnum` or `projects.name`.

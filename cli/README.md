@@ -9,6 +9,7 @@ The authoritative documentation lives in the repository-level docs:
 - [CLI Getting Started](../docs/03-cli/01-getting-started.md)
 - [Commands Reference](../docs/03-cli/02-commands.md)
 - [Configuration](../docs/03-cli/03-configuration.md)
+- [MCP Server](../docs/03-cli/04-mcp-server.md)
 
 ## Install
 
@@ -25,6 +26,8 @@ Or install the package directly:
 ```bash
 npm install -g @zeyos/cli
 ```
+
+The package also installs `zeyos-mcp`, a stdio MCP server that mirrors the CLI’s validated query semantics for Claude Desktop and other MCP hosts. See the [MCP Server guide](../docs/03-cli/04-mcp-server.md) for host configuration and opt-in write gating.
 
 ## Quick Start
 
@@ -92,11 +95,13 @@ zeyos list messages --fields ID,date,mailbox,subject,sender_email,to_email,ticke
 ```
 
 Filters accept common agent-generated shapes and normalize them to the native ZeyOS
-request form. Use `--query --json` to inspect the request without sending it:
+request form. Use `--dry-run --json` to inspect the request without sending it:
 
 ```bash
-zeyos list tickets --filter '{"status":{"$nin":[8,9,10]},"priority":[3,4]}' --query --json
-zeyos list accounts --filter '{"name__like":"Acme%","ID__in":[1,2,3]}' --query --json
+zeyos list tickets --filter '{"status":{"$nin":[8,9,10]},"priority":[3,4]}' --dry-run --json
+zeyos list accounts --filter '{"name__like":"Acme%","ID__in":[1,2,3]}' --dry-run --json
+zeyos find accounts "Acme" --json
+zeyos list transactions --preset open-invoices --json
 ```
 
 Create, update, and delete:

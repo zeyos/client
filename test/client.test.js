@@ -883,6 +883,20 @@ test('client.schema.validate flags unknown fields, filter spelling and bad enums
   const missingRequired = client.schema.validate('createAccount', { lastname: 'Acme', firstname: 'Jane' });
   assert.equal(missingRequired.valid, false);
   assert.ok(missingRequired.errors.some((entry) => entry.field === 'currency'));
+
+  const badSort = client.schema.validate('listAccounts', { sort: ['-companyname:desc'] });
+  assert.equal(badSort.valid, false);
+  assert.equal(badSort.errors[0].field, 'companyname');
+
+  const joinsAndAliases = client.schema.validate('listAccounts', {
+    fields: { City: 'contact.city', Region: 'extdata.region', Name: 'lastname' },
+    filters: { 'contact.city': 'Lyon', 'extdata.region': 'west' }
+  });
+  assert.equal(joinsAndAliases.valid, true);
+
+  const updateBody = client.schema.validate('updateAccount', { ID: 1, body: { companyname: 'Acme' } });
+  assert.equal(updateBody.valid, false);
+  assert.equal(updateBody.errors[0].field, 'companyname');
 });
 
 test('validate: true performs pre-flight validation and throws ZeyosValidationError', async () => {

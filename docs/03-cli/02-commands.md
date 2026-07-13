@@ -158,6 +158,8 @@ zeyos list <resource> [options]
 | `--fields <fields>` | Field selection — comma-separated, JSON object, or JSON array (see below) |
 | `--filter <json>` | Filter criteria — JSON object |
 | `--filter-file <path>` | Read filter criteria from a JSON file |
+| `--search <text>` | Full-text search (sent as the API `query` parameter) |
+| `--preset <name>` | Apply a resource business preset; an explicit `--filter` is merged on top |
 | `--sort <fields>` | Sort fields, comma-separated (prefix `+` asc, `-` desc) |
 | `--limit <n>` | Maximum records to return (default: `50`) |
 | `--offset <n>` | Skip the first n records |
@@ -165,6 +167,8 @@ zeyos list <resource> [options]
 | `--extdata` | Include extended data fields |
 | `--json` | JSON output |
 | `--yaml` | YAML output |
+| `--dry-run` | Print the request without sending it |
+| `--no-validate` | Skip the CLI's default schema validation |
 
 **Fields format:**
 
@@ -183,6 +187,24 @@ arrays become `IN`, `$lt`/`$lte`/`$gt`/`$gte`/`$ne`/`$in`/`$nin` become native Z
 operators, and suffix keys such as `lastname__startswith`, `lastname__like`, `ID__gt`,
 `status__in`, and `status__nin` become native filters. On `accounts`, `name` in filters
 or `--fields` resolves to `lastname`.
+
+Before sending, data commands validate filter, selected, sorted, and written fields against
+the generated schema. Unknown fields fail fast with a suggestion and the valid-field list;
+joins such as `contact.city` and `extdata.*` remain accepted. Use `--no-validate` only as an
+escape hatch. If a filtered or searched list is empty, the CLI prints a stderr hint pointing
+to `describe` and `find`, including in JSON and YAML modes.
+
+Transaction presets are available to `list`, `count`, and `sum`:
+
+| Preset | Filter |
+|--------|--------|
+| `quotes` | `type = 0` |
+| `orders` | `type = 1` |
+| `invoices` | `type = 3` |
+| `credits` | `type = 4` |
+| `open-invoices` | Invoices excluding cancelled, closed, paid, overpaid, and processed status variants |
+| `overdue-invoices` | Open invoices with `duedate` before the current Unix timestamp (seconds) |
+| `paid-invoices` | Invoices with status `20` or `21` |
 
 **Examples:**
 
@@ -224,6 +246,20 @@ Showing 1–10 of 47  (--offset 10 for next page)
 
 ---
 
+## find
+
+Resolve a human label to records before filtering another resource by foreign-key ID.
+
+```bash
+zeyos find accounts "Zfx Lyon"
+zeyos find projects "Website" --limit 5 --json
+```
+
+`find` sends the text through the API's full-text `query` parameter and returns ID plus the
+resource's display fields. No matches is a successful result reported on stderr.
+
+---
+
 ## count
 
 Count records for a resource, with optional filtering. Returns a plain number by default.
@@ -236,8 +272,12 @@ zeyos count <resource> [options]
 |--------|-------------|
 | `--filter <json>` | Filter criteria — JSON object |
 | `--filter-file <path>` | Read filter criteria from a JSON file |
+| `--search <text>` | Full-text search |
+| `--preset <name>` | Apply a resource business preset before the explicit filter |
 | `--json` | Output as `{"count": N}` |
 | `--yaml` | YAML output |
+| `--dry-run` | Print the request without sending it |
+| `--no-validate` | Skip schema validation |
 
 **Examples:**
 
@@ -273,11 +313,14 @@ zeyos sum <resource> <field> [options]
 |--------|-------------|
 | `--filter <json>` | Filter criteria — JSON object. Arrays normalize to `IN`, e.g. `{"status":[1,3]}` |
 | `--filter-file <path>` | Read filter criteria from a JSON file |
+| `--preset <name>` | Apply a resource business preset before the explicit filter |
 | `--page-size <n>` | Records per API page (default: 50) |
 | `--limit <n>` | Maximum records to inspect |
 | `--offset <n>` | Initial offset |
 | `--json` | Output as `{"sum": N, "count": N, "field": "..."}` |
 | `--yaml` | YAML output |
+| `--dry-run` | Print the first request without sending it |
+| `--no-validate` | Skip schema validation |
 
 **Examples:**
 

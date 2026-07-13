@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { suggestClosest } from '@zeyos/client';
 import { buildClient, syncTokens } from './client.mjs';
 import { collectFieldFlags } from './flags.mjs';
 import { resolveResource } from './resources.mjs';
@@ -35,7 +36,7 @@ export function requireRecordId(id, usage) {
 
 export function buildCliClient(values = {}) {
   try {
-    return buildClient({}, { profile: values.profile });
+    return buildClient({ validate: values['no-validate'] !== true }, { profile: values.profile });
   } catch (err) {
     fail(err.message);
   }
@@ -315,14 +316,14 @@ export function buildRecordPayload(values, positionalData) {
  * @returns {Promise<boolean>}
  */
 export async function maybeDryRun(clientState, operationId, input, values) {
-  if (!values.query) return false;
+  if (!values.query && !values['dry-run']) return false;
 
   const fn = requireApiMethod(clientState, operationId);
   let descriptor;
   try {
     descriptor = await fn(input, { dryRun: true });
   } catch (err) {
-    fail(`Could not build request: ${err.message}`);
+    fail(formatApiError(clientState, operationId, err, 'Could not build request'));
   }
   printQuery(descriptor, values);
   return true;
@@ -346,6 +347,102 @@ export async function callApi(clientState, operationId, input, options = {}) {
     if (err.status === 404 && options.notFoundMessage) {
       fail(options.notFoundMessage);
     }
-    fail(`${options.errorPrefix ?? 'API error'}: ${err.message}`);
+    fail(formatApiError(clientState, operationId, err, options.errorPrefix ?? 'API error'));
   }
+}
+
+export function validateCliInput(clientState, operationId, input) {
+  const result = clientState.client.schema.validate(operationId, input);
+  if (!result.valid) {
+    fail(formatValidationErrors(clientState, operationId, result.errors));
+  }
+}
+
+function formatApiError(clientState, operationId, err, prefix) {
+  if (err?.name === 'ZeyosValidationError') {
+    return formatValidationErrors(clientState, operationId, err.errors);
+  }
+  return `${prefix}: ${err.message}`;
+}
+
+export function formatValidationErrors(clientState, operationId, errors) {
+  const schema = clientState.client?.schema ?? clientState.schema;
+  const resource = schema.resourceForOperation(operationId);
+  const validFields = resource ? schema.fields(resource) : [];
+  return errors.map((entry) => {
+    if (entry?.message?.startsWith('Unknown field "') && resource) {
+      const field = entry.field;
+      const aliases = resolveResource(resource)?.filterAliases || {};
+      const closestAlias = suggestClosest(field, Object.keys(aliases));
+      const suggestion = entry.suggestion || (closestAlias ? aliases[closestAlias] : null);
+      return `Unknown field "${field}" on ${resource}.` +
+        (suggestion ? ` Did you mean "${suggestion}"?` : '') +
+        ` Valid fields: ${validFields.join(', ')}`;
+    }
+    return entry.message;
+  }).join(' ');
+}
+
+export function buildPresetFilters(res, resourceName, presetName, userFilters) {
+  try {
+    return prepareResourceFilters(res, resourceName, presetName, userFilters);
+  } catch (err) {
+    fail(err.message);
+  }
+}
+
+/**
+ * Merge a named business preset with caller-provided filters without terminating
+ * the process. This is the shared form used by long-lived transports such as MCP.
+ * Caller filters take precedence, including nested operator objects.
+ */
+export function mergePresetFilters(res, resourceName, presetName, userFilters) {
+  if (!presetName) return userFilters;
+  const presets = res.presets || {};
+  const names = Object.keys(presets);
+  if (!Object.prototype.hasOwnProperty.call(presets, presetName)) {
+    const suggestion = suggestClosest(presetName, names);
+    const available = names.length ? names.join(', ') : 'none';
+    throw new Error(`Unknown preset "${presetName}" for ${resourceName}.` +
+      (suggestion ? ` Did you mean "${suggestion}"?` : '') +
+      ` Available presets: ${available}`);
+  }
+  const preset = typeof presets[presetName] === 'function' ? presets[presetName]() : presets[presetName];
+  return deepMerge(preset, userFilters || {});
+}
+
+/** Apply the CLI's complete filter preparation pipeline. */
+export function prepareResourceFilters(res, resourceName, presetName, userFilters) {
+  const options = { fieldAliases: res.filterAliases };
+  const normalizedUser = userFilters === undefined
+    ? undefined
+    : normalizeFilterOperators(userFilters, options);
+  const presetOnly = mergePresetFilters(res, resourceName, presetName, undefined);
+  const normalizedPreset = presetOnly === undefined
+    ? undefined
+    : normalizeFilterOperators(presetOnly, options);
+  if (normalizedPreset === undefined) return normalizedUser;
+  return deepMerge(normalizedPreset, normalizedUser || {});
+}
+
+/** Validate input and return the same teaching error text used by the CLI. */
+export function validateInput(schema, operationId, input) {
+  const result = schema.validate(operationId, input);
+  if (result.valid) return;
+  throw new Error(formatValidationErrors({ schema }, operationId, result.errors));
+}
+
+function deepMerge(base, override) {
+  const out = { ...base };
+  for (const [key, value] of Object.entries(override || {})) {
+    const current = out[key];
+    out[key] = isPlainObject(current) && isPlainObject(value)
+      ? deepMerge(current, value)
+      : value;
+  }
+  return out;
+}
+
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }

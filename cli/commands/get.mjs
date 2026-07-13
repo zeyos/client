@@ -23,6 +23,7 @@ import {
   callApi,
   fail,
   maybeDryRun,
+  validateCliInput,
   requireRecordId,
   requireResource
 } from '../lib/command.mjs';
@@ -45,7 +46,8 @@ Options:
   --all               Fetch all data (extdata + tags + all fields)
   --json              Output as JSON
   --yaml              Output as YAML
-  --query             Print the request route + JSON body without sending it
+  --dry-run           Print the request route + JSON body without sending it
+  --no-validate       Skip schema validation
   -h, --help          Show this help
 
 Fields format:
@@ -69,6 +71,10 @@ export async function run(values, positional) {
 
   const resName = canonicalName(resourceName);
   const clientState = buildCliClient(values);
+  const fieldConfig = values.all ? undefined : getGetFields(resName, values.fields);
+  if (!values['no-validate'] && values.fields && fieldConfig?.keys && res.list) {
+    validateCliInput(clientState, res.list, { fields: fieldConfig.keys });
+  }
 
   // ── Build params ───────────────────────────────────────────────────────────
   // GET endpoints use query parameters like ?extdata=1&tags=1 to include
@@ -111,7 +117,6 @@ export async function run(values, positional) {
   }
 
   // ── Determine display fields ───────────────────────────────────────────────
-  const fieldConfig = values.all ? undefined : getGetFields(resName, values.fields);
   const fields = fieldConfig?.keys;
   const fieldLabels = fieldConfig?.labels ?? {};
 

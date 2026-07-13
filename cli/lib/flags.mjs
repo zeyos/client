@@ -10,7 +10,8 @@ const RESERVED_FLAGS = new Set([
   'no-color', 'force', 'fields', 'filter', 'filter-file', 'sort',
   'limit', 'offset', 'expand', 'base-url', 'client-id',
   'secret', 'scope', 'global', 'port', 'manual', 'show-token',
-  'extdata', 'tags', 'all', 'clean', 'query', 'profile',
+  'extdata', 'tags', 'all', 'clean', 'query', 'dry-run', 'no-validate',
+  'search', 'preset', 'profile',
 ]);
 
 /**

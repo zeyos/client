@@ -877,6 +877,30 @@ async function testConfigListAccounts() {
   }
 }
 
+async function testAgentBoundaryCommands() {
+  section('agent-safe query boundary');
+
+  try {
+    const invalid = await cli(['list', 'accounts', '--filter', '{"companynames":"Acme"}', '--dry-run']);
+    assert(invalid.code !== 0, 'Unknown field should fail');
+    assertIncludes(invalid.stderr, 'Unknown field "companynames" on accounts');
+    assertIncludes(invalid.stderr, 'Valid fields:');
+    pass('unknown fields fail before sending');
+  } catch (e) {
+    fail('unknown fields fail before sending', e);
+  }
+
+  try {
+    const found = await cliJson(['find', 'accounts', 'integration', '--limit', '1', '--dry-run', '--json']);
+    assert(found.code === 0, found.stderr);
+    assertEq(found.data.body.query, 'integration', 'find query');
+    assertEq(found.data.body.limit, 1, 'find limit');
+    pass('find builds a full-text list request');
+  } catch (e) {
+    fail('find builds a full-text list request', e);
+  }
+}
+
 // ── Cleanup ──────────────────────────────────────────────────────────────────
 
 async function cleanup() {
@@ -924,6 +948,7 @@ async function main() {
   await testConfigFields();
   await testConfigGetExpand();
   await testConfigListAccounts();
+  await testAgentBoundaryCommands();
   await testListTickets();
   await testListOtherResources();
   await testListWithExpand();

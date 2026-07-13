@@ -45,8 +45,8 @@ const REGISTRY = {
     update: 'updateAccount',
     delete: 'deleteAccount',
     fields: ['ID', 'customernum', 'lastname', 'firstname', 'type', 'assigneduser', 'lastmodified'],
-    fieldAliases: { name: 'lastname' },
-    filterAliases: { name: 'lastname' },
+    fieldAliases: { name: 'lastname', companyname: 'lastname', company: 'lastname', accountname: 'lastname' },
+    filterAliases: { name: 'lastname', companyname: 'lastname', company: 'lastname', accountname: 'lastname' },
   },
   contact: {
     list:   'listContacts',
@@ -54,7 +54,7 @@ const REGISTRY = {
     create: 'createContact',
     update: 'updateContact',
     delete: 'deleteContact',
-    fields: ['ID', 'firstname', 'lastname', 'email', 'phone', 'account'],
+    fields: ['ID', 'firstname', 'lastname', 'email', 'phone', 'company'],
   },
   address: {
     list:   'listAddresses',
@@ -78,7 +78,7 @@ const REGISTRY = {
     create: 'createAppointment',
     update: 'updateAppointment',
     delete: 'deleteAppointment',
-    fields: ['ID', 'name', 'startdate', 'enddate', 'location'],
+    fields: ['ID', 'name', 'datefrom', 'dateto', 'location'],
   },
   document: {
     list:   'listDocuments',
@@ -86,7 +86,7 @@ const REGISTRY = {
     create: 'createDocument',
     update: 'updateDocument',
     delete: 'deleteDocument',
-    fields: ['ID', 'name', 'doctype', 'docnum', 'account', 'date', 'nettotal'],
+    fields: ['ID', 'name', 'documentnum', 'status', 'filename', 'lastmodified'],
   },
   note: {
     list:   'listNotes',
@@ -94,7 +94,7 @@ const REGISTRY = {
     create: 'createNote',
     update: 'updateNote',
     delete: 'deleteNote',
-    fields: ['ID', 'name', 'text', 'created'],
+    fields: ['ID', 'name', 'text', 'creationdate'],
   },
   message: {
     list:   'listMessages',
@@ -115,7 +115,7 @@ const REGISTRY = {
   user: {
     list:   'listUsers',
     get:    'getUser',
-    fields: ['ID', 'name', 'email', 'role', 'active'],
+    fields: ['ID', 'name', 'email', 'activity', 'expdate'],
   },
   group: {
     list:   'listGroups',
@@ -133,7 +133,7 @@ const REGISTRY = {
     create: 'createEvent',
     update: 'updateEvent',
     delete: 'deleteEvent',
-    fields: ['ID', 'name', 'type', 'created', 'account'],
+    fields: ['ID', 'name', 'entity', 'datefrom', 'dateto'],
   },
   transaction: {
     list:   'listTransactions',
@@ -141,7 +141,23 @@ const REGISTRY = {
     create: 'createTransaction',
     update: 'updateTransaction',
     delete: 'deleteTransaction',
-    fields: ['ID', 'name', 'amount', 'date', 'account'],
+    fields: ['ID', 'transactionnum', 'type', 'date', 'duedate', 'status', 'account', 'netamount'],
+    presets: {
+      quotes: { type: 0 },
+      orders: { type: 1 },
+      invoices: { type: 3 },
+      credits: { type: 4 },
+      'open-invoices': {
+        type: 3,
+        status: { $nin: [3, 4, 6, 7, 10, 11, 14, 15, 18, 19, 20, 21, 22, 23] }
+      },
+      'overdue-invoices': () => ({
+        type: 3,
+        status: { $nin: [3, 4, 6, 7, 10, 11, 14, 15, 18, 19, 20, 21, 22, 23] },
+        duedate: { $lt: Math.floor(Date.now() / 1000) }
+      }),
+      'paid-invoices': { type: 3, status: { $in: [20, 21] } }
+    },
   },
   payment: {
     list:   'listPayments',
@@ -149,7 +165,7 @@ const REGISTRY = {
     create: 'createPayment',
     update: 'updatePayment',
     delete: 'deletePayment',
-    fields: ['ID', 'amount', 'date', 'method', 'transaction'],
+    fields: ['ID', 'amount', 'date', 'status', 'subject', 'transaction', 'account'],
   },
   opportunity: {
     list:   'listOpportunities',
@@ -157,7 +173,7 @@ const REGISTRY = {
     create: 'createOpportunity',
     update: 'updateOpportunity',
     delete: 'deleteOpportunity',
-    fields: ['ID', 'name', 'status', 'probability', 'amount', 'account'],
+    fields: ['ID', 'name', 'opportunitynum', 'status', 'probability', 'mostlikely', 'account'],
   },
   campaign: {
     list:   'listCampaigns',
@@ -165,7 +181,7 @@ const REGISTRY = {
     create: 'createCampaign',
     update: 'updateCampaign',
     delete: 'deleteCampaign',
-    fields: ['ID', 'name', 'status', 'startdate', 'enddate'],
+    fields: ['ID', 'name', 'status', 'datefrom', 'dateto'],
   },
   mailinglist: {
     list:   'listMailingLists',
@@ -173,7 +189,7 @@ const REGISTRY = {
     create: 'createMailingList',
     update: 'updateMailingList',
     delete: 'deleteMailingList',
-    fields: ['ID', 'name', 'description', 'status', 'lastmodified'],
+    fields: ['ID', 'name', 'sender', 'campaign', 'lastmodified'],
   },
   mailingrecipient: {
     list:   'listMailingRecipients',
@@ -181,7 +197,7 @@ const REGISTRY = {
     create: 'createMailingRecipient',
     update: 'updateMailingRecipient',
     delete: 'deleteMailingRecipient',
-    fields: ['ID', 'message', 'mailinglist', 'campaign', 'email', 'recipientuser', 'recipientgroup'],
+    fields: ['ID', 'message', 'participant', 'email', 'creationdate'],
   },
   dunning: {
     list:   'listDunningNotices',
@@ -205,7 +221,7 @@ const REGISTRY = {
     create: 'createPriceList',
     update: 'updatePriceList',
     delete: 'deletePriceList',
-    fields: ['ID', 'name', 'type', 'discount', 'allaccounts'],
+    fields: ['ID', 'name', 'type', 'currency', 'discount', 'applytoall'],
   },
   pricelistaccount: {
     list:   'listPriceListsToAccounts',
@@ -234,7 +250,7 @@ const REGISTRY = {
     create: 'createFile',
     update: 'updateFile',
     delete: 'deleteFile',
-    fields: ['ID', 'name', 'mimetype', 'filesize', 'created'],
+    fields: ['ID', 'filename', 'mimetype', 'record', 'creationdate'],
   },
   invitation: {
     list:   'listInvitations',
@@ -242,7 +258,7 @@ const REGISTRY = {
     create: 'createInvitation',
     update: 'updateInvitation',
     delete: 'deleteInvitation',
-    fields: ['ID', 'email', 'status', 'created'],
+    fields: ['ID', 'name', 'email', 'appointment', 'contact', 'flag'],
   },
   storage: {
     list:   'listStorages',
@@ -250,7 +266,7 @@ const REGISTRY = {
     create: 'createStorage',
     update: 'updateStorage',
     delete: 'deleteStorage',
-    fields: ['ID', 'name', 'type', 'capacity'],
+    fields: ['ID', 'name', 'description'],
   },
 };
 

@@ -20,7 +20,8 @@
  *   fields: string[],
  *   idField?: string,
  *   fieldAliases?: Record<string,string>,
- *   filterAliases?: Record<string,string>
+ *   filterAliases?: Record<string,string>,
+ *   presets?: Record<string, JsonObject|(()=>JsonObject)>
  * }} ResourceDef
  */
 

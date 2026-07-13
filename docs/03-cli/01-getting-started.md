@@ -128,6 +128,10 @@ zeyos skills install --target claude --global   # or skip the prompts with flags
 
 See the [Commands Reference](./02-commands.md#skills) for details.
 
+## Connect an MCP Host
+
+The package also includes the `zeyos-mcp` stdio server for Claude Desktop and other MCP hosts. It mirrors the CLI’s schema validation, aliases, filters, presets, and credential profiles; see the [MCP Server guide](./04-mcp-server.md) for configuration and the write-safety gate.
+
 ## Working with Filters
 
 Query specific records using JSON filter expressions:
@@ -225,3 +229,4 @@ Add `.zeyos/auth.json` to your `.gitignore` — it contains access tokens.
 - **[Coding Agents](../04-agent-workflows/00-coding-agents.md)** -- CLI-first workflows and escalation guidance
 - **[Commands Reference](./02-commands.md)** — Full reference for every command
 - **[Configuration](./03-configuration.md)** — Config files, environment variables, and resource field customization
+- **[MCP Server](./04-mcp-server.md)** — Connect Claude Desktop or another stdio MCP host

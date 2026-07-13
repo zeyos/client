@@ -9,6 +9,7 @@
  *   logout               Revoke session and clear stored credentials
  *   whoami               Show current user info
  *   list <resource>      List records
+ *   find <resource>      Resolve text to records
  *   count <resource>     Count records
  *   sum <resource>       Sum a numeric field across matching records
  *   get <resource> <id>  Fetch a single record
@@ -42,6 +43,7 @@ ${_c.bold('Commands:')}
   ${_c.cyan('logout')}               Revoke session and clear stored credentials
   ${_c.cyan('whoami')}               Show currently authenticated user
   ${_c.cyan('list')}   <resource>    List / query records
+  ${_c.cyan('find')}   <resource> <text>  Resolve text to records
   ${_c.cyan('count')}  <resource>    Count records (with optional filter)
   ${_c.cyan('sum')}    <resource> <field>  Sum a numeric field
   ${_c.cyan('get')}    <resource> <id>  Fetch a single record by ID
@@ -59,7 +61,7 @@ ${_c.bold('Commands:')}
 ${_c.bold('Global options:')}
   --json               Output as JSON
   --yaml               Output as YAML
-  --query              Print the API route + JSON payload without sending it
+  --dry-run            Print the API route + JSON payload without sending it
   --profile <name>     Use a named credential profile for this command
   --no-color           Disable ANSI colors
   -h, --help           Show help for a command
@@ -68,6 +70,7 @@ ${_c.bold('Global options:')}
 ${_c.bold('Examples:')}
   ${_z} login --base-url https://cloud.zeyos.com/demo --client-id myapp --secret "$ZEYOS_CLIENT_SECRET"
   ${_z} list tickets --filter '{"status":1}' --sort -lastmodified
+  ${_z} find accounts "Zfx Lyon"
   ${_z} list tickets --filter-file ./filters/open-tickets.json
   ${_z} count tickets --filter '{"status":1}'
   ${_z} sum actionsteps effort --filter '{"status":[1,3]}'
@@ -88,6 +91,8 @@ const OPTIONS = {
   'yaml':       { type: 'boolean' },
   'no-color':   { type: 'boolean' },
   'query':      { type: 'boolean' },
+  'dry-run':    { type: 'boolean' },
+  'no-validate': { type: 'boolean' },
   'profile':    { type: 'string' },
   // login
   'base-url':   { type: 'string' },
@@ -105,6 +110,8 @@ const OPTIONS = {
   'fields':     { type: 'string' },
   'filter':     { type: 'string' },
   'filter-file': { type: 'string' },
+  'search':     { type: 'string' },
+  'preset':     { type: 'string' },
   'sort':       { type: 'string' },
   'limit':      { type: 'string' },
   'offset':     { type: 'string' },
@@ -145,6 +152,7 @@ const COMMANDS = {
   logout:    '../commands/logout.mjs',
   whoami:    '../commands/whoami.mjs',
   list:      '../commands/list.mjs',
+  find:      '../commands/find.mjs',
   count:     '../commands/count.mjs',
   sum:       '../commands/sum.mjs',
   get:       '../commands/get.mjs',
@@ -172,20 +180,22 @@ const COMMANDS = {
 // exception: they accept arbitrary `--<field>` flags, marked with `null` below.
 
 const ALWAYS_FLAGS = ['help', 'json', 'yaml', 'no-color', 'profile'];
-const LEADING_FLAGS = [...ALWAYS_FLAGS, 'version', 'query'];
+const LEADING_FLAGS = [...ALWAYS_FLAGS, 'version', 'dry-run', 'query'];
 const SKILLS_FLAGS = ['target', 'dir', 'global', 'local', 'force', 'yes', 'no-logo'];
 const OKF_FLAGS    = ['dir', 'out', 'force', 'no-logo'];
 const PROFILE_FLAGS = ['base-url', 'client-id', 'secret', 'local', 'from-current'];
-const DELETE_FLAGS = ['force', 'query'];
-const GET_FLAGS    = ['fields', 'extdata', 'tags', 'expand', 'all', 'query'];
+const DATA_FLAGS   = ['dry-run', 'query', 'no-validate'];
+const DELETE_FLAGS = ['force', ...DATA_FLAGS];
+const GET_FLAGS    = ['fields', 'extdata', 'tags', 'expand', 'all', ...DATA_FLAGS];
 
 const COMMAND_FLAGS = {
   login:     ['base-url', 'client-id', 'secret', 'scope', 'port', 'global', 'force', 'clean', 'manual'],
   logout:    ['global'],
   whoami:    ['show-token'],
-  list:      ['fields', 'filter', 'filter-file', 'sort', 'limit', 'offset', 'extdata', 'expand', 'query'],
-  count:     ['filter', 'filter-file', 'query'],
-  sum:       ['filter', 'filter-file', 'limit', 'offset', 'page-size', 'query'],
+  list:      ['fields', 'filter', 'filter-file', 'search', 'preset', 'sort', 'limit', 'offset', 'extdata', 'expand', ...DATA_FLAGS],
+  find:      ['fields', 'limit', ...DATA_FLAGS],
+  count:     ['filter', 'filter-file', 'search', 'preset', ...DATA_FLAGS],
+  sum:       ['filter', 'filter-file', 'preset', 'limit', 'offset', 'page-size', ...DATA_FLAGS],
   get:       GET_FLAGS,
   show:      GET_FLAGS,
   create:    null,

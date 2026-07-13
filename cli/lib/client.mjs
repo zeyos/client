@@ -49,6 +49,7 @@ export function buildClient(overrides = {}, opts = {}) {
 
   const client = createZeyosClient({
     platform: config.baseUrl,
+    validate: config.validate === true,
     auth: {
       mode: 'oauth',
       oauth,

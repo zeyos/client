@@ -70,7 +70,10 @@ export function run(values, positional = []) {
     error(`Unknown resource "${resource}". Run "zeyos resources" for common resources.`);
     process.exit(1);
   }
-  const def = s.describe(key);
+  const resourceDef = resolveResource(resource);
+  const presetNames = Object.keys(resourceDef?.presets || {});
+  const schemaDef = s.describe(key);
+  const def = presetNames.length ? { ...schemaDef, presets: presetNames } : schemaDef;
 
   const mode = outputMode(values);
   if (mode === 'json') {
@@ -119,5 +122,8 @@ export function run(values, positional = []) {
 
   if (operations.length > 0) {
     process.stdout.write(`  ${c.bold('operations')}  ${c.dim(operations.join(', '))}\n\n`);
+  }
+  if (presetNames.length > 0) {
+    process.stdout.write(`  ${c.bold('presets')}  ${c.dim(presetNames.join(', '))}\n\n`);
   }
 }

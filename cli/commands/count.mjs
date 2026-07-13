@@ -11,8 +11,8 @@
  */
 
 import { normalizeCountResult }    from '@zeyos/client';
-import { buildCliClient, callApi, maybeDryRun, normalizeFilterOperators, parseJsonOptionOrFile, requireResource } from '../lib/command.mjs';
-import { outputMode, printJson, printYaml } from '../lib/output.mjs';
+import { buildCliClient, buildPresetFilters, callApi, maybeDryRun, parseJsonOptionOrFile, requireResource } from '../lib/command.mjs';
+import { info, outputMode, printJson, printYaml } from '../lib/output.mjs';
 
 export const USAGE = `\
 Usage: zeyos count <resource> [options]
@@ -28,9 +28,12 @@ Options:
                       keys like field__startswith/field__gt normalize to native operators
   --filter-file <path>
                       Read JSON filter object from a file
+  --search <text>     Full-text search
+  --preset <name>     Apply a business filter preset before --filter
   --json              Output as JSON ({ "count": N })
   --yaml              Output as YAML
-  --query             Print the request route + JSON body without sending it
+  --dry-run           Print the request route + JSON body without sending it
+  --no-validate       Skip schema validation
   -h, --help          Show this help
 
 Examples:
@@ -47,10 +50,11 @@ export async function run(values, positional) {
   // ── Build request body ─────────────────────────────────────────────────────
   const body = { count: true };
 
-  const filters = parseJsonOptionOrFile(values, 'filter', 'filter-file');
+  const filters = buildPresetFilters(res, resourceName, values.preset, parseJsonOptionOrFile(values, 'filter', 'filter-file'));
   if (filters !== undefined) {
-    body.filters = normalizeFilterOperators(filters, { fieldAliases: res.filterAliases });
+    body.filters = filters;
   }
+  if (values.search != null) body.query = values.search;
 
   // ── Call API ───────────────────────────────────────────────────────────────
   const clientState = buildCliClient(values);
@@ -69,5 +73,9 @@ export async function run(values, positional) {
     printYaml({ count });
   } else {
     process.stdout.write(`${count}\n`);
+  }
+
+  if (count === 0 && (values.filter != null || values['filter-file'] != null || values.search != null)) {
+    info(`Hint: 0 results. If a filter field or value might be wrong, check 'zeyos describe <resource>' or resolve records with 'zeyos find <resource> "<text>"'.`);
   }
 }

@@ -556,15 +556,112 @@ test('known string options require a value', async (t) => {
   assert.match(limit.stderr, /Option --limit requires a value/);
 });
 
-test('create still accepts arbitrary --<field> flags', async (t) => {
+test('--no-validate preserves arbitrary create field pass-through', async (t) => {
   const cwd = await tempDir(t);
-  const result = await cli(['create', 'tickets', '--name', 'Hi', '--anything', 'goes', '--query'], {
+  const result = await cli(['create', 'tickets', '--name', 'Hi', '--anything', 'goes', '--no-validate', '--dry-run'], {
     cwd,
     env: isolatedEnv(cwd, CREDENTIALS)
   });
 
   assert.equal(result.code, 0);
   assert.match(result.stdout, /"anything": "goes"/);
+});
+
+test('CLI validation fails before request construction and lists valid fields', async (t) => {
+  const cwd = await tempDir(t);
+  const result = await cli(
+    ['list', 'accounts', '--filter', '{"companynames":"Acme"}', '--dry-run'],
+    { cwd, env: isolatedEnv(cwd, CREDENTIALS) }
+  );
+
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /Unknown field "companynames" on accounts/);
+  assert.match(result.stderr, /Did you mean "lastname"|Valid fields: ID, fork/);
+  assert.match(result.stderr, /Valid fields: ID, fork, ownergroup/);
+  assert.equal(result.stdout, '');
+});
+
+test('account company-name guesses are absorbed by filter and field aliases', async (t) => {
+  const cwd = await tempDir(t);
+  const result = await cli(
+    ['list', 'accounts', '--filter', '{"companyname":"Acme"}', '--fields', 'ID,accountname', '--dry-run', '--json'],
+    { cwd, env: isolatedEnv(cwd, CREDENTIALS) }
+  );
+
+  assert.equal(result.code, 0, result.stderr);
+  const descriptor = JSON.parse(result.stdout);
+  assert.deepEqual(descriptor.body.filters, { lastname: 'Acme' });
+  assert.deepEqual(descriptor.body.fields, { ID: 'ID', accountname: 'lastname' });
+});
+
+test('--dry-run is canonical and --query remains a working alias', async (t) => {
+  const cwd = await tempDir(t);
+  for (const flag of ['--dry-run', '--query']) {
+    const result = await cli(['count', 'tickets', flag, '--json'], { cwd, env: isolatedEnv(cwd, CREDENTIALS) });
+    assert.equal(result.code, 0, result.stderr);
+    assert.equal(JSON.parse(result.stdout).dryRun, true);
+  }
+  const help = await cli(['count', '--help']);
+  assert.match(help.stdout, /--dry-run/);
+  assert.doesNotMatch(help.stdout, /--query/);
+});
+
+test('transaction presets normalize operators, deep-merge user filters, and compute overdue seconds at runtime', async (t) => {
+  const cwd = await tempDir(t);
+  const before = Math.floor(Date.now() / 1000);
+  const overdue = await cli(
+    ['count', 'transactions', '--preset', 'overdue-invoices', '--dry-run', '--json'],
+    { cwd, env: isolatedEnv(cwd, CREDENTIALS) }
+  );
+  const after = Math.floor(Date.now() / 1000);
+  assert.equal(overdue.code, 0, overdue.stderr);
+  const overdueFilters = JSON.parse(overdue.stdout).body.filters;
+  assert.equal(overdueFilters.type, 3);
+  assert.deepEqual(overdueFilters.status['!IN'], [3, 4, 6, 7, 10, 11, 14, 15, 18, 19, 20, 21, 22, 23]);
+  assert.ok(overdueFilters.duedate['<'] >= before && overdueFilters.duedate['<'] <= after);
+
+  const merged = await cli(
+    ['list', 'transactions', '--preset', 'open-invoices', '--filter', '{"type":4,"status":{"$nin":[20]}}', '--dry-run', '--json'],
+    { cwd, env: isolatedEnv(cwd, CREDENTIALS) }
+  );
+  assert.equal(merged.code, 0, merged.stderr);
+  assert.deepEqual(JSON.parse(merged.stdout).body.filters, { type: 4, status: { '!IN': [20] } });
+});
+
+test('find sends full-text query and display fields, then prints the follow-up hint', async (t) => {
+  const cwd = await tempDir(t);
+  const server = await jsonServer(t, (_req, res) => {
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify([{ ID: 7, lastname: 'Zfx Lyon' }]));
+  });
+  const result = await cli(['find', 'accounts', 'Zfx Lyon', '--fields', 'ID,lastname', '--json'], {
+    cwd,
+    env: isolatedEnv(cwd, { ...CREDENTIALS, ZEYOS_BASE_URL: server.baseUrl })
+  });
+
+  assert.equal(result.code, 0, result.stderr);
+  assert.deepEqual(JSON.parse(result.stdout), [{ ID: 7, lastname: 'Zfx Lyon' }]);
+  const body = JSON.parse(server.requests[0].body);
+  assert.equal(body.query, 'Zfx Lyon');
+  assert.equal(body.limit, 10);
+  assert.deepEqual(body.fields, { ID: 'ID', lastname: 'lastname' });
+  assert.match(result.stderr, /Use the ID in follow-up filters/);
+});
+
+test('zero-row hints are emitted for filtered list and searched count JSON output', async (t) => {
+  const cwd = await tempDir(t);
+  const server = await jsonServer(t, (_req, res, body) => {
+    const parsed = JSON.parse(body || '{}');
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify(parsed.count ? { count: 0 } : []));
+  });
+  const env = isolatedEnv(cwd, { ...CREDENTIALS, ZEYOS_BASE_URL: server.baseUrl });
+  const list = await cli(['list', 'tickets', '--filter', '{"status":1}', '--json'], { cwd, env });
+  const count = await cli(['count', 'tickets', '--search', 'missing', '--json'], { cwd, env });
+  assert.equal(list.code, 0, list.stderr);
+  assert.equal(count.code, 0, count.stderr);
+  assert.match(list.stderr, /Hint: 0 results/);
+  assert.match(count.stderr, /Hint: 0 results/);
 });
 
 test('--query prints the route + JSON payload without sending a request', async (t) => {

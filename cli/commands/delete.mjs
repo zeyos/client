@@ -22,7 +22,8 @@ Arguments:
 
 Options:
   --force             Skip confirmation prompt
-  --query             Print the request route + JSON body without sending it
+  --dry-run           Print the request route + JSON body without sending it
+  --no-validate       Skip schema validation
   -h, --help          Show this help
 
 Examples:

@@ -206,6 +206,11 @@ These are the 64 entities that have direct list endpoints in `api.json`.
 | `dunning` | Collection or dunning notices | Overdue collection workflows |
 | `dunning2transactions` | Dunning-to-transaction junction | Trace which invoices are part of a dunning process |
 
+Transaction business vocabulary maps to `type`: quote `0`, order `1`, invoice `3`, and
+credit `4`. The CLI's `open-invoices` preset means `type = 3` while excluding every
+cancelled, closed, paid, overpaid, and processed status variant; `overdue-invoices` adds
+`duedate < now` in Unix seconds, and `paid-invoices` uses statuses `20` and `21`.
+
 ### Inventory, Pricing, and Commerce Entities
 
 | Entity | Purpose | Agent relevance |

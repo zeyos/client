@@ -70,6 +70,10 @@ Then read [zeyos-query-patterns.md](./zeyos-query-patterns.md) for the rules tha
 those commands correct (filters vs filter, `visibility: 0`, counting, time windows), and
 the matching domain skill for the metric definitions.
 
+MCP-capable hosts can use the bundled `zeyos-mcp` server instead of shell commands. Its
+tools mirror the same aliases, filter normalization, presets, validation, credential
+resolution, and read-before-write rules; writes are hidden unless explicitly enabled.
+
 ## Shell-safe command hygiene
 
 - Use copy-paste-safe JSON: wrap filter JSON in single quotes and use double quotes inside
