@@ -11,6 +11,6 @@
     }
   },
   "get": {
-    "fields": ["ID", "itemnum", "name", "manufacturer", "type", "sellingprice", "purchaseprice", "description", "created", "lastmodified"]
+    "fields": ["ID", "itemnum", "name", "manufacturer", "type", "sellingprice", "purchaseprice", "description", "creationdate", "lastmodified"]
   }
 }

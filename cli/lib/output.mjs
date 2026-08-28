@@ -117,7 +117,11 @@ function toYaml(value, indent = 0) {
         return `\n${pad}${k}:\n${pad}  ${toYaml(v, indent + 1).trimStart()}`;
       }
       const rendered = toYaml(v, indent + 1);
-      if (typeof v === 'object' && v !== null) {
+      // Nested collections render as their own indented block starting with a
+      // newline, so the key takes no trailing space. Empty ones render inline as
+      // `{}` / `[]` and still need `key: value` spacing — without it the line
+      // reads back as the scalar string "key:{}".
+      if (typeof v === 'object' && v !== null && rendered.startsWith('\n')) {
         return `\n${pad}${k}:${rendered}`;
       }
       return `\n${pad}${k}: ${rendered}`;
@@ -127,6 +131,12 @@ function toYaml(value, indent = 0) {
 }
 
 // ── Table ─────────────────────────────────────────────────────────────────────
+
+/**
+ * A cell that should be right-aligned: a bare number, or one grouped with `.`,
+ * `,`, a space, or a narrow/non-breaking space (Intl uses those for fr/de/ru).
+ */
+const NUMERIC_CELL = /^-?\d{1,3}(?:[.,   ]?\d{3})*(?:[.,]\d+)?$|^-?\d+(?:[.,]\d+)?$/;
 
 /**
  * Print a list of objects as a plain-text table.
@@ -157,15 +167,17 @@ export function printTable(rows, columns, labels = {}, formatters = {}) {
     Math.max(headers[i].length, ...data.map(row => _visibleLength(row[i])))
   );
 
-  // QW-2: detect numeric columns (every non-empty cell is a plain number,
-  // ignoring ANSI) so we can right-align them — header included.
+  // QW-2: detect numeric columns (every non-empty cell is a number, ignoring
+  // ANSI) so we can right-align them — header included. Grouped forms count:
+  // a formatted `1.234,56` or `1,234.56` is still a number and must not fall
+  // back to left alignment just because it carries separators.
   const numeric = columns.map((_, i) => {
     let sawValue = false;
     for (const row of data) {
       const plain = row[i].replace(/\x1b\[[0-9;]*m/g, '');
       if (plain === '' || plain === '—') continue; // blank / em-dash placeholder
       sawValue = true;
-      if (!/^-?\d+(\.\d+)?$/.test(plain)) return false;
+      if (!NUMERIC_CELL.test(plain)) return false;
     }
     return sawValue;
   });
@@ -338,6 +350,81 @@ export function buildDateFormatters(columns, dateFormat = 'YYYY-MM-DD', aliasToP
     if (isDateField(leaf)) {
       formatters[col] = (val) => formatDate(val, dateFormat);
     }
+  }
+  return formatters;
+}
+
+// ── Number formatting ─────────────────────────────────────────────────────────
+
+/** Schema column types that represent a fractional number. */
+const FLOAT_TYPE = /^(double precision|numeric|decimal|real|money|float)/i;
+
+/**
+ * Locale used to group and separate digits in table output.
+ *
+ * `ZEYOS_LOCALE` wins, then the resource config's `locale`, then the host's
+ * default. This only affects human-readable table and record views — `--json`
+ * and `--yaml` always carry the raw number, so machine consumers and scripts
+ * are unaffected by whatever the terminal is set to.
+ *
+ * @param {string} [configured]
+ * @returns {string|undefined} a BCP-47 tag, or undefined for the host default
+ */
+export function resolveLocale(configured) {
+  return process.env.ZEYOS_LOCALE || configured || undefined;
+}
+
+/**
+ * Format a numeric value with grouped thousands and a fixed fraction.
+ *
+ * @param {unknown} value
+ * @param {{locale?: string, minimumFractionDigits?: number, maximumFractionDigits?: number}} [opts]
+ * @returns {string}
+ */
+export function formatNumber(value, opts = {}) {
+  if (value == null || value === '') return '';
+  const n = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(n)) return String(value);
+  const { locale, minimumFractionDigits = 2, maximumFractionDigits = 2 } = opts;
+  try {
+    return new Intl.NumberFormat(locale, {
+      minimumFractionDigits,
+      maximumFractionDigits,
+      useGrouping: true
+    }).format(n);
+  } catch {
+    return String(n);
+  }
+}
+
+/**
+ * Build value formatters for float columns, so money and quantities read as
+ * `1.234,56` / `1,234.56` rather than `1234.56`.
+ *
+ * Integer columns are deliberately left alone: IDs, foreign keys, enum codes and
+ * timestamps are all integers, and grouping them would be actively misleading.
+ *
+ * @param {string[]} columns - display column keys
+ * @param {Record<string, {type?: string}>} [fieldDefs] - resource schema fields
+ * @param {Record<string,string>} [aliasToPath] - alias → API field path
+ * @param {{locale?: string}} [opts]
+ * @returns {Record<string, ValueFormatter>}
+ */
+export function buildNumberFormatters(columns, fieldDefs = {}, aliasToPath, opts = {}) {
+  const formatters = {};
+  const locale = resolveLocale(opts.locale);
+
+  for (const col of columns) {
+    const fieldPath = aliasToPath?.[col] ?? col;
+    // Dot-notation joins resolve against another table; leave them plain.
+    if (fieldPath.includes('.')) continue;
+    const type = fieldDefs[fieldPath]?.type;
+    if (!type || !FLOAT_TYPE.test(type)) continue;
+
+    formatters[col] = (val) => {
+      if (val == null || val === '') return c.dim('—');
+      return formatNumber(val, { locale });
+    };
   }
   return formatters;
 }

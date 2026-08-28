@@ -114,14 +114,59 @@ export function createSchema({ services, schema }) {
       return;
     }
     const def = fieldDefs[base];
-    if (def && def.enum && (typeof value === 'string' || typeof value === 'number')) {
-      if (!Object.prototype.hasOwnProperty.call(def.enum, String(value))) {
-        const valid = Object.entries(def.enum).map(([k, v]) => `${k}=${v}`).join(', ');
-        errors.push({
-          field: base,
-          message: `Invalid value ${JSON.stringify(value)} for "${base}". Valid: ${valid}.`
-        });
+    if (def && def.enum) {
+      // Check the operands too, not just a bare scalar: `{"status": [999]}` and
+      // `{"status": {"IN": [999]}}` are the shapes the CLI actively encourages,
+      // and letting them through means the caller gets an opaque server error or
+      // a misleading empty result instead of the valid-value list.
+      for (const candidate of enumCandidates(value)) {
+        if (!Object.prototype.hasOwnProperty.call(def.enum, String(candidate))) {
+          const valid = Object.entries(def.enum).map(([k, v]) => `${k}=${v}`).join(', ');
+          errors.push({
+            field: base,
+            message: `Invalid value ${JSON.stringify(candidate)} for "${base}". Valid: ${valid}.`
+          });
+        }
       }
+    }
+  }
+
+  /** Enum-checkable operands inside a filter value (scalar, array, or operator object). */
+  function enumCandidates(value) {
+    if (typeof value === 'string' || typeof value === 'number') return [value];
+    if (Array.isArray(value)) return value.filter((v) => typeof v === 'string' || typeof v === 'number');
+    if (value && typeof value === 'object') {
+      // Only equality-shaped operators constrain to an exact enum member;
+      // ranges like `{">": 2}` legitimately reference non-members.
+      const out = [];
+      for (const [op, operand] of Object.entries(value)) {
+        if (op !== '=' && op !== '!=' && op !== '<>' && op !== 'IN' && op !== '!IN') continue;
+        out.push(...enumCandidates(operand));
+      }
+      return out;
+    }
+    return [];
+  }
+
+  /**
+   * Validate every field reference in a filter object.
+   *
+   * Composite filters use numbered keys holding a logical group —
+   * `{"0": ["OR", {...}, {...}]}` — so a numeric key is a group to recurse into,
+   * not a column name. Without this, a translated `$or` fails validation with
+   * `Unknown field "0"`.
+   */
+  function checkFilterObject(resourceFields, fieldDefs, filterObj, errors) {
+    for (const [field, value] of Object.entries(filterObj)) {
+      if (/^\d+$/.test(field) && Array.isArray(value)) {
+        for (const member of value.slice(1)) {
+          if (member && typeof member === 'object' && !Array.isArray(member)) {
+            checkFilterObject(resourceFields, fieldDefs, member, errors);
+          }
+        }
+        continue;
+      }
+      checkField(resourceFields, fieldDefs, field, value, errors);
     }
   }
 
@@ -163,9 +208,7 @@ export function createSchema({ services, schema }) {
       for (const key of ['filters', 'filter']) {
         const filterObj = data[key];
         if (filterObj && typeof filterObj === 'object' && !Array.isArray(filterObj)) {
-          for (const [field, value] of Object.entries(filterObj)) {
-            checkField(resourceFields, fieldDefs, field, value, errors);
-          }
+          checkFilterObject(resourceFields, fieldDefs, filterObj, errors);
         }
       }
       const sel = data.fields;

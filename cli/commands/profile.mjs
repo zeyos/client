@@ -18,7 +18,8 @@ import { createInterface } from 'node:readline';
 import {
   listProfiles, getProfile, upsertProfile, removeProfile,
   setActiveProfile, writeLocalPin, readLocalPin,
-  resolveProfileSelection, loadConfigWithSource, profilesConfigPath
+  resolveProfileSelection, loadConfigWithSource, profilesConfigPath,
+  tokenStatus
 } from '../lib/config.mjs';
 import { outputMode, printJson, printYaml, printTable, success, error, info, warn } from '../lib/output.mjs';
 
@@ -91,7 +92,7 @@ function cmdList(values) {
   const rows = names.map((name) => ({
     name: `${name === active ? '*' : ' '} ${name}`,
     baseUrl: profiles[name].baseUrl || '(no URL)',
-    token: tokenStatus(profiles[name])
+    token: profiles[name].token
   }));
   printTable(rows, ['name', 'baseUrl', 'token'], { name: 'PROFILE', baseUrl: 'BASE URL', token: 'TOKEN' });
   console.error(`\nProfiles file: ${profilesConfigPath()}`);
@@ -202,16 +203,6 @@ function cmdRemove(values, name) {
 }
 
 // ── helpers ────────────────────────────────────────────────────────────────────
-
-/** Human-readable token status from stored creds. Handles seconds or ms expiry. */
-function tokenStatus(creds = {}) {
-  if (!creds.accessToken) return 'none';
-  const exp = creds.expiresAt;
-  if (exp == null) return 'present';
-  const expSec = Number(exp) > 2e10 ? Number(exp) / 1000 : Number(exp);
-  const now = Math.floor(Date.now() / 1000);
-  return expSec < now ? 'expired' : 'ok';
-}
 
 function failUnknown(name) {
   const names = Object.keys(listProfiles().profiles);

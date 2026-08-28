@@ -11,7 +11,15 @@
  */
 
 import { normalizeCountResult }    from '@zeyos/client';
-import { buildCliClient, buildPresetFilters, callApi, maybeDryRun, parseJsonOptionOrFile, requireResource } from '../lib/command.mjs';
+import {
+  buildCliClient,
+  buildPresetFilters,
+  callApi,
+  maybeDryRun,
+  parseJsonOptionOrFile,
+  requireNoExtraPositionals,
+  requireResource
+} from '../lib/command.mjs';
 import { info, outputMode, printJson, printYaml } from '../lib/output.mjs';
 
 export const USAGE = `\
@@ -46,6 +54,7 @@ Examples:
 export async function run(values, positional) {
   const resourceName = positional[0];
   const res = requireResource(resourceName, 'zeyos count <resource>');
+  requireNoExtraPositionals(positional, 1, 'zeyos count <entity>');
 
   // ── Build request body ─────────────────────────────────────────────────────
   const body = { count: true };

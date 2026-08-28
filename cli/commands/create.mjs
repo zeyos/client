@@ -13,7 +13,8 @@
  *   --yaml              Output created record as YAML
  */
 
-import { buildCliClient, buildRecordPayload, callApi, maybeDryRun, requireResource } from '../lib/command.mjs';
+import { assertNoBoundConflict, buildCliClient, buildRecordPayload, callApi, fail, maybeDryRun, requireNoExtraPositionals, requireResource } from '../lib/command.mjs';
+import { EXIT } from '../lib/exit.mjs';
 import { outputMode, printJson, printYaml, printRecord, success } from '../lib/output.mjs';
 
 export const USAGE = `\
@@ -43,11 +44,22 @@ Examples:
 export async function run(values, positional) {
   const resourceName = positional[0];
   const res = requireResource(resourceName, 'zeyos create <resource>', 'create', 'creation');
+  requireNoExtraPositionals(positional, 2, 'zeyos create <resource> [json]', { jsonBodyAt: 1 });
 
   // ── Build data payload ─────────────────────────────────────────────────────
   // Validate input before requiring credentials.  positional[1] is the
   // (optional) JSON body some callers pass positionally instead of via --data.
-  const data = buildRecordPayload(values, positional[1]);
+  const supplied = buildRecordPayload(values, positional[1], res.create);
+  if (res.boundFields) {
+    // Creating through a pseudo-entity fixes its type. An explicit conflicting
+    // --type would silently file the record under the wrong document type.
+    try {
+      assertNoBoundConflict(res.boundFields, supplied, resourceName, '--type');
+    } catch (err) {
+      fail(err.message, EXIT.USAGE);
+    }
+  }
+  const data = { ...supplied, ...res.boundFields };
 
   const clientState = buildCliClient(values);
 

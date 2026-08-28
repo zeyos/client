@@ -16,29 +16,33 @@
  *   --yaml                 Output as YAML
  */
 
-import { normalizeListResult }            from '@zeyos/client';
+import { normalizeCountResult, normalizeListResult } from '@zeyos/client';
 import { loadConfig }                    from '../lib/config.mjs';
 import { canonicalName }                 from '../lib/resources.mjs';
 import { getListFields }                 from '../lib/resource-config.mjs';
-import { outputMode, printJson, printYaml, printTable, buildDateFormatters, buildEnumFormatters, info } from '../lib/output.mjs';
+import { outputMode, printJson, printYaml, printTable, buildDateFormatters, buildEnumFormatters, buildNumberFormatters, info, colors as _c } from '../lib/output.mjs';
+import { printEntityList }            from '../lib/entity-list.mjs';
 import {
   buildCliClient,
   buildPresetFilters,
   callApi,
   fail,
   maybeDryRun,
+  parseIntegerOption,
   parseJsonOptionOrFile,
   requireApiMethod,
+  requireNoExtraPositionals,
   requireResource
 } from '../lib/command.mjs';
 
 export const USAGE = `\
-Usage: zeyos list <resource> [options]
+Usage: zeyos list <entity> [options]
 
-List records of a given resource type.
+List records of a given entity type. Run \`zeyos list\` with no entity for the
+full list of what you can query.
 
 Arguments:
-  resource            Resource name (e.g. tickets, accounts, tasks)
+  entity              Entity name (e.g. tickets, accounts, billing_invoices)
 
 Options:
   --fields <list>     Field selection (see formats below)
@@ -65,14 +69,24 @@ Fields format:
   JSON object:        --fields '{"Id": "ID", "Name": "name", "City": "contact.city"}'
   JSON array:         --fields '["ID", "name", "status"]'
 
-Transaction presets:
-  quotes, orders, invoices, credits, open-invoices, overdue-invoices, paid-invoices
+Transaction entities:
+  Each transaction type is its own entity, so you never filter on \`type\` by hand:
+    billing_quotes, billing_orders, billing_deliveries, billing_invoices, billing_credits
+    procurement_requests, procurement_orders, procurement_deliveries,
+    procurement_invoices, procurement_credits
+    production_fabrications, production_disassemblies
+  \`invoices\`, \`orders\`, \`quotes\`, \`credits\` and \`deliveries\` are shorthand for the
+  billing side; \`bills\` and \`po\` for procurement. Use \`transactions\` for all types.
+
+  Invoice and credit entities accept: --preset open | overdue | paid | draft | booked | cancelled
 
 Examples:
+  zeyos list                                    # show every entity you can list
   zeyos list tickets
   zeyos list tickets --filter '{"status":1}' --sort -lastmodified
   zeyos list tickets --filter-file ./filters/open-tickets.json
-  zeyos list transactions --preset open-invoices
+  zeyos list billing_invoices --preset overdue
+  zeyos list procurement_deliveries --limit 20
   zeyos list tickets --fields ID,name,status --limit 10
   zeyos list accounts --fields '{"Name": "lastname", "City": "contact.city"}'
   zeyos list tickets --extdata
@@ -81,7 +95,16 @@ Examples:
 
 export async function run(values, positional) {
   const resourceName = positional[0];
+
+  // `zeyos list` with no entity is how people ask what they can list. Answer it
+  // rather than failing with a usage error.
+  if (!resourceName) {
+    printEntityList(values, { heading: `Usage: ${_c.cyan('zeyos list')} <entity> [options]` });
+    return;
+  }
+
   const res = requireResource(resourceName, 'zeyos list <resource>');
+  requireNoExtraPositionals(positional, 1, 'zeyos list <entity>');
 
   const resName = canonicalName(resourceName);
 
@@ -108,18 +131,12 @@ export async function run(values, positional) {
 
   if (values.sort) body.sort = values.sort.split(',').map(s => s.trim()).filter(Boolean);
 
-  if (values.limit != null) {
-    const n = parseInt(values.limit, 10);
-    if (isNaN(n)) fail('--limit must be a number.');
-    body.limit = n;
-  } else {
-    body.limit = 50;
-  }
+  body.limit = values.limit != null
+    ? parseIntegerOption(values.limit, '--limit', { min: 1 })
+    : 50;
 
   if (values.offset != null) {
-    const n = parseInt(values.offset, 10);
-    if (isNaN(n)) fail('--offset must be a number.');
-    body.offset = n;
+    body.offset = parseIntegerOption(values.offset, '--offset', { min: 0 });
   }
 
   // --extdata includes extended data fields in the response
@@ -170,7 +187,13 @@ export async function run(values, positional) {
       ? buildEnumFormatters(displayColumns, fieldDefs, apiFields)
       : {};
 
-    printTable(records, displayColumns, {}, { ...enumFormatters, ...dateFormatters });
+    // Float columns (netamount, amount, sellingprice, …) get grouped thousands
+    // and a fixed fraction. Table view only — JSON/YAML keep the raw number.
+    const numberFormatters = fieldDefs
+      ? buildNumberFormatters(displayColumns, fieldDefs, apiFields, { locale: cfg.locale })
+      : {};
+
+    printTable(records, displayColumns, {}, { ...enumFormatters, ...numberFormatters, ...dateFormatters });
   }
 
   if (records.length === 0 && (values.filter != null || values['filter-file'] != null || values.search != null)) {
@@ -191,11 +214,16 @@ export async function run(values, positional) {
       if (body.filters) countBody.filters = body.filters;
       if (body.query) countBody.query = body.query;
       const countResult = await fn(countBody);
-      const total = countResult?.count ?? null;
-      if (total !== null && total > records.length) {
-        info(`→ Showing ${from}–${to} of ${total}  (default --limit ${limit} truncated this — pass --limit, --offset ${to} for the next page, or use \`zeyos count ${resourceName}\` for the total).`);
+      const total = normalizeCountResult(countResult);
+      // Compare against the last row actually shown, not the page size: at
+      // --offset 40 --limit 10 of 50 total, the result is complete even though
+      // the page is full.
+      if (total !== null && total > to) {
+        const explicitLimit = values.limit != null;
+        const why = explicitLimit ? '' : `default --limit ${limit} truncated this — `;
+        info(`→ Showing ${from}–${to} of ${total}  (${why}pass --offset ${to} for the next page, or use \`zeyos count ${resourceName}\` for the total).`);
       } else if (total !== null) {
-        info(`→ Showing ${from}–${to} of ${total}  (--offset ${to} for next page)`);
+        info(`→ Showing ${from}–${to} of ${total}`);
       }
     } catch {
       // Non-critical — skip pagination info

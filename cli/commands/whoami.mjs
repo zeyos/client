@@ -13,6 +13,7 @@ import { createInterface } from 'node:readline';
 import { buildClient, syncTokens } from '../lib/client.mjs';
 import { globalConfigPath, profilesConfigPath } from '../lib/config.mjs';
 import { outputMode, printJson, printYaml, printRecord, formatDate, error } from '../lib/output.mjs';
+import { EXIT } from '../lib/exit.mjs';
 import { run as runLogin } from './login.mjs';
 
 export const USAGE = `\
@@ -87,8 +88,10 @@ function _buildClientState(values) {
       configSource: state.configSource
     };
   } catch (err) {
+    // Missing/unusable credentials — distinct from a generic runtime failure so
+    // callers can tell "re-authenticate" apart from "the request failed".
     error(err.message);
-    process.exit(1);
+    process.exit(EXIT.AUTH);
   }
 }
 

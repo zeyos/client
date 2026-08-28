@@ -12,7 +12,7 @@
     }
   },
   "get": {
-    "fields": ["ID", "customernum", "lastname", "firstname", "type", "assigneduser", "visibility", "created", "lastmodified"],
+    "fields": ["ID", "customernum", "lastname", "firstname", "type", "assigneduser", "visibility", "creationdate", "lastmodified"],
     "params": { "extdata": 1 }
   }
 }

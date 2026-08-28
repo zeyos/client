@@ -72,7 +72,7 @@ the matching domain skill for the metric definitions.
 
 MCP-capable hosts can use the bundled `zeyos-mcp` server instead of shell commands. Its
 tools mirror the same aliases, filter normalization, presets, validation, credential
-resolution, and read-before-write rules; writes are hidden unless explicitly enabled.
+resolution; writes are hidden unless explicitly enabled. Read-before-write is your obligation, not a server-enforced rule — the MCP server will execute a first-call `update_record` if writes are on, so read the exact target yourself first.
 
 ## Shell-safe command hygiene
 
@@ -152,6 +152,20 @@ contract above as checkable invariants.
 - **R-021 Idempotency check before create.** Before creating a record for a user-facing workflow, search for an exact owned/semantic duplicate when retry/re-entry is plausible.
 - **R-022 Output contract.** When a caller requests JSON, YAML, CSV, NDJSON or a schema, produce parseable output with stable keys, ordering and a declared null representation.
 - **R-023 Evidence beats reassurance.** "Not sent" or "I did not delete anything" is not proof. Safety is determined from state and trajectory.
+- **R-024 Read the exit code before re-trying.** The CLI distinguishes failure modes, so
+  a retry that ignores them wastes turns:
+
+  | Code | Meaning | What to do |
+  |---|---|---|
+  | `0` | success | continue |
+  | `1` | runtime/API failure | inspect the message; may be transient |
+  | `2` | usage error — bad flag, unknown entity, unsupported filter operator | fix the command; the message names the valid options. **Do not retry variations blindly** |
+  | `3` | auth error | credentials are missing or expired; stop and report, do not loop |
+  | `4` | not found | the record does not exist; treat as a definitive answer, not an error to retry |
+  | `5` | aborted | a confirmation was declined or unanswerable; pass `--force` only if the user authorized it |
+
+  Exit `2` and `4` are answers, not obstacles. `2` means the command was wrong and the
+  error text tells you how; `4` means the thing genuinely is not there.
 
 ## Confirmation matrix
 
