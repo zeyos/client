@@ -19,6 +19,7 @@
  */
 
 import { createInterface }                from 'node:readline';
+import { randomBytes }                    from 'node:crypto';
 import { createZeyosClient, MemoryTokenStore } from '@zeyos/client';
 import { saveConfig, loadConfig, getProfile, upsertProfile, setActiveProfile } from '../lib/config.mjs';
 import { waitForCallback, callbackUri, BrowserUnavailableError } from '../lib/login-server.mjs';
@@ -244,9 +245,11 @@ function _promptCode() {
   return _prompt('Paste the authorization code');
 }
 
+/**
+ * Cryptographically secure hex string, `length` bytes wide.
+ * Math.random() is not suitable here: V8's PRNG state is recoverable from its
+ * output, which would make the OAuth CSRF state predictable.
+ */
 function _randomHex(length) {
-  return Array.from(
-    { length },
-    () => Math.floor(Math.random() * 256).toString(16).padStart(2, '0')
-  ).join('');
+  return randomBytes(length).toString('hex');
 }

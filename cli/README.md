@@ -61,6 +61,18 @@ zeyos resources
 zeyos doctor agent --json
 ```
 
+`zeyos doctor agent` exits non-zero when the environment is not ready, so it can be
+used directly as a CI readiness check.
+
+## Exit codes
+
+`0` success · `1` runtime/API failure · `2` usage error · `3` auth error ·
+`4` not found · `5` aborted. See
+[Commands → Exit Codes](../docs/03-cli/02-commands.md#exit-codes).
+
+Requests time out after 30s by default (`--timeout <seconds>` or `ZEYOS_TIMEOUT_MS`).
+Reads retry automatically on timeouts and transient errors; writes never do.
+
 List tickets for automation:
 
 ```bash

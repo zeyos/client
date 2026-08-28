@@ -6,10 +6,11 @@
 
 import { createRequire } from 'node:module';
 import { existsSync, readdirSync } from 'node:fs';
-import { loadConfigWithSource, localConfigPath, globalConfigPath } from '../lib/config.mjs';
+import { loadConfigWithSource, localConfigPath, globalConfigPath, tokenStatus } from '../lib/config.mjs';
 import { loadResourceConfig } from '../lib/resource-config.mjs';
 import { listResources, resolveResource } from '../lib/resources.mjs';
 import { colors as c, error, outputMode, printJson, printYaml } from '../lib/output.mjs';
+import { EXIT } from '../lib/exit.mjs';
 
 const require = createRequire(import.meta.url);
 const VERSION = require('../package.json').version;
@@ -45,25 +46,26 @@ export function run(values, positional = []) {
   const subject = positional[0];
   if (subject !== 'agent') {
     error('Unknown doctor target. Usage: zeyos doctor agent');
-    process.exit(1);
+    process.exit(EXIT.USAGE);
   }
 
-  const report = buildAgentReport();
+  const report = buildAgentReport(values);
   const mode = outputMode(values);
 
   if (mode === 'json') {
     printJson(report);
-    return;
-  }
-  if (mode === 'yaml') {
+  } else if (mode === 'yaml') {
     printYaml(report);
-    return;
+  } else {
+    printAgentReport(report);
   }
 
-  printAgentReport(report);
+  // Exit non-zero when the environment isn't ready, so `zeyos doctor agent` can
+  // be used as a CI health check rather than only read by a human.
+  if (!report.ok) process.exitCode = EXIT.AUTH;
 }
 
-function buildAgentReport() {
+function buildAgentReport(values = {}) {
   const localPath = localConfigPath();
   const globalPath = globalConfigPath();
   const envVariables = Object.keys(ENV_KEYS).filter((key) => process.env[key]);
@@ -71,9 +73,14 @@ function buildAgentReport() {
   let configError = null;
 
   try {
-    loaded = loadConfigWithSource();
+    // Honour --profile: diagnosing the default credentials while the caller
+    // asked about a specific profile is worse than not answering at all.
+    loaded = loadConfigWithSource({ profile: values.profile });
   } catch (err) {
     configError = err.message || String(err);
+  }
+  if (loaded.profile?.missing) {
+    configError = `Profile "${loaded.profile.name}" (selected via ${loaded.profile.origin}) does not exist.`;
   }
 
   const config = loaded.config;
@@ -86,11 +93,30 @@ function buildAgentReport() {
     refreshToken: Boolean(config.refreshToken),
     tokenOnly:    Boolean(process.env.ZEYOS_TOKEN) || isTruthyEnv(process.env.ZEYOS_NO_REFRESH),
   };
-  const ready = Boolean(effective.baseUrl && effective.accessToken && (effective.tokenOnly || (effective.clientId && effective.clientSecret)));
+  // Presence is not readiness: an expired access token with no refresh token
+  // cannot authenticate, and reporting it as ready defeats the point of a
+  // health check.
+  const token = tokenStatus(config);
+  const tokenUsable = token === 'ok' || token === 'present' ||
+    (token === 'expired' && Boolean(config.refreshToken));
+  const ready = Boolean(
+    effective.baseUrl && effective.accessToken && tokenUsable &&
+    (effective.tokenOnly || (effective.clientId && effective.clientSecret))
+  );
   const resources = inspectResources();
+
+  const nextSteps = [];
+  if (configError) nextSteps.push(configError);
+  if (!effective.baseUrl) nextSteps.push('Set ZEYOS_BASE_URL or run: zeyos login --base-url <url>');
+  if (!effective.accessToken) nextSteps.push('Run: zeyos login');
+  else if (!tokenUsable) nextSteps.push('Access token is expired and no refresh token is stored. Run: zeyos login --force');
+  if (!effective.tokenOnly && effective.accessToken && !(effective.clientId && effective.clientSecret)) {
+    nextSteps.push('Client credentials are missing; token refresh will fail. Run: zeyos login --force');
+  }
 
   return {
     ok: ready && !configError && resources.ok,
+    nextSteps,
     cli: {
       version: VERSION,
     },
@@ -182,6 +208,12 @@ function printAgentReport(report) {
     process.stdout.write(`\n  ${c.bold('Resource config errors')}\n`);
     for (const message of report.resources.configErrors) {
       process.stdout.write(`  ${message}\n`);
+    }
+  }
+  if (report.nextSteps.length > 0) {
+    process.stdout.write(`\n  ${c.bold('Next steps')}\n`);
+    for (const step of report.nextSteps) {
+      process.stdout.write(`  · ${step}\n`);
     }
   }
 

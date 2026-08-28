@@ -55,18 +55,20 @@ CLI example — do this, end to end ("what was last year's total revenue?"):
 # Current year is 2026, so "last calendar year" = 2025.
 # ZeyOS dates are Unix seconds: 2025-01-01 = 1735689600, 2026-01-01 = 1767225600.
 # NOTE: transactions has NO `visibility` column — adding "visibility":0 here 400s. Don't.
-zeyos list transactions \
-  --filter '{"type":3,"date":{">=":1735689600,"<":1767225600}}' \
-  --fields ID,transactionnum,date,netamount,tax \
-  --limit 10000 --json \
-  | python3 -c 'import sys,json; rows=json.load(sys.stdin); print(sum(r.get("netamount",0) for r in rows.get("data",rows)))'
+zeyos sum billing_invoices netamount \
+  --filter '{"date":{">=":1735689600,"<":1767225600}}' --json
 ```
 
-There is no server-side SUM — you `list` the matching rows (high `--limit`) and add
-`netamount` yourself. Use whatever summing tool you have (a shell pipe, the JS client,
-etc.); the point is to **run it and report the figure**, not to describe the plan.
+Use `zeyos sum` — it pages internally, so you neither pick a `--limit` nor pipe rows
+through a script. The older pattern of `list --limit 10000 | python3 …` silently drops
+everything past 10,000 rows and costs several extra turns; do not use it.
+
+`billing_invoices` already binds `type: 3`, so you never write the type code yourself —
+and the CLI refuses a conflicting `--filter '{"type":…}'` rather than quietly returning
+the wrong document type.
+
 Filtering an unknown column (like `visibility` on `transactions`) returns an opaque
-HTTP 400, so only filter on fields `zeyos describe transactions` actually lists.
+HTTP 400, so only filter on fields `zeyos describe billing_invoices` actually lists.
 
 Client example (use when you need `expand`, richer control, or to subtract credits in one pass):
 

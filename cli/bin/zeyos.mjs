@@ -27,6 +27,8 @@ import { createRequire as _createRequire } from 'node:module';
 import { dirname as _dirname } from 'node:path';
 import { fileURLToPath as _fileURLToPath } from 'node:url';
 import { colors as _c } from '../lib/output.mjs';
+import { OPTIONS } from '../lib/options.mjs';
+import { EXIT } from '../lib/exit.mjs';
 const _require = _createRequire(import.meta.url);
 const _VERSION = _require('../package.json').version;
 
@@ -63,6 +65,8 @@ ${_c.bold('Global options:')}
   --yaml               Output as YAML
   --dry-run            Print the API route + JSON payload without sending it
   --profile <name>     Use a named credential profile for this command
+  --timeout <seconds>  Per-request timeout (default 30)
+  --no-validate        Skip schema validation of fields and filters
   --no-color           Disable ANSI colors
   -h, --help           Show help for a command
   -v, --version        Print the CLI version and exit
@@ -83,60 +87,9 @@ ${_c.bold('Examples:')}
 
 // ── Argument definitions ──────────────────────────────────────────────────────
 
-const OPTIONS = {
-  // Global
-  'help':       { type: 'boolean', short: 'h' },
-  'version':    { type: 'boolean', short: 'v' },
-  'json':       { type: 'boolean' },
-  'yaml':       { type: 'boolean' },
-  'no-color':   { type: 'boolean' },
-  'query':      { type: 'boolean' },
-  'dry-run':    { type: 'boolean' },
-  'no-validate': { type: 'boolean' },
-  'profile':    { type: 'string' },
-  // login
-  'base-url':   { type: 'string' },
-  'client-id':  { type: 'string' },
-  'secret':     { type: 'string' },
-  'scope':      { type: 'string' },
-  'port':       { type: 'string' },
-  'global':     { type: 'boolean' },
-  'local':      { type: 'boolean' },
-  'force':      { type: 'boolean' },
-  'clean':      { type: 'boolean' },
-  'manual':     { type: 'boolean' },
-  'yes':        { type: 'boolean', short: 'y' },
-  // list
-  'fields':     { type: 'string' },
-  'filter':     { type: 'string' },
-  'filter-file': { type: 'string' },
-  'search':     { type: 'string' },
-  'preset':     { type: 'string' },
-  'sort':       { type: 'string' },
-  'limit':      { type: 'string' },
-  'offset':     { type: 'string' },
-  'page-size':  { type: 'string' },
-  'expand':     { type: 'string' },
-  'extdata':    { type: 'boolean' },
-  'tags':       { type: 'boolean' },
-  // get
-  'all':        { type: 'boolean' },
-  // whoami
-  'show-token': { type: 'boolean' },
-  // create / update
-  'data':       { type: 'string' },
-  'data-file':  { type: 'string' },
-  // delete
-  // (--force is already declared above)
-  // skills install
-  'target':     { type: 'string' },
-  'dir':        { type: 'string' },
-  'no-logo':    { type: 'boolean' },
-  // okf
-  'out':        { type: 'string' },
-  // profile
-  'from-current': { type: 'boolean' },
-};
+// Option table lives in lib/options.mjs so lib/flags.mjs can reserve the same
+// names; see the note there.
+
 
 const COMMON_COMMAND_HELP = `\
 Global options:
@@ -184,7 +137,7 @@ const LEADING_FLAGS = [...ALWAYS_FLAGS, 'version', 'dry-run', 'query'];
 const SKILLS_FLAGS = ['target', 'dir', 'global', 'local', 'force', 'yes', 'no-logo'];
 const OKF_FLAGS    = ['dir', 'out', 'force', 'no-logo'];
 const PROFILE_FLAGS = ['base-url', 'client-id', 'secret', 'local', 'from-current'];
-const DATA_FLAGS   = ['dry-run', 'query', 'no-validate'];
+const DATA_FLAGS   = ['dry-run', 'query', 'no-validate', 'timeout'];
 const DELETE_FLAGS = ['force', ...DATA_FLAGS];
 const GET_FLAGS    = ['fields', 'extdata', 'tags', 'expand', 'all', ...DATA_FLAGS];
 
@@ -207,7 +160,7 @@ const COMMAND_FLAGS = {
   resources: [],
   resource:  [],
   describe:  [],
-  doctor:    [],
+  doctor:    ['profile'],
   skills:    SKILLS_FLAGS,
   skill:     SKILLS_FLAGS,
   okf:       OKF_FLAGS,
@@ -255,8 +208,9 @@ async function main() {
   const rest    = lead.argv.slice(1);
 
   if (process.env.ZEYOS_CREDENTIALS_READONLY && CREDENTIAL_MUTATION_COMMANDS.has(command)) {
+    // A policy refusal, not a usage mistake: the command and its flags were valid.
     process.stderr.write(`Credential command "${command}" is disabled because ZEYOS_CREDENTIALS_READONLY is set.\n`);
-    process.exit(1);
+    process.exit(EXIT.ERROR);
   }
 
   // Parse remaining args permissively: known options are parsed normally and
@@ -268,7 +222,7 @@ async function main() {
   const modulePath = COMMANDS[command];
   if (!modulePath) {
     process.stderr.write(`Unknown command: "${command}"\n\n${HELP}`);
-    process.exit(1);
+    process.exit(EXIT.USAGE);
   }
 
   const mod = await import(modulePath);
@@ -292,7 +246,7 @@ async function main() {
         `Unknown option: --${flag}${hint ? `  (did you mean --${hint}?)` : ''}\n\n` +
           `Run 'zeyos ${command} --help' for available options.\n`
       );
-      process.exit(1);
+      process.exit(EXIT.USAGE);
     }
   }
 
@@ -330,6 +284,7 @@ function _splitLeadingFlags(argv) {
       }
 
       if (opt?.type === 'boolean') {
+        if (inlineVal !== undefined) _failBooleanValue(key, inlineVal);
         values[key] = true;
         i++;
         continue;
@@ -385,7 +340,20 @@ function _splitLeadingFlags(argv) {
 
 function _failLeadingOption(flag) {
   process.stderr.write(`Unknown option: "${flag}".  Run 'zeyos --help' for usage.\n`);
-  process.exit(1);
+  process.exit(EXIT.USAGE);
+}
+
+/**
+ * `--flag=value` on a boolean option is always a mistake: the value cannot be
+ * honoured, and silently reading it as `true` inverts the caller's intent for
+ * safety flags like `--force`. Fail instead of guessing.
+ */
+function _failBooleanValue(key, value) {
+  process.stderr.write(
+    `Option --${key} is a flag and takes no value (got --${key}=${value}).\n` +
+      `Pass --${key} to enable it, or omit it entirely to leave it off.\n`
+  );
+  process.exit(EXIT.USAGE);
 }
 
 function _formatCommandHelp(usage) {
@@ -406,7 +374,7 @@ function _validateKnownStringValues(values) {
   for (const [key, value] of Object.entries(values)) {
     if (OPTIONS[key]?.type === 'string' && value === '') {
       process.stderr.write(`Option --${key} requires a value.\n`);
-      process.exit(1);
+      process.exit(EXIT.USAGE);
     }
   }
 }
@@ -439,7 +407,10 @@ function _parsePermissive(argv, options) {
       const opt        = options[key];
 
       if (opt?.type === 'boolean') {
-        // --key=value is unusual for booleans; treat as true and ignore =value
+        // Reject `--flag=value` rather than silently reading it as `true`.
+        // `--force=false` previously skipped the delete confirmation, which is
+        // the exact opposite of what the caller wrote.
+        if (inlineVal !== undefined) _failBooleanValue(key, inlineVal);
         values[key] = true;
         i++;
         continue;
@@ -500,7 +471,13 @@ function _parsePermissive(argv, options) {
           }
         }
       } else {
-        i++;
+        // Unknown short flags used to be discarded silently, so `zeyos list
+        // tickets -j` printed a table and exited 0 — the opposite of what an
+        // agent reaching for a `-j` JSON prior expects. Fail like a long flag.
+        process.stderr.write(
+          `Unknown option: "${arg}".  Run 'zeyos --help' for usage, or use the long form (e.g. --json).\n`
+        );
+        process.exit(EXIT.USAGE);
       }
       continue;
     }
@@ -545,6 +522,11 @@ function _levenshtein(a, b) {
 }
 
 main().catch(err => {
-  process.stderr.write(`Fatal: ${err.message}\n`);
-  process.exit(1);
+  // `fetch` reports connection problems as a bare "fetch failed"; the useful
+  // detail (DNS, refused, TLS) is on err.cause. Surface it, or the user has
+  // nothing to act on.
+  const cause = err?.cause?.message ?? err?.cause?.code;
+  const timeout = err?.isTimeout ? '  Try a longer --timeout.' : '';
+  process.stderr.write(`Fatal: ${err.message}${cause ? ` (${cause})` : ''}${timeout}\n`);
+  process.exit(EXIT.ERROR);
 });

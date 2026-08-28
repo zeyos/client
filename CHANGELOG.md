@@ -3,6 +3,199 @@
 Notable changes to `@zeyos/client` and `@zeyos/cli`. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## 0.7.0 — 2026-08-28
+
+A full review of the CLI, its credential layer, the MCP server, and the release
+pipeline, plus a pass focused on making the CLI usable by AI agents.
+
+This release contains breaking behaviour changes — see **Breaking** below. Both
+packages move to 0.7.0 together and `@zeyos/cli` now requires `@zeyos/client@^0.7.0`.
+
+### Agent usability
+
+The benchmark harness in `test/agent-protocol` and its `RECOMMENDATIONS.md` record one
+lesson repeatedly: absorb model syntax drift at the CLI boundary, because prompt guidance
+alone is high-variance. This round acts on that.
+
+- **Filter syntax drift is translated instead of 400-ing.** The CLI now accepts Mongo
+  (`$lt $lte $gt $gte $ne $in $nin $like $ilike $regex $eq $between`), suffix
+  (`field__gt`, `field__startswith`, `field__endswith`, `field__contains`,
+  `field__between`, `field__exact`), and the single-underscore form where unambiguous
+  (`status_neq`, `ID_gt` — but never splitting a real field like `sender_email`).
+  `status_neq` and `name_starts` are both shapes the benchmark recorded models emitting
+  and then looping on.
+- **`$or` / `$and` now work.** ZeyOS expresses them as numbered logical groups
+  (`{"0": ["OR", …]}`), a syntax no model guesses. They are translated rather than
+  rejected, and the schema validator understands the resulting groups.
+- **Unknown filter operators fail before the request**, naming the supported set, instead
+  of being passed through for the server to reject opaquely. `{"status":{"$eq":9}}` used
+  to ship verbatim; `{"status":{"between":[1,5]}}` was actively mangled.
+- **`field__isnull` is rejected with the alternative** rather than guessing semantics
+  ZeyOS does not have.
+- `startswith`/`endswith`/`contains` now escape `%` and `_` in the caller's text, so
+  searching for "50%" matches a percent sign. `like`/`ilike` still take a raw pattern.
+- **`zeyos describe` publishes the filter vocabulary** — a `filter operators` section in
+  the human view and `filterOperators` in `--json` — so an agent can read the syntax
+  instead of discovering it by trial and error.
+- **Unknown entity names suggest the closest spelling.** `zeyos list billing_invoces` now
+  answers "Did you mean billing_invoices?" like flags, fields and presets already did.
+- **`zeyos doctor agent` honours `--profile`** instead of silently diagnosing the default
+  credentials, no longer calls an expired token with no refresh token "ready", and emits a
+  `nextSteps` array with the remediation for whatever is wrong.
+- MCP `list_records` and `get_record` gained `extdata`, `expand` and (on `get_record`)
+  `tags`. An MCP-only agent previously could not reach transaction line items, custom
+  fields or expanded JSON columns at all.
+- MCP `find_records` now honours a pseudo-entity's bound type, matching `zeyos find`.
+- MCP `sum_records` no longer reports truncation when the result lands exactly on the cap.
+- Skill pack corrections: the billing workflow taught `list --limit 10000 | python3`,
+  which silently drops rows past 10,000 — it now uses `zeyos sum`. The shared guide no
+  longer tells agents to escalate to the JS client for `expand`, which the CLI supports.
+  Added rule **R-024** covering the exit-code table.
+- `--timeout` and `--no-validate` are now listed in the global help.
+
+### Fixed (correctness)
+
+- **The bound transaction type is now an invariant.** `zeyos list billing_invoices
+  --filter '{"type":8}'` returned procurement invoices under the billing-invoice name, and
+  `zeyos create billing_invoices --type 8` filed the record under the wrong type. Both are
+  now refused with the entity that owns the requested type. The same merge-order bug
+  existed on MCP `create_record`.
+- **The parser no longer fails open on writes.** `zeyos create ticket --name Fix login bug`
+  created a ticket named `Fix` and exited `0`; surplus positionals are now a usage error
+  that suggests quoting. `zeyos find accounts Acme Corp` silently searched only `Acme`.
+- **Unknown short flags are rejected.** `zeyos list tickets -j` silently ignored the flag
+  and printed a table; long flags already failed correctly.
+- **Integer options are parsed strictly.** `--limit 10junk` became 10, `--limit 3.7`
+  became 3, and `--limit -5` was passed through.
+- **Enum validation now inspects array and operator filter forms.**
+  `--filter '{"status":[999]}'` and `{"status":{"IN":[999]}}` passed validation while the
+  equivalent scalar was correctly rejected — so the array syntax the CLI actively
+  encourages was the one that skipped the check.
+
+### Added
+
+- **Transaction types are now first-class entities.** `transactions` holds twelve
+  different business documents separated only by the `type` column, which meant
+  remembering that an invoice is `type: 3`. Each type now has its own entity —
+  `billing_quotes`, `billing_orders`, `billing_deliveries`, `billing_invoices`,
+  `billing_credits`, `procurement_requests`, `procurement_orders`,
+  `procurement_deliveries`, `procurement_invoices`, `procurement_credits`,
+  `production_fabrications`, `production_disassemblies` — with the type bound
+  beneath any `--preset` and `--filter`, and set automatically on `create`.
+  Singular, plural and hyphenated spellings resolve; `bills`, `po` and
+  `purchase_orders` reach the procurement side. Codes verified against
+  `cloud.zeyos.com/__doc/dbref.json`. Invoice and credit entities gain
+  `open` / `overdue` / `paid` / `draft` / `booked` / `cancelled` presets. The
+  MCP server advertises them too, with the bound `transaction_type`.
+- **`zeyos list` with no entity now lists what you can query**, grouped by
+  business area, instead of failing with a usage error. `zeyos resources` shows
+  the same overview.
+- **Float columns are formatted.** Columns the schema types as `double precision`,
+  `numeric`, `decimal`, `real` or `money` render with grouped thousands and two
+  decimals in table and record views, right-aligned (`17.009,00`). Integer
+  columns are untouched, since IDs, foreign keys, enum codes and timestamps are
+  all integers. The locale comes from `ZEYOS_LOCALE`, then the resource config's
+  `locale`, then the host default. `--json`/`--yaml` keep the raw number.
+
+### Breaking
+
+- **`invoices` now means billing invoices, not documents.** `invoice`/`invoices`
+  were aliased to the `documents` entity, so `zeyos list invoices` returned PDF
+  file records rather than invoices. They now resolve to `billing_invoices`.
+  `documents` is unchanged and still reaches the document records.
+- **`zeyos resources --json` gained fields.** It remains a flat array of
+  `{ name, operations }` — existing consumers are unaffected — and now also
+  carries `group`, `description`, and `transactionType` for pseudo-entities.
+- **Exit codes are now differentiated.** Failures previously all exited `1`.
+  They now use: `2` usage error, `3` auth error, `4` not found, `5` aborted, and
+  `1` for everything else. Scripts testing for an exact `1` need updating;
+  `!= 0` checks are unaffected.
+- **A declined or unanswerable delete confirmation exits `5`, not `0`.**
+  `zeyos delete <resource> <id>` with stdin closed previously printed `Aborted`
+  and exited `0`, which a script read as a successful delete. It also no longer
+  hangs when stdin is closed without a newline. Use `--force` for
+  non-interactive deletes.
+- **`--flag=value` on a boolean option is now rejected** instead of being read
+  as `true`. `zeyos delete … --force=false` previously skipped the confirmation
+  and deleted; it is now a usage error.
+- **`zeyos profile list --json/--yaml` no longer prints credential values.**
+  Each profile now reports `baseUrl`, `instance`, `clientId`,
+  `hasClientSecret`, and a `token` status. `clientSecret`, `accessToken` and
+  `refreshToken` were previously emitted in plaintext to stdout.
+- **`zeyos update … --json/--yaml` no longer echoes the request** when the API
+  returns no body; it prints `{ "ID": …, "updated": true }` instead, so a
+  caller can tell a confirmed write from an unverified one.
+
+### `@zeyos/cli` (`zeyos`)
+
+- `--<field>` values are now typed from the resource schema instead of being
+  guessed from the literal. Text columns keep their string value, so
+  `--customernum 00123` no longer writes `123`, `--phone +49…` no longer loses
+  its `+`, and `Infinity` no longer becomes `null`. Numeric columns still
+  coerce. Values that cannot round-trip exactly (very large integers) stay text.
+- Added a default 30s request timeout, with `--timeout <seconds>` and
+  `ZEYOS_TIMEOUT_MS`. The runtime has always supported timeouts; the CLI never
+  enabled one, so a stalled connection hung forever and the retry logic — which
+  keys off timeouts — could not fire.
+- `zeyos get --fields` is now honoured in `--json`/`--yaml`, which previously
+  printed the whole record.
+- `zeyos doctor agent` exits non-zero when the environment is not ready, so it
+  works as a CI health check.
+- Fixed profile-pin precedence: a nearer `.zeyos/auth.json` now correctly beats
+  a pin further up the tree. The previous check compared path string *lengths*,
+  which both inverted the documented rule and mis-ordered unrelated paths — a
+  parent directory pinned to production could capture a nested test project.
+- Credential files and directories now have their permissions repaired on every
+  write (`0600`/`0700`); `mode:` on create alone left pre-existing `0644` files
+  world-readable.
+- The OAuth `state` parameter now uses `node:crypto` rather than `Math.random()`.
+- The browser opener no longer passes the authorization URL through a shell, and
+  validates it as `http(s)` first.
+- Refreshed tokens are now persisted even when the API call afterwards fails,
+  so a rotated refresh token is not silently discarded.
+- Empty objects and arrays now render as valid YAML (`a: {}`, not `a:{}`, which
+  parsers read back as a string).
+- Pagination hints no longer claim a further page at a non-zero `--offset` when
+  the result is already complete, and no longer blame the default `--limit` when
+  the caller passed one explicitly.
+- Connection failures now report the underlying cause (DNS, refused, TLS)
+  instead of a bare `fetch failed`.
+- `--data` parse errors report the JSON error without echoing the payload, which
+  could contain secrets.
+- Fixed `created` → `creationdate` in the shipped account, item and project
+  configs, where it rendered as a permanently blank column. Added a test that
+  fails if any shipped config references a field the schema does not define.
+- The reserved-flag list is now derived from the parser's option table, so flags
+  such as `--yes` and `--page-size` can no longer leak into record payloads.
+
+### `@zeyos/client`
+
+- HTTP 503 retries no longer replay writes. Network-error retries were already
+  gated to read operations; status retries were not, so a `create` that
+  committed but returned 503 through a proxy could be duplicated. 429 (never
+  processed) is still retried for any method.
+- `paginate()` now refuses mutation operations up front. Passing a `create*`
+  operation previously performed one real write before reading the response as
+  an empty page.
+
+### `zeyos-mcp`
+
+- `sum_records` is now bounded: added `max_rows` (default 5000, cap 50000) and
+  the result reports when the cap truncated the sum. It previously paged without
+  limit, and an MCP client had no way to stop it.
+- `create_record`/`update_record` reject an empty `data` object rather than
+  issuing a no-op write the caller reads as success.
+
+### Release pipeline
+
+- The publish workflow now links the local client **before** running the test
+  suite. `npm test` began including the CLI tests in 0096bf4, but the install
+  step ran after them — on a clean runner 87 of 102 CLI tests failed with
+  `Cannot find package '@zeyos/client'`, which would have blocked the next
+  release. The working tree's `cli/node_modules` symlink hid this locally.
+- Regenerated `cli/package-lock.json`, which declared `@zeyos/client` without
+  resolving it and so could not be installed with `npm ci`.
+
 ## 0.6.0
 
 ### `@zeyos/cli` (`zeyos`)

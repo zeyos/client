@@ -5,11 +5,16 @@ import {
   ZeyosApiError
 } from '@zeyos/client';
 import { buildClient, syncTokens } from './client.mjs';
-import { prepareResourceFilters, validateInput } from './command.mjs';
+import { assertNoBoundConflict, prepareResourceFilters, validateInput } from './command.mjs';
 import { getListFields } from './resource-config.mjs';
-import { canonicalName, listResources, resolveResource } from './resources.mjs';
+import { canonicalName, listResources, resolveResource, resourceDescription } from './resources.mjs';
 
 const RESOURCE_NAMES = listResources();
+
+/** Bounds for sum_records paging: default budget, hard cap, and rows per request. */
+const DEFAULT_SUM_ROWS = 5000;
+const MAX_SUM_ROWS = 50000;
+const SUM_PAGE_SIZE = 500;
 const EMPTY_RESULT_HINT = 'Hint: 0 results. If a filter field or value might be wrong, check \'zeyos describe <resource>\' or resolve records with \'zeyos find <resource> "<text>"\'.';
 
 const RESOURCE_DESCRIPTIONS = {
@@ -82,7 +87,7 @@ const READ_TOOLS = [
       limit: { type: 'integer', minimum: 1, maximum: 1000, default: 10 }
     }, ['resource', 'text'])),
   tool('list_records',
-    'Lists matching records with optional filters, preset, fields, sorting, pagination, and full-text search; company names live in accounts.lastname, business terms can use presets such as open-invoices, and dates are Unix seconds. Use it after resolving human names to IDs when you need record details or a paginated result set.',
+    'Lists matching records with optional filters, preset, fields, sorting, pagination, and full-text search; company names live in accounts.lastname, business terms can use presets such as open-invoices, and dates are Unix seconds. Use it after resolving human names to IDs when you need record details or a paginated result set. Set extdata for custom fields, or expand for JSON/binary columns such as transaction line items.',
     objectSchema({
       resource: resourceProperty,
       filter: filterProperty,
@@ -96,7 +101,14 @@ const READ_TOOLS = [
       },
       limit: { type: 'integer', minimum: 1, maximum: 1000, default: 50 },
       offset: { type: 'integer', minimum: 0, default: 0 },
-      search: { type: 'string' }
+      search: { type: 'string' },
+      extdata: { type: 'boolean', description: 'Include extended/custom field values.' },
+      expand: {
+        type: 'array',
+        items: { type: 'string' },
+        minItems: 1,
+        description: 'Expand JSON/binary columns, e.g. ["items"] for transaction line items.'
+      }
     }, ['resource'])),
   tool('count_records',
     'Counts records matching an optional filter, preset, or full-text search without fetching every row. Use it for “how many” questions instead of counting a limited list response.',
@@ -107,19 +119,34 @@ const READ_TOOLS = [
       search: { type: 'string' }
     }, ['resource'])),
   tool('sum_records',
-    'Sums one numeric field across every record matching an optional filter or preset and reports the inspected row count. Use it for simple ungrouped totals after describe_resource confirms the numeric field and currency basis.',
+    'Sums one numeric field across every record matching an optional filter or preset and reports the inspected row count. Use it for simple ungrouped totals after describe_resource confirms the numeric field and currency basis. Narrow with a filter or preset first: max_rows caps how many records are inspected, and the result reports whether the cap truncated the sum.',
     objectSchema({
       resource: resourceProperty,
       field: { type: 'string', minLength: 1 },
       filter: filterProperty,
-      preset: presetProperty
+      preset: presetProperty,
+      max_rows: {
+        type: 'integer',
+        minimum: 1,
+        maximum: MAX_SUM_ROWS,
+        default: DEFAULT_SUM_ROWS,
+        description: `Maximum records to inspect (default ${DEFAULT_SUM_ROWS}, hard cap ${MAX_SUM_ROWS}).`
+      }
     }, ['resource', 'field'])),
   tool('get_record',
-    'Fetches one record by its stable ID and can return only selected fields. Use it to inspect or verify an exact record after its ID has been resolved.',
+    'Fetches one record by its stable ID and can return only selected fields. Use it to inspect or verify an exact record after its ID has been resolved. Set extdata for custom fields, tags for tags, or expand (e.g. ["items"]) for line items and other JSON/binary columns.',
     objectSchema({
       resource: resourceProperty,
       id: { oneOf: [{ type: 'integer' }, { type: 'string', minLength: 1 }] },
-      fields: { type: 'array', items: { type: 'string' }, minItems: 1 }
+      fields: { type: 'array', items: { type: 'string' }, minItems: 1 },
+      extdata: { type: 'boolean', description: 'Include extended/custom field values.' },
+      tags: { type: 'boolean', description: 'Include tags.' },
+      expand: {
+        type: 'array',
+        items: { type: 'string' },
+        minItems: 1,
+        description: 'Expand JSON/binary columns, e.g. ["items"] for transaction line items.'
+      }
     }, ['resource', 'id']))
 ];
 
@@ -184,6 +211,8 @@ async function executeTool(name, args) {
       ? { ID: 'ID', ...selection.apiFields }
       : displayFields;
     const body = { query: args.text, limit: args.limit ?? 10, fields };
+    // Keep a pseudo-entity's type binding in force, matching `zeyos find`.
+    if (resource.boundFilters) body.filters = { ...resource.boundFilters };
     validateInput(schema(), resource.list, body);
     const state = buildClient({ validate: true });
     const rows = normalizeListResult(await invoke(state, resource.list, body)).data;
@@ -227,14 +256,19 @@ async function executeTool(name, args) {
 
   if (name === 'sum_records') {
     const field = normalizeField(args.field, resource.fieldAliases);
-    const body = { fields: [field], limit: 50, offset: 0 };
+    // Bounded by construction: an unfiltered sum over a large table would
+    // otherwise page forever, and an MCP client has no way to call it off.
+    const maxRows = Math.min(args.max_rows ?? DEFAULT_SUM_ROWS, MAX_SUM_ROWS);
+    const body = { fields: [field], limit: Math.min(SUM_PAGE_SIZE, maxRows), offset: 0 };
     const filters = prepareResourceFilters(resource, resourceName, args.preset, args.filter);
     if (filters !== undefined) body.filters = filters;
     validateInput(schema(), resource.list, body);
     const state = buildClient({ validate: true });
     let sum = 0;
     let count = 0;
-    while (true) {
+    let truncated = false;
+    while (count < maxRows) {
+      body.limit = Math.min(SUM_PAGE_SIZE, maxRows - count);
       const rows = normalizeListResult(await invoke(state, resource.list, body)).data;
       for (const row of rows) {
         const value = row[field];
@@ -244,23 +278,54 @@ async function executeTool(name, args) {
         sum += number;
       }
       count += rows.length;
+      // A short page means the result set is exhausted, even if we happen to be
+      // exactly at the cap — reporting truncation there sends the agent chasing
+      // a next page that does not exist.
       if (rows.length < body.limit) break;
       body.offset += rows.length;
+      if (count >= maxRows) truncated = true;
     }
-    return { sum, count, field };
+    return truncated
+      ? {
+          sum,
+          count,
+          field,
+          truncated: true,
+          hint: `Stopped after ${count} records (max_rows). The sum covers only those rows — narrow the filter, or raise max_rows up to ${MAX_SUM_ROWS}.`
+        }
+      : { sum, count, field };
   }
 
   if (name === 'get_record') {
     const fields = args.fields?.map((field) => normalizeField(field, resource.fieldAliases));
     if (fields && resource.list) validateInput(schema(), resource.list, { fields });
-    validateInput(schema(), resource.get, { ID: args.id });
+    const input = { ID: args.id };
+    if (args.extdata) input.extdata = 1;
+    if (args.tags) input.tags = 1;
+    if (args.expand) input.expand = args.expand;
+    validateInput(schema(), resource.get, input);
     const state = buildClient({ validate: true });
-    const record = await invoke(state, resource.get, { ID: args.id });
-    return fields ? pickFields(record, fields) : record;
+    const record = await invoke(state, resource.get, input);
+    // Expanded/extended columns are the reason the caller asked; a field
+    // projection must not drop them.
+    return fields && !args.extdata && !args.expand && !args.tags
+      ? pickFields(record, fields)
+      : record;
   }
 
   const data = normalizeData(args.data, resource.fieldAliases);
+  // The CLI rejects an empty payload; MCP must too, or an update with no fields
+  // becomes a silent no-op the caller reads as success.
+  if (Object.keys(data).length === 0) {
+    throw new Error('No fields provided: "data" must contain at least one field to write.');
+  }
   const operationId = name === 'create_record' ? resource.create : resource.update;
+  // Creating through a pseudo-entity fixes its transactions.type. A conflicting
+  // explicit value would file the record under the wrong document type.
+  if (name === 'create_record' && resource.boundFields) {
+    assertNoBoundConflict(resource.boundFields, data, args.resource, 'data');
+    Object.assign(data, resource.boundFields);
+  }
   if (!operationId) throw new Error(`Resource "${args.resource}" does not support ${name === 'create_record' ? 'creation' : 'updates'}.`);
   const input = name === 'create_record' ? data : { ID: args.id, body: data };
   validateInput(schema(), operationId, input);
@@ -273,8 +338,11 @@ function listResourceTypes() {
     const resource = resolveResource(name);
     return {
       name,
-      description: RESOURCE_DESCRIPTIONS[name] || `ZeyOS ${name} records.`,
-      presets: Object.keys(resource.presets || {})
+      description: RESOURCE_DESCRIPTIONS[name] || resourceDescription(name) || `ZeyOS ${name} records.`,
+      presets: Object.keys(resource.presets || {}),
+      // Pseudo-entities are transactions with `type` bound; surfacing the code
+      // lets a caller reason about the underlying table when it needs to.
+      ...(resource.boundFilters?.type === undefined ? {} : { transaction_type: resource.boundFilters.type })
     };
   });
 }
@@ -309,6 +377,8 @@ function buildListBody(resource, resourceName, args) {
   }
   if (args.sort) body.sort = Array.isArray(args.sort) ? args.sort : args.sort.split(',').map((part) => part.trim()).filter(Boolean);
   if (args.search != null) body.query = args.search;
+  if (args.extdata) body.extdata = 1;
+  if (args.expand) body.expand = args.expand;
   return body;
 }
 

@@ -1,7 +1,7 @@
 import { createZeyosClient } from './runtime/client.js';
 import { ZeyosApiError, ZeyosValidationError } from './runtime/error.js';
 import { MemoryTokenStore, normalizeTokenSet, tokenResponseToTokenSet } from './runtime/token-store.js';
-import { suggestClosest } from './runtime/suggest.js';
+import { editDistance, suggestClosest } from './runtime/suggest.js';
 import {
   OKF_VERSION, buildOkf, loadOkfBundle, validateOkfBundle, validateOkfFiles, conceptIdForResource
 } from './runtime/okf.js';
@@ -87,5 +87,5 @@ export function normalizeCountResult(result) {
 }
 
 export { createZeyosClient, ZeyosApiError, ZeyosValidationError, MemoryTokenStore, normalizeTokenSet, tokenResponseToTokenSet };
-export { suggestClosest };
+export { suggestClosest, editDistance };
 export { OKF_VERSION, buildOkf, loadOkfBundle, validateOkfBundle, validateOkfFiles, conceptIdForResource };

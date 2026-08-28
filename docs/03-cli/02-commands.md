@@ -150,7 +150,15 @@ zeyos list tickets --profile dev              # one-off override on any command
 Query and list records for a resource with filtering, sorting, and pagination.
 
 ```
-zeyos list <resource> [options]
+zeyos list <entity> [options]
+```
+
+Run `zeyos list` with no entity to see everything you can query, grouped by business area:
+
+```bash
+zeyos list            # grouped overview
+zeyos resources       # the same overview
+zeyos resources --json  # flat array, with group / description / transactionType
 ```
 
 | Option | Description |
@@ -182,11 +190,21 @@ The `--fields` option supports three formats:
 
 **Filter compatibility:**
 
-The CLI normalizes common agent-generated filter forms before sending the request:
-arrays become `IN`, `$lt`/`$lte`/`$gt`/`$gte`/`$ne`/`$in`/`$nin` become native ZeyOS
-operators, and suffix keys such as `lastname__startswith`, `lastname__like`, `ID__gt`,
-`status__in`, and `status__nin` become native filters. On `accounts`, `name` in filters
-or `--fields` resolves to `lastname`.
+The CLI normalizes common agent- and ORM-generated filter forms before sending the request:
+
+- arrays become `IN` — `{"status":[1,3]}`
+- Mongo style — `$lt $lte $gt $gte $ne $in $nin $like $ilike $regex $eq $between`
+- suffix keys — `lastname__startswith`, `lastname__endswith`, `lastname__contains`, `lastname__like`, `ID__gt`, `status__in`, `status__nin`, `duedate__between`
+- the single-underscore form where unambiguous — `status_neq`, `ID_gt` (a field that genuinely contains an underscore, like `sender_email`, is never split)
+- **composite** — `{"$or":[…]}` and `{"$and":[…]}` become ZeyOS numbered logical groups (`{"0":["OR",…]}`)
+
+On `accounts`, `name` in filters or `--fields` resolves to `lastname`.
+
+`startswith` / `endswith` / `contains` take **literal** text, so `%` and `_` in your value are escaped. `like` / `ilike` take a **pattern** where `%` is a wildcard.
+
+An operator the CLI cannot translate is rejected before the request with the supported set in the error (exit `2`), rather than being forwarded for the server to refuse opaquely. ZeyOS has no IS NULL filter, so `field__isnull` is refused with the client-side alternative.
+
+Run `zeyos describe <entity>` for the authoritative operator list — it is printed in a `filter operators` section, and carried under `filterOperators` in `--json`.
 
 Before sending, data commands validate filter, selected, sorted, and written fields against
 the generated schema. Unknown fields fail fast with a suggestion and the valid-field list;
@@ -194,17 +212,44 @@ joins such as `contact.city` and `extdata.*` remain accepted. Use `--no-validate
 escape hatch. If a filtered or searched list is empty, the CLI prints a stderr hint pointing
 to `describe` and `find`, including in JSON and YAML modes.
 
-Transaction presets are available to `list`, `count`, and `sum`:
+**Transaction entities:**
+
+`transactions` is a single table holding twelve different business documents, separated only by the `type` column. Each type is exposed as its own entity, so you never filter on `type` by hand:
+
+| Entity | `transactions.type` | Meaning |
+|--------|--------------------|---------|
+| `billing_quotes` | 0 | Quotes issued to customers |
+| `billing_orders` | 1 | Sales orders |
+| `billing_deliveries` | 2 | Delivery notes to customers |
+| `billing_invoices` | 3 | Invoices issued to customers |
+| `billing_credits` | 4 | Credit notes issued to customers |
+| `procurement_requests` | 5 | Purchase requisitions |
+| `procurement_orders` | 6 | Purchase orders to suppliers |
+| `procurement_deliveries` | 7 | Goods received from suppliers |
+| `procurement_invoices` | 8 | Supplier invoices (bills) |
+| `procurement_credits` | 9 | Credit notes from suppliers |
+| `production_fabrications` | 10 | Production/assembly runs |
+| `production_disassemblies` | 11 | Disassembly runs |
+
+Singular, plural and hyphenated spellings all resolve (`billing_invoice`, `billing_invoices`, `billing-invoices`). Unqualified sales vocabulary maps to the billing side — `invoices`, `orders`, `quotes`, `credits`, `deliveries` — while `bills`, `po` and `purchase_orders` map to procurement. Use `transactions` to query every type at once.
+
+The type binding is applied beneath any `--preset` and any `--filter`, and is set automatically on `create`:
+
+```bash
+zeyos list billing_invoices --preset overdue
+zeyos create billing_invoices --account 42 --currency EUR   # sends type: 3
+```
+
+Invoice and credit entities accept these presets:
 
 | Preset | Filter |
 |--------|--------|
-| `quotes` | `type = 0` |
-| `orders` | `type = 1` |
-| `invoices` | `type = 3` |
-| `credits` | `type = 4` |
-| `open-invoices` | Invoices excluding cancelled, closed, paid, overpaid, and processed status variants |
-| `overdue-invoices` | Open invoices with `duedate` before the current Unix timestamp (seconds) |
-| `paid-invoices` | Invoices with status `20` or `21` |
+| `open` | Excludes cancelled, closed, paid, overpaid and processed status variants |
+| `overdue` | Open, with `duedate` before now |
+| `paid` | Status `20` or `21` |
+| `draft` / `booked` / `cancelled` | Status `0` / `1` / `3` |
+
+The older presets on the `transactions` entity itself (`quotes`, `orders`, `invoices`, `credits`, `open-invoices`, `overdue-invoices`, `paid-invoices`) still work.
 
 **Examples:**
 
@@ -418,7 +463,18 @@ zeyos create ticket --name "New feature" --json
 ```
 
 :::info Type Coercion
-Field values are automatically coerced: `"true"` → `true`, `"false"` → `false`, `"null"` → `null`, and numeric strings become numbers. This means `--status 0` sends the integer `0`, not the string `"0"`.
+Field values are coerced using the column's type from the schema, not from how the value looks:
+
+- Numeric columns (`smallint`, `integer`, `numeric`, …) take numbers, so `--status 0` sends the integer `0`, not `"0"`.
+- Boolean columns accept `true` / `false`.
+- **Text columns keep their string value**, so `--customernum 00123` sends `"00123"` and `--phone "+4930123456"` keeps its `+`. Identifiers that merely look numeric are not damaged.
+- `--<field> null` always sends JSON `null`.
+
+For a field the schema doesn't know (a custom column, or with `--no-validate`), the value is converted only when it is a plain decimal number that round-trips exactly — a leading zero, a leading `+`, an exponent, hex, or a value beyond the safe integer range all stay text.
+
+:::tip
+To control types exactly, pass `--data` with explicit JSON: `--data '{"zip":"01067","amount":19.99}'`.
+:::
 :::
 
 ---
@@ -462,6 +518,12 @@ zeyos delete <resource> <id> [--force]
 | Option | Description |
 |--------|-------------|
 | `--force` | Skip confirmation prompt |
+
+:::warning
+`--force` is a flag and takes no value — `--force=false` is a usage error, not a way to turn it off. Omit the flag to keep the confirmation.
+
+In a script or CI, stdin is usually closed, so the confirmation cannot be answered: the delete is **aborted** and the command exits `5`. Pass `--force` for non-interactive deletes.
+:::
 
 **Aliases:** `rm`, `remove`
 
@@ -614,3 +676,80 @@ target. `export` ships the rich curated bundle; `build` is the lighter runtime p
 | `remove` | `delete` |
 | `resource` | `resources` |
 | `skill` | `skills` |
+
+---
+
+## Exit Codes
+
+Every command reports its outcome through the exit code, so scripts and agents can
+tell failure modes apart without parsing stderr.
+
+| Code | Meaning | Typical cause |
+|------|---------|---------------|
+| `0` | Success | — |
+| `1` | Runtime or API failure | The request reached the server and failed |
+| `2` | Usage error | Unknown command, unknown flag, missing argument, a value passed to a boolean flag |
+| `3` | Auth error | No credentials, an unknown `--profile`, HTTP 401/403 |
+| `4` | Not found | The requested record does not exist |
+| `5` | Aborted | A confirmation prompt was declined, or could not be answered because stdin was closed |
+
+```bash
+zeyos get ticket 999999 --json
+case $? in
+  0) echo "found" ;;
+  4) echo "no such ticket" ;;
+  3) echo "run: zeyos login" ;;
+  *) echo "failed" ;;
+esac
+```
+
+:::note
+`zeyos doctor agent` exits `3` when the environment is not ready, which makes it
+usable directly as a CI readiness check.
+:::
+
+---
+
+## Timeouts
+
+Requests time out after **30 seconds** by default. Override per command with
+`--timeout <seconds>`, or globally with the `ZEYOS_TIMEOUT_MS` environment variable.
+
+```bash
+zeyos list transactions --preset open-invoices --timeout 120
+```
+
+Read operations (`list`, `count`, `get`, `find`, `sum`) are retried automatically on
+timeouts and transient network errors. Writes are never retried on a timeout or a
+`503`, so a create cannot be duplicated by a retry.
+
+---
+
+## Number Formatting
+
+Columns the schema types as floating point (`double precision`, `numeric`, `decimal`, `real`, `money`) are rendered with grouped thousands and two decimal places in table and record views, and right-aligned:
+
+```
+     ID  TRANSACTIONNUM        DATE  STATUS  ACCOUNT     NETAMOUNT
+  ─────  ──────────────  ──────────  ──────  ───────  ────────────
+  10932  N.2210.0654-01  2022-11-06       8     8840     17.009,00
+  99999  R.2401.0001-01  2024-01-01       1     1234  1.234.567,89
+```
+
+Integer columns are deliberately left untouched — IDs, foreign keys, enum codes and Unix timestamps are all integers, and grouping them would be misleading.
+
+The separators follow a locale, resolved in this order:
+
+1. `ZEYOS_LOCALE` environment variable
+2. `locale` in the resource config file
+3. the host's default locale
+
+```bash
+ZEYOS_LOCALE=de-DE zeyos list billing_invoices   # 17.009,00
+ZEYOS_LOCALE=en-US zeyos list billing_invoices   # 17,009.00
+```
+
+:::info
+Formatting applies to human-readable output only. `--json` and `--yaml` always emit the raw
+number, so scripts and agents are unaffected by the terminal's locale.
+:::

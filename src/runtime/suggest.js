@@ -1,6 +1,22 @@
 // Small, dependency-free fuzzy matcher used to turn "not found" failures into
 // self-correcting, agent-friendly errors ("did you mean ...?").
 
+/**
+ * Levenshtein edit distance between two strings.
+ *
+ * Exported because callers with a different ranking policy need the metric
+ * without `suggestClosest`'s substring preference — that preference is right for
+ * field names but wrong for a candidate list containing short aliases, where it
+ * would answer "bill" for "billing_invoces".
+ *
+ * @param {string} a
+ * @param {string} b
+ * @returns {number}
+ */
+export function editDistance(a, b) {
+  return levenshtein(a, b);
+}
+
 function levenshtein(a, b) {
   const m = a.length;
   const n = b.length;

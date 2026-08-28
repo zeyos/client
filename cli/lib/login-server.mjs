@@ -9,7 +9,7 @@
  */
 
 import { createServer } from 'node:http';
-import { exec }         from 'node:child_process';
+import { execFile }     from 'node:child_process';
 
 const DEFAULT_PORT    = 9005;
 const CALLBACK_PATH   = '/callback';
@@ -17,15 +17,32 @@ const TIMEOUT_MS      = 5 * 60 * 1000; // 5 minutes
 
 // ── Browser opener ────────────────────────────────────────────────────────────
 
-/** Open a URL in the system default browser. Returns true if a command was spawned. */
+/**
+ * Open a URL in the system default browser. Returns true if a command was spawned.
+ *
+ * Uses execFile with an argument array rather than a shell string: the URL is
+ * built from a user-supplied baseUrl, and interpolating it into a shell command
+ * would let a crafted credential file execute arbitrary commands during login.
+ * The URL is also checked to be http(s) before it is handed to the opener.
+ */
 function openBrowser(url) {
-  const cmd =
-    process.platform === 'darwin' ? `open "${url}"` :
-    process.platform === 'win32'  ? `start "" "${url}"` :
-    /* linux/other */                `xdg-open "${url}"`;
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return Promise.resolve(false);
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    return Promise.resolve(false);
+  }
+
+  const [cmd, args] =
+    process.platform === 'darwin' ? ['open', [parsed.href]] :
+    process.platform === 'win32'  ? ['cmd', ['/c', 'start', '', parsed.href]] :
+    /* linux/other */               ['xdg-open', [parsed.href]];
 
   return new Promise(resolve => {
-    exec(cmd, err => resolve(!err));
+    execFile(cmd, args, err => resolve(!err));
   });
 }
 

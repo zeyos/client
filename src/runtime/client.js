@@ -823,7 +823,11 @@ export function createZeyosClient(rawConfig = {}) {
         continue;
       }
 
-      if (attempt >= retryConfig.maxRetries || !retryConfig.retryOn.has(response.status)) {
+      // Status retries obey the same read-only rule as network retries: a 503
+      // can be returned *after* a write has committed, so replaying a POST can
+      // duplicate it. 429 means "not processed" and is safe for any method.
+      const statusRetryAllowed = response.status === 429 || networkRetryAllowed;
+      if (attempt >= retryConfig.maxRetries || !retryConfig.retryOn.has(response.status) || !statusRetryAllowed) {
         break;
       }
       await abortableDelay(computeRetryDelay(response, attempt, retryConfig), signal);
@@ -1157,6 +1161,14 @@ export function createZeyosClient(rawConfig = {}) {
       const suggestion = suggestClosest(operationId, candidates);
       throw new ZeyosApiError(
         `Unknown list operation: api.${operationId}.` + (suggestion ? ` Did you mean '${suggestion}'?` : ''),
+        { operationId, service: 'api' }
+      );
+    }
+    // Refuse mutations before the first request: paginating a create would
+    // perform one real write, then read the non-list response as an empty page.
+    if (!isReadOperation(op)) {
+      throw new ZeyosApiError(
+        `paginate() only supports read operations; api.${operationId} mutates data.`,
         { operationId, service: 'api' }
       );
     }

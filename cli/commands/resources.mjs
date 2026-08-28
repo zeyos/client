@@ -1,49 +1,32 @@
 /**
  * zeyos resources
  *
- * List all resource types known to the CLI.
+ * List all entity types known to the CLI, grouped by business area.
  */
 
-import { listResources, resolveResource } from '../lib/resources.mjs';
-import { colors as c, outputMode, printJson, printYaml } from '../lib/output.mjs';
+import { printEntityList } from '../lib/entity-list.mjs';
 
 export const USAGE = `\
 Usage: zeyos resources [options]
 
-List all resource types available for use with list/get/create/update/delete.
+List all entity types available for use with list/get/create/update/delete.
+
+Transaction types (invoices, orders, deliveries…) are exposed as their own
+entities — \`billing_invoices\`, \`procurement_deliveries\` and so on — each bound
+to the matching \`transactions.type\`. Use \`transactions\` to query every type at once.
 
 Options:
-  --json              Output as JSON
+  --json              Output as JSON (grouped, with bound transaction types)
   --yaml              Output as YAML
   -h, --help          Show this help
+
+Examples:
+  zeyos resources
+  zeyos resources --json
+  zeyos list                     # same overview
+  zeyos describe billing_invoice # fields, types and enum values
 `;
 
 export function run(values) {
-  const resources = listResources().map((name) => {
-    const res = resolveResource(name);
-    const operations = ['list', 'get', 'create', 'update', 'delete']
-      .filter(op => res[op]);
-
-    return { name, operations };
-  });
-
-  const mode = outputMode(values);
-  if (mode === 'json') {
-    printJson(resources);
-    return;
-  }
-  if (mode === 'yaml') {
-    printYaml(resources);
-    return;
-  }
-
-  process.stdout.write('\n');
-  process.stdout.write(`  ${c.bold('RESOURCE')}          ${c.bold('OPERATIONS')}\n`);
-  process.stdout.write(`  ${'─'.repeat(16)}  ${'─'.repeat(32)}\n`);
-
-  for (const resource of resources) {
-    process.stdout.write(`  ${resource.name.padEnd(16)}  ${c.dim(resource.operations.join(', '))}\n`);
-  }
-
-  process.stdout.write('\n');
+  printEntityList(values);
 }

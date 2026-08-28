@@ -7,7 +7,15 @@
 import { normalizeListResult } from '@zeyos/client';
 import { canonicalName } from '../lib/resources.mjs';
 import { getListFields } from '../lib/resource-config.mjs';
-import { buildCliClient, callApi, fail, maybeDryRun, requireResource } from '../lib/command.mjs';
+import {
+  buildCliClient,
+  callApi,
+  fail,
+  maybeDryRun,
+  parseIntegerOption,
+  requireNoExtraPositionals,
+  requireResource
+} from '../lib/command.mjs';
 import { info, outputMode, printJson, printTable, printYaml } from '../lib/output.mjs';
 
 export const USAGE = `\
@@ -38,9 +46,9 @@ export async function run(values, positional) {
   const text = positional[1];
   const res = requireResource(resourceName, 'zeyos find <resource> <text>');
   if (text == null || text === '') fail('Missing search text.  Usage: zeyos find <resource> <text>');
+  requireNoExtraPositionals(positional, 2, 'zeyos find <resource> "<text>"');
 
-  const limit = values.limit == null ? 10 : Number.parseInt(values.limit, 10);
-  if (!Number.isInteger(limit) || limit <= 0) fail('--limit must be a positive integer.');
+  const limit = values.limit == null ? 10 : parseIntegerOption(values.limit, '--limit', { min: 1 });
 
   const selection = getListFields(res, canonicalName(resourceName), values.fields);
   const displayColumns = selection.displayColumns.includes('ID')
@@ -50,6 +58,9 @@ export async function run(values, positional) {
     ? { ID: 'ID', ...selection.apiFields }
     : displayColumns;
   const body = { query: text, limit, fields };
+  // Keep a pseudo-entity's type binding in force, so `find billing_invoices`
+  // searches invoices rather than every transaction.
+  if (res.boundFilters) body.filters = { ...res.boundFilters };
   const clientState = buildCliClient(values);
   if (await maybeDryRun(clientState, res.list, body, values)) return;
 

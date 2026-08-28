@@ -17,15 +17,17 @@
 import { loadConfig }                    from '../lib/config.mjs';
 import { canonicalName }                 from '../lib/resources.mjs';
 import { getGetFields, getGetParams }    from '../lib/resource-config.mjs';
-import { outputMode, printJson, printYaml, printRecord, buildDateFormatters, buildEnumFormatters } from '../lib/output.mjs';
+import { outputMode, printJson, printYaml, printRecord, buildDateFormatters, buildEnumFormatters, buildNumberFormatters } from '../lib/output.mjs';
 import {
+  assertRecordMatchesBinding,
   buildCliClient,
   callApi,
   fail,
   maybeDryRun,
-  validateCliInput,
+  requireNoExtraPositionals,
   requireRecordId,
-  requireResource
+  requireResource,
+  validateCliInput
 } from '../lib/command.mjs';
 
 export const USAGE = `\
@@ -68,6 +70,7 @@ export async function run(values, positional) {
 
   const res = requireResource(resourceName, 'zeyos get <resource> <id>', 'get', 'single-record fetch');
   requireRecordId(id, 'zeyos get <resource> <id>');
+  requireNoExtraPositionals(positional, 2, 'zeyos get <resource> <id>');
 
   const resName = canonicalName(resourceName);
   const clientState = buildCliClient(values);
@@ -116,16 +119,25 @@ export async function run(values, positional) {
     fail(`${resourceName} #${id} not found.`);
   }
 
+  // The record is already in hand, so confirming it belongs to this entity costs
+  // nothing and stops `get billing_invoices <id>` from showing a purchase order.
+  assertRecordMatchesBinding(res, resourceName, record, 'read');
+
   // ── Determine display fields ───────────────────────────────────────────────
   const fields = fieldConfig?.keys;
   const fieldLabels = fieldConfig?.labels ?? {};
 
   const mode = outputMode(values);
 
+  // Machine-readable output honours --fields too. Printing the whole record here
+  // silently ignored the projection the caller asked for (and widened whatever
+  // ends up in their logs).
+  const projected = fields ? _pickFields(record, fields) : record;
+
   if (mode === 'json') {
-    printJson(record);
+    printJson(projected);
   } else if (mode === 'yaml') {
-    printYaml(record);
+    printYaml(projected);
   } else {
     const cfg = loadConfig();
     const dateFormat = cfg.dateFormat ?? 'YYYY-MM-DD';
@@ -139,7 +151,20 @@ export async function run(values, positional) {
     const schemaKey = schema?.resourceForOperation?.(res.get);
     const fieldDefs = schemaKey ? schema.describe(schemaKey)?.fields : undefined;
     const enumFormatters = fieldDefs ? buildEnumFormatters(displayKeys, fieldDefs) : {};
+    const numberFormatters = fieldDefs
+      ? buildNumberFormatters(displayKeys, fieldDefs, undefined, { locale: cfg.locale })
+      : {};
 
-    printRecord(record, displayKeys, fieldLabels, { ...enumFormatters, ...dateFormatters });
+    printRecord(record, displayKeys, fieldLabels, { ...enumFormatters, ...numberFormatters, ...dateFormatters });
   }
+}
+
+/** Restrict a record to the requested display fields, preserving their order. */
+function _pickFields(record, keys) {
+  if (!record || typeof record !== 'object') return record;
+  const out = {};
+  for (const key of keys) {
+    if (Object.prototype.hasOwnProperty.call(record, key)) out[key] = record[key];
+  }
+  return out;
 }

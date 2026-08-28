@@ -11,7 +11,9 @@ import {
   callApi,
   fail,
   maybeDryRun,
+  parseIntegerOption,
   parseJsonOptionOrFile,
+  requireNoExtraPositionals,
   requireResource
 } from '../lib/command.mjs';
 import { outputMode, printJson, printYaml } from '../lib/output.mjs';
@@ -52,6 +54,7 @@ export async function run(values, positional) {
   const field = positional[1];
   const res = requireResource(resourceName, 'zeyos sum <resource> <field>');
   if (!field) fail('Missing field name.  Usage: zeyos sum <resource> <field>');
+  requireNoExtraPositionals(positional, 2, 'zeyos sum <resource> <field>');
 
   const pageSize = parsePositiveInt(values['page-size'] ?? '50', '--page-size');
   const maxRows = values.limit == null ? Infinity : parsePositiveInt(values.limit, '--limit');
@@ -102,13 +105,9 @@ function numericValue(value, field) {
 }
 
 function parsePositiveInt(value, flag) {
-  const n = Number.parseInt(String(value), 10);
-  if (!Number.isInteger(n) || n <= 0) fail(`${flag} must be a positive integer.`);
-  return n;
+  return parseIntegerOption(value, flag, { min: 1 });
 }
 
 function parseNonNegativeInt(value, flag) {
-  const n = Number.parseInt(String(value), 10);
-  if (!Number.isInteger(n) || n < 0) fail(`${flag} must be a non-negative integer.`);
-  return n;
+  return parseIntegerOption(value, flag, { min: 0 });
 }

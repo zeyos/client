@@ -36,11 +36,15 @@ jobs:
             exit 1
           fi
 
-      - name: Test (zero-dependency offline suite)
-        run: npm test
-
+      # The root suite includes cli/test/*, which imports @zeyos/client. Link the
+      # local client BEFORE running it, or those tests fail on a clean runner
+      # (the working tree only passes because cli/node_modules/@zeyos/client
+      # already exists there).
       - name: Install local client for CLI tests
         run: npm install --prefix cli --no-save --ignore-scripts "$PWD"
+
+      - name: Test (zero-dependency offline suite)
+        run: npm test
 
       - name: Test CLI package
         run: npm --prefix cli test

@@ -1,6 +1,6 @@
 {
   "name": "@zeyos/cli",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Command-line interface for the ZeyOS API",
   "type": "module",
   "license": "MIT",
@@ -40,7 +40,7 @@
     "node": ">=18.3"
   },
   "dependencies": {
-    "@zeyos/client": "^0.6.0"
+    "@zeyos/client": "^0.7.0"
   },
   "scripts": {
     "test": "node --test test/offline.mjs"

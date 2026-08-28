@@ -50,6 +50,9 @@ export function buildClient(overrides = {}, opts = {}) {
   const client = createZeyosClient({
     platform: config.baseUrl,
     validate: config.validate === true,
+    // Without a timeout the runtime waits forever on a stalled connection, and
+    // its retry logic (which keys off network errors and timeouts) never fires.
+    timeoutMs: resolveTimeoutMs(config),
     auth: {
       mode: 'oauth',
       oauth,
@@ -57,6 +60,16 @@ export function buildClient(overrides = {}, opts = {}) {
   });
 
   return { client, config, tokenStore, configSource: tokenOnly ? null : loaded.source, tokenOnly };
+}
+
+/** Default per-request timeout, overridable by `--timeout` or ZEYOS_TIMEOUT_MS. */
+const DEFAULT_TIMEOUT_MS = 30_000;
+
+function resolveTimeoutMs(config) {
+  if (Number(config.timeoutMs) > 0) return Number(config.timeoutMs);
+  const fromEnv = Number(process.env.ZEYOS_TIMEOUT_MS);
+  if (Number.isFinite(fromEnv) && fromEnv > 0) return fromEnv;
+  return DEFAULT_TIMEOUT_MS;
 }
 
 function isTruthyEnv(value) {

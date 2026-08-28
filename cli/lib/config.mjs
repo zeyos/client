@@ -12,13 +12,16 @@
  *   4. .zeyos/auth.json            (legacy local, walked up)
  *   5. profiles.json "active"      (global active profile)
  *   6. ~/.config/zeyos/credentials.json  (legacy global)
- * Environment credential vars (ZEYOS_BASE_URL, ZEYOS_TOKEN, …) always field-merge
- * on top of whichever base was chosen.
+ * Environment credential vars (ZEYOS_BASE_URL, ZEYOS_CLIENT_ID, …) field-merge on
+ * top of whichever base was chosen — with one deliberate exception: ZEYOS_TOKEN
+ * replaces the configuration outright rather than merging, so an env token is
+ * never paired with a stored baseUrl belonging to a different instance. Supply
+ * ZEYOS_BASE_URL together with ZEYOS_TOKEN.
  *
  * Add .zeyos/auth.json and .zeyos/profile to .gitignore.
  */
-import { readFileSync, writeFileSync, mkdirSync, existsSync, unlinkSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { readFileSync, writeFileSync, mkdirSync, existsSync, unlinkSync, chmodSync } from 'node:fs';
+import { join, dirname, relative, isAbsolute, resolve } from 'node:path';
 import { homedir } from 'node:os';
 
 /** @typedef {import('./types.mjs').CliConfig} CliConfig */
@@ -60,6 +63,10 @@ export function loadConfig(opts = {}) {
  */
 export function loadConfigWithSource(opts = {}) {
   const env = _fromEnv();
+  // ZEYOS_TOKEN is deliberately all-or-nothing: an env token stands alone rather
+  // than borrowing a stored baseUrl, so a CI token can never be fired at
+  // whichever instance happens to be configured locally. Callers must supply
+  // ZEYOS_BASE_URL alongside it.
   if (env.accessToken) {
     return { config: env, source: null, profile: null };
   }
@@ -118,7 +125,7 @@ export function resolveProfileSelection(opts = {}) {
   // same place the explicit pin wins.
   if (pin) {
     const localPath = _findLocalPath();
-    if (!localPath || _isSameOrShallower(pin.dir, localPath)) {
+    if (!localPath || _pinOutranksLocal(pin.dir, localPath)) {
       return _withExistence({ name: pin.name, origin: 'pin', path: pin.path });
     }
   }
@@ -247,12 +254,42 @@ export function readProfiles() {
   };
 }
 
-/** List profile names with their (token-stripped-safe) creds and the active name. */
+/**
+ * Human-readable token state for a credential set. Handles expiry in seconds or
+ * milliseconds.
+ * @param {Partial<CliConfig>} [creds]
+ * @returns {'none'|'present'|'ok'|'expired'}
+ */
+export function tokenStatus(creds = {}) {
+  if (!creds.accessToken) return 'none';
+  const exp = creds.expiresAt;
+  if (exp == null) return 'present';
+  const expSec = Number(exp) > 2e10 ? Number(exp) / 1000 : Number(exp);
+  const now = Math.floor(Date.now() / 1000);
+  return expSec < now ? 'expired' : 'ok';
+}
+
+/**
+ * List profiles as NON-SECRET summaries, plus the active profile name.
+ *
+ * Deliberately returns a whitelist: `clientSecret`, `accessToken` and
+ * `refreshToken` never leave this function, because callers render the result
+ * straight to stdout under `--json` / `--yaml`. Code that genuinely needs the
+ * credential values (login, client construction) uses `getProfile()` instead.
+ */
 export function listProfiles() {
   const { active, profiles } = readProfiles();
   return {
     active,
-    profiles: Object.fromEntries(Object.entries(profiles).map(([name, creds]) => [name, { ...creds }]))
+    profiles: Object.fromEntries(Object.entries(profiles).map(([name, creds]) => [name, {
+      // Absent fields stay absent rather than becoming null, so callers can keep
+      // testing them with a plain truthiness/undefined check.
+      ...(creds.baseUrl  != null ? { baseUrl:  creds.baseUrl }  : {}),
+      ...(creds.instance != null ? { instance: creds.instance } : {}),
+      ...(creds.clientId != null ? { clientId: creds.clientId } : {}),
+      hasClientSecret: Boolean(creds.clientSecret),
+      token: tokenStatus(creds)
+    }]))
   };
 }
 
@@ -325,8 +362,9 @@ export function readLocalPin() {
 /** Pin a profile for the current project (writes ./.zeyos/profile). */
 export function writeLocalPin(name, dir = process.cwd()) {
   const path = join(dir, LOCAL_DIR, PIN_FILE);
-  mkdirSync(dirname(path), { recursive: true });
+  mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
   writeFileSync(path, `${name}\n`, { mode: 0o600 });
+  try { chmodSync(path, 0o600); } catch { /* best effort */ }
   return path;
 }
 
@@ -374,10 +412,22 @@ function _findLocalPath() {
   return null;
 }
 
-/** True when the pin directory is at or above the auth.json's directory. */
-function _isSameOrShallower(pinDir, localPath) {
+/**
+ * True when an explicit pin outranks a legacy auth.json.
+ *
+ * The rule: a nearer `.zeyos/auth.json` beats a pin further up the tree, so a
+ * nested project keeps its own credentials; when both sit in the same directory
+ * the explicit pin wins. So the pin wins iff it is at, or below, the auth.json.
+ *
+ * Compares real path segments — an earlier version compared string *lengths*,
+ * which both inverted the rule and mis-ordered paths whose names differ in
+ * length (a project pinned to production could capture a nested test project).
+ */
+function _pinOutranksLocal(pinDir, localPath) {
   const localDir = dirname(dirname(localPath)); // strip /.zeyos/auth.json
-  return pinDir.length <= localDir.length;
+  const rel = relative(resolve(localDir), resolve(pinDir));
+  if (rel === '') return true;                       // same directory → pin wins
+  return !rel.startsWith('..') && !isAbsolute(rel);  // pin below auth.json → pin wins
 }
 
 function _onlyCredKeys(obj) {
@@ -425,6 +475,12 @@ function _readJson(path) {
 }
 
 function _writeJson(path, data) {
-  mkdirSync(dirname(path), { recursive: true });
+  // `mode` on writeFileSync only applies when the file is created, so an
+  // existing 0644 credential file would stay world-readable forever. chmod
+  // after the write to repair whatever is already on disk.
+  mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
   writeFileSync(path, JSON.stringify(data, null, 2) + '\n', { mode: 0o600 });
+  try {
+    chmodSync(path, 0o600);
+  } catch { /* best effort: non-POSIX filesystems */ }
 }

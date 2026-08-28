@@ -10,7 +10,7 @@
     }
   },
   "get": {
-    "fields": ["ID", "projectnum", "name", "description", "status", "assigneduser", "visibility", "created", "lastmodified"],
+    "fields": ["ID", "projectnum", "name", "description", "status", "assigneduser", "visibility", "creationdate", "lastmodified"],
     "params": { "extdata": 1 }
   }
 }

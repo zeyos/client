@@ -1,5 +1,5 @@
 import { execFile, spawn } from 'node:child_process';
-import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
@@ -275,7 +275,7 @@ test('address aliases resolve to address operations and schema offline', async (
 
 test('unknown commands fail with a non-zero exit code', async () => {
   const result = await cli(['not-a-command']);
-  assert.equal(result.code, 1);
+  assert.equal(result.code, 2);
   assert.match(result.stderr, /Unknown command/);
 });
 
@@ -425,7 +425,7 @@ test('invalid local credential config fails loudly', async (t) => {
     env: isolatedEnv(cwd)
   });
 
-  assert.equal(result.code, 1);
+  assert.equal(result.code, 3, 'auth error: credentials missing or unusable');
   assert.match(result.stderr, /Failed to read .*\.zeyos[/\\]auth\.json/);
 });
 
@@ -518,7 +518,7 @@ test('unknown flags fail loudly instead of being ignored', async (t) => {
     env: isolatedEnv(cwd, CREDENTIALS)
   });
 
-  assert.equal(result.code, 1);
+  assert.equal(result.code, 2);
   assert.match(result.stderr, /Unknown option: --invalid/);
 });
 
@@ -529,13 +529,13 @@ test('a near-miss flag suggests the intended option', async (t) => {
     env: isolatedEnv(cwd, CREDENTIALS)
   });
 
-  assert.equal(result.code, 1);
+  assert.equal(result.code, 2);
   assert.match(result.stderr, /did you mean --filter\?/);
 });
 
 test('a leading flag is reported as an unknown option, not a command', async () => {
   const result = await cli(['--invalid']);
-  assert.equal(result.code, 1);
+  assert.equal(result.code, 2);
   assert.match(result.stderr, /Unknown option: "--invalid"/);
 });
 
@@ -545,14 +545,14 @@ test('known string options require a value', async (t) => {
     cwd,
     env: isolatedEnv(cwd, NO_CREDENTIALS)
   });
-  assert.equal(profile.code, 1);
+  assert.equal(profile.code, 2);
   assert.match(profile.stderr, /Option --profile requires a value/);
 
   const limit = await cli(['list', 'tickets', '--limit', '--query'], {
     cwd,
     env: isolatedEnv(cwd, CREDENTIALS)
   });
-  assert.equal(limit.code, 1);
+  assert.equal(limit.code, 2);
   assert.match(limit.stderr, /Option --limit requires a value/);
 });
 
@@ -1104,7 +1104,7 @@ test('read-only resources reject unsupported write actions before auth', async (
     env: isolatedEnv(cwd, NO_CREDENTIALS)
   });
 
-  assert.equal(result.code, 1);
+  assert.equal(result.code, 2);
   assert.match(result.stderr, /Resource "customfields" does not support creation/);
   assert.doesNotMatch(result.stderr, /Missing required configuration/);
 });
@@ -1279,9 +1279,27 @@ test('delete without --force aborts on a non-yes confirmation without sending th
     env: isolatedEnv(cwd, { ...CREDENTIALS, ZEYOS_BASE_URL: server.baseUrl })
   });
 
-  assert.equal(result.code, 0, result.stderr);
+  // Exit 5 (aborted), not 0: with stdin closed readline answers empty, and a
+  // zero exit would tell a script the delete had succeeded.
+  assert.equal(result.code, 5, result.stderr);
   assert.match(result.stderr, /Delete ticket #42\? \[y\/N\]/);
   assert.match(result.stderr, /Aborted/);
+  assert.equal(server.requests.length, 0);
+});
+
+test('delete with stdin closed aborts non-zero instead of reporting success', async (t) => {
+  const cwd = await tempDir(t);
+  const server = await jsonServer(t, (_req, res) => {
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ ok: true }));
+  });
+
+  const result = await cliWithInput(['delete', 'ticket', '42'], '', {
+    cwd,
+    env: isolatedEnv(cwd, { ...CREDENTIALS, ZEYOS_BASE_URL: server.baseUrl })
+  });
+
+  assert.notEqual(result.code, 0, 'an unanswered confirmation must not exit 0');
   assert.equal(server.requests.length, 0);
 });
 
@@ -1536,7 +1554,7 @@ test('ZEYOS_TOKEN ignores local credentials instead of merging their baseUrl', a
     })
   });
 
-  assert.equal(result.code, 1);
+  assert.equal(result.code, 3, 'auth error: credentials missing or unusable');
   assert.match(result.stderr, /Missing required configuration/);
   assert.match(result.stderr, /baseUrl/);
   assert.doesNotMatch(result.stderr, /clientId/);
@@ -1642,12 +1660,20 @@ test('profile add prompts for name and OAuth config when run without options', a
   assert.match(res.stderr, /Created profile "dev"/);
   assert.match(res.stderr, /zeyos login --profile dev/);
 
-  const reg = JSON.parse((await cli(['profile', 'list', '--json'], { cwd, env })).stdout);
+  const listed = await cli(['profile', 'list', '--json'], { cwd, env });
+  const reg = JSON.parse(listed.stdout);
   assert.equal(reg.active, 'dev');
   assert.equal(reg.profiles.dev.baseUrl, 'https://zeyos.example.com/dev');
   assert.equal(reg.profiles.dev.clientId, 'app-id');
-  assert.equal(reg.profiles.dev.clientSecret, 'secret-value');
+
+  // Machine-readable profile output must never carry credential values: it is the
+  // mode agents and CI use, so anything here lands in logs.
+  assert.equal(reg.profiles.dev.clientSecret, undefined);
   assert.equal(reg.profiles.dev.accessToken, undefined);
+  assert.equal(reg.profiles.dev.refreshToken, undefined);
+  assert.equal(reg.profiles.dev.hasClientSecret, true);
+  assert.equal(reg.profiles.dev.token, 'none');
+  assert.ok(!listed.stdout.includes('secret-value'), 'client secret leaked into profile list output');
 });
 
 test('profile add with explicit fields remains non-interactive', async (t) => {
@@ -2170,4 +2196,369 @@ test('okf rejects unknown flags', async () => {
   const res = await cli(['okf', 'list', '--bogus']);
   assert.notEqual(res.code, 0);
   assert.match(res.stderr, /Unknown option/);
+});
+
+test('shipped resource configs only reference fields the schema knows', async () => {
+  // cli/config/*.json is hand-maintained against a generated schema; a renamed
+  // column silently renders as a permanently blank table row (`created` vs
+  // `creationdate` did exactly that for accounts, items and projects).
+  const { createZeyosClient } = await import('@zeyos/client');
+  const { resolveResource } = await import('../lib/resources.mjs');
+  const schema = createZeyosClient({ auth: { mode: 'none' } }).schema;
+  const configDir = new URL('../config/', import.meta.url);
+
+  const offenders = [];
+  for (const file of (await readdir(configDir)).filter((n) => n.endsWith('.json'))) {
+    const name = file.replace(/\.json$/, '');
+    const resource = resolveResource(name);
+    if (!resource) continue;
+    const valid = new Set(schema.fields(schema.resourceForOperation(resource.list || resource.get)));
+    const config = JSON.parse(await readFile(new URL(file, configDir), 'utf8'));
+
+    for (const section of Object.values(config)) {
+      if (!section || typeof section !== 'object') continue;
+      const fields = section.fields;
+      const refs = Array.isArray(fields) ? fields
+        : (fields && typeof fields === 'object' ? Object.values(fields) : []);
+      for (const ref of refs) {
+        // Dot-notation joins are validated on their head field only.
+        const base = String(ref).split('.')[0];
+        if (!valid.has(base)) offenders.push(`${file}: ${ref}`);
+      }
+    }
+  }
+
+  assert.deepEqual(offenders, [], `unknown fields in shipped configs:\n  ${offenders.join('\n  ')}`);
+});
+
+test('boolean flags reject an =value instead of reading it as true', async (t) => {
+  const cwd = await tempDir(t);
+  const server = await jsonServer(t, (_req, res) => {
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ ok: true }));
+  });
+  const env = isolatedEnv(cwd, { ...CREDENTIALS, ZEYOS_BASE_URL: server.baseUrl });
+
+  // `--force=false` previously skipped the delete confirmation entirely.
+  const result = await cli(['delete', 'ticket', '42', '--force=false'], { cwd, env });
+  assert.equal(result.code, 2);
+  assert.match(result.stderr, /--force is a flag and takes no value/);
+  assert.equal(server.requests.length, 0, 'no request may be sent for a rejected flag');
+});
+
+test('field flags respect the column type instead of guessing from the literal', async (t) => {
+  const cwd = await tempDir(t);
+  const server = await jsonServer(t, (_req, res, body) => {
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ ID: 7, ...JSON.parse(body || '{}') }));
+  });
+  const env = isolatedEnv(cwd, { ...CREDENTIALS, ZEYOS_BASE_URL: server.baseUrl });
+
+  await cli([
+    'create', 'account',
+    '--customernum', '00123',   // text column: leading zero must survive
+    '--lastname', 'Acme',
+    '--currency', 'EUR',
+    '--type', '1'               // smallint column: must become a number
+  ], { cwd, env });
+
+  const sent = JSON.parse(server.requests.at(-1).body);
+  assert.equal(sent.customernum, '00123', 'text column must not be coerced to a number');
+  assert.equal(sent.type, 1, 'numeric column must still coerce');
+});
+
+test('yaml output renders empty objects and arrays as parseable mappings', async () => {
+  const { printYaml } = await import('../lib/output.mjs');
+  const chunks = [];
+  const original = process.stdout.write;
+  process.stdout.write = (chunk) => { chunks.push(String(chunk)); return true; };
+  try {
+    printYaml({ a: {}, b: [], c: 1 });
+  } finally {
+    process.stdout.write = original;
+  }
+  const out = chunks.join('');
+  // `a:{}` reads back as the scalar string "a:{}", not as a mapping.
+  assert.match(out, /^a: \{\}$/m);
+  assert.match(out, /^b: \[\]$/m);
+});
+
+test('bare `zeyos list` shows the supported entities instead of a usage error', async () => {
+  const result = await cli(['list']);
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /Billing documents/);
+  assert.match(result.stdout, /billing_invoice/);
+  assert.match(result.stdout, /procurement_delivery/);
+  assert.match(result.stdout, /transactions type 3/);
+  // Still explains how to go deeper.
+  assert.match(result.stdout, /zeyos describe/);
+});
+
+test('transaction pseudo-entities bind their type on read', async (t) => {
+  const cwd = await tempDir(t);
+  const env = isolatedEnv(cwd, CREDENTIALS);
+
+  const cases = [
+    ['billing_invoices', 3],
+    ['invoices', 3],                 // colloquial: billing, not documents
+    ['procurement_deliveries', 7],
+    ['po', 6],
+    ['production_disassemblies', 11]
+  ];
+
+  for (const [entity, type] of cases) {
+    const res = await cli(['list', entity, '--dry-run', '--json'], { cwd, env });
+    assert.equal(res.code, 0, `${entity}: ${res.stderr}`);
+    const body = JSON.parse(res.stdout).body;
+    assert.equal(body.filters.type, type, `${entity} should bind type ${type}`);
+  }
+});
+
+test('a pseudo-entity type survives presets and user filters', async (t) => {
+  const cwd = await tempDir(t);
+  const env = isolatedEnv(cwd, CREDENTIALS);
+
+  const res = await cli([
+    'list', 'billing_invoices', '--preset', 'overdue',
+    '--filter', '{"account":42}', '--dry-run', '--json'
+  ], { cwd, env });
+
+  assert.equal(res.code, 0, res.stderr);
+  const filters = JSON.parse(res.stdout).body.filters;
+  assert.equal(filters.type, 3, 'bound type must not be overwritten by preset or filter');
+  assert.equal(filters.account, 42);
+  assert.ok(filters.duedate, 'preset must still apply');
+});
+
+test('creating through a pseudo-entity sets the transaction type', async (t) => {
+  const cwd = await tempDir(t);
+  const env = isolatedEnv(cwd, CREDENTIALS);
+
+  const res = await cli(['create', 'billing_invoices', '--account', '42', '--dry-run', '--json'], { cwd, env });
+  assert.equal(res.code, 0, res.stderr);
+  const body = JSON.parse(res.stdout).body;
+  assert.equal(body.type, 3);
+  assert.equal(body.account, 42);
+});
+
+test('float columns are grouped in table output but raw in JSON', async () => {
+  const { buildNumberFormatters, formatNumber } = await import('../lib/output.mjs');
+  const defs = {
+    netamount: { type: 'double precision' },
+    ID: { type: 'integer' },
+    account: { type: 'integer' }
+  };
+
+  const formatters = buildNumberFormatters(['ID', 'account', 'netamount'], defs, undefined, { locale: 'de-DE' });
+  // Integers (IDs, foreign keys, enum codes) must never be grouped.
+  assert.deepEqual(Object.keys(formatters), ['netamount']);
+  assert.equal(formatters.netamount(17009), '17.009,00');
+  assert.equal(formatNumber(1234567.891, { locale: 'en-US' }), '1,234,567.89');
+  assert.equal(formatNumber(null), '');
+  assert.equal(formatNumber('not-a-number'), 'not-a-number');
+});
+
+test('grouped numbers stay right-aligned in tables', async () => {
+  const { printTable } = await import('../lib/output.mjs');
+  const chunks = [];
+  const original = process.stdout.write;
+  process.stdout.write = (chunk) => { chunks.push(String(chunk)); return true; };
+  try {
+    printTable(
+      [{ n: 2700 }, { n: 1234567.891 }],
+      ['n'], {},
+      { n: (v) => new Intl.NumberFormat('de-DE', { minimumFractionDigits: 2 }).format(v) }
+    );
+  } finally {
+    process.stdout.write = original;
+  }
+  const lines = chunks.join('').split('\n').filter((l) => /\d/.test(l));
+  // Right-aligned: the shorter value is padded on the left, so both end at the
+  // same column. A separator-carrying number must not fall back to left-align.
+  const ends = lines.map((l) => l.replace(/\s+$/, '').length);
+  assert.equal(ends[0], ends[1], `expected right alignment, got:\n${lines.join('\n')}`);
+});
+
+test('the bound transaction type is an invariant, not a default', async (t) => {
+  const cwd = await tempDir(t);
+  const env = isolatedEnv(cwd, CREDENTIALS);
+
+  // A conflicting --filter must be refused, not silently honoured: returning
+  // procurement invoices under the billing-invoice name is worse than an error.
+  const filtered = await cli(
+    ['list', 'billing_invoices', '--filter', '{"type":8}'],
+    { cwd, env }
+  );
+  assert.equal(filtered.code, 2);
+  assert.match(filtered.stderr, /fixed to type 3/);
+  assert.match(filtered.stderr, /procurement_invoice/);
+
+  // Same for an explicit --type on create.
+  const created = await cli(
+    ['create', 'billing_invoices', '--type', '8', '--account', '42'],
+    { cwd, env }
+  );
+  assert.equal(created.code, 2);
+  assert.match(created.stderr, /fixed to type 3/);
+
+  // A matching value is fine, not a conflict.
+  const agreeing = await cli(
+    ['list', 'billing_invoices', '--filter', '{"type":3}', '--dry-run', '--json'],
+    { cwd, env }
+  );
+  assert.equal(agreeing.code, 0, agreeing.stderr);
+  assert.equal(JSON.parse(agreeing.stdout).body.filters.type, 3);
+});
+
+test('surplus positionals are rejected instead of silently truncating a write', async (t) => {
+  const cwd = await tempDir(t);
+  const env = isolatedEnv(cwd, CREDENTIALS);
+
+  // `--name Fix login bug` used to create a ticket named "Fix" and exit 0.
+  const unquoted = await cli(['create', 'ticket', '--name', 'Fix', 'login', 'bug'], { cwd, env });
+  assert.equal(unquoted.code, 2);
+  assert.match(unquoted.stderr, /Unexpected arguments?/);
+  assert.match(unquoted.stderr, /must be quoted/);
+
+  const find = await cli(['find', 'accounts', 'Acme', 'Corp'], { cwd, env });
+  assert.equal(find.code, 2);
+
+  // Quoting it is still the happy path.
+  const quoted = await cli(
+    ['create', 'ticket', '--name', 'Fix login bug', '--dry-run', '--json'],
+    { cwd, env }
+  );
+  assert.equal(quoted.code, 0, quoted.stderr);
+  assert.equal(JSON.parse(quoted.stdout).body.name, 'Fix login bug');
+
+  // A genuine positional JSON body still works.
+  const jsonBody = await cli(
+    ['create', 'ticket', '{"name":"Fix login bug"}', '--dry-run', '--json'],
+    { cwd, env }
+  );
+  assert.equal(jsonBody.code, 0, jsonBody.stderr);
+  assert.equal(JSON.parse(jsonBody.stdout).body.name, 'Fix login bug');
+});
+
+test('unknown short flags and loose integers fail instead of being ignored', async (t) => {
+  const cwd = await tempDir(t);
+  const env = isolatedEnv(cwd, CREDENTIALS);
+
+  const shortFlag = await cli(['list', 'tickets', '-j'], { cwd, env });
+  assert.equal(shortFlag.code, 2);
+  assert.match(shortFlag.stderr, /Unknown option: "-j"/);
+
+  for (const bad of ['10junk', '3.7', '-5']) {
+    const res = await cli(['list', 'tickets', '--limit', bad], { cwd, env });
+    assert.equal(res.code, 2, `--limit ${bad} should be rejected`);
+  }
+});
+
+test('filter operator drift is translated, and the rest is rejected with the vocabulary', async (t) => {
+  const cwd = await tempDir(t);
+  const env = isolatedEnv(cwd, CREDENTIALS);
+
+  const filters = async (json) => {
+    const res = await cli(['list', 'tickets', '--filter', json, '--dry-run', '--json'], { cwd, env });
+    assert.equal(res.code, 0, `${json}: ${res.stderr}`);
+    return JSON.parse(res.stdout).body.filters;
+  };
+
+  // Shapes RECOMMENDATIONS.md records models actually emitting.
+  assert.deepEqual(await filters('{"status_neq":9}'), { status: { '!=': 9 } });
+  assert.deepEqual(await filters('{"name_starts":"Ac"}'), { name: { '~~*': 'Ac%' } });
+  assert.deepEqual(await filters('{"status":{"$eq":9}}'), { status: 9 });
+  assert.deepEqual(await filters('{"duedate__between":[100,200]}'), { duedate: { '>=': 100, '<=': 200 } });
+
+  // $or has real ZeyOS semantics under a syntax no model would guess.
+  assert.deepEqual(
+    await filters('{"$or":[{"status":1},{"status":3}]}'),
+    { 0: ['OR', { status: 1 }, { status: 3 }] }
+  );
+
+  // A field that merely contains an underscore is not split into an operator.
+  const messages = await cli(
+    ['list', 'messages', '--filter', '{"sender_email":"a@b.c"}', '--dry-run', '--json'],
+    { cwd, env }
+  );
+  assert.equal(messages.code, 0, messages.stderr);
+  assert.deepEqual(JSON.parse(messages.stdout).body.filters, { sender_email: 'a@b.c' });
+
+  // Anything untranslatable fails before the request, naming what is allowed.
+  const bogus = await cli(['list', 'tickets', '--filter', '{"status":{"$exists":true}}'], { cwd, env });
+  assert.equal(bogus.code, 2);
+  assert.match(bogus.stderr, /Unsupported filter operator "\$exists"/);
+  assert.match(bogus.stderr, /Supported:/);
+});
+
+test('enum validation reaches array and operator filter forms', async (t) => {
+  const cwd = await tempDir(t);
+  const env = isolatedEnv(cwd, CREDENTIALS);
+
+  // All three spellings mean "status = 999", which is not a valid enum member.
+  for (const bad of ['{"status":999}', '{"status":[999]}', '{"status":{"IN":[999]}}']) {
+    const res = await cli(['count', 'tickets', '--filter', bad], { cwd, env });
+    assert.equal(res.code, 1, `${bad} should be rejected`);
+    assert.match(res.stderr, /Invalid value 999/);
+  }
+
+  // Ranges legitimately reference non-members and must stay allowed.
+  const range = await cli(
+    ['count', 'tickets', '--filter', '{"priority":{">":2}}', '--dry-run', '--json'],
+    { cwd, env }
+  );
+  assert.equal(range.code, 0, range.stderr);
+});
+
+test('unknown entity names suggest the closest spelling', async (t) => {
+  const cwd = await tempDir(t);
+  const env = isolatedEnv(cwd, CREDENTIALS);
+
+  const res = await cli(['list', 'billing_invoces'], { cwd, env });
+  assert.equal(res.code, 2);
+  assert.match(res.stderr, /Did you mean "billing_invoices"\?/);
+});
+
+test('ID-based operations verify the record belongs to the named entity', async (t) => {
+  const cwd = await tempDir(t);
+  // The server returns a type-8 record (procurement invoice) for every GET.
+  const server = await jsonServer(t, (req, res) => {
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify(req.method === 'GET'
+      ? { ID: 42, type: 8, transactionnum: 'PO-1' }
+      : { ok: true }));
+  });
+  const env = isolatedEnv(cwd, { ...CREDENTIALS, ZEYOS_BASE_URL: server.baseUrl });
+
+  // Reading it as a billing invoice must fail, not quietly show a purchase order.
+  const read = await cli(['get', 'billing_invoices', '42'], { cwd, env });
+  assert.equal(read.code, 4);
+  assert.match(read.stderr, /is not a billing_invoices/);
+  assert.match(read.stderr, /procurement_invoice/);
+
+  // And the destructive path must be blocked BEFORE the delete is issued.
+  const before = server.requests.length;
+  const removed = await cli(['delete', 'billing_invoices', '42', '--force'], { cwd, env });
+  assert.equal(removed.code, 4);
+  assert.equal(
+    server.requests.filter((r) => r.method === 'DELETE').length, 0,
+    'no DELETE may be sent for a record of the wrong type'
+  );
+  assert.ok(server.requests.length > before, 'the type check should have fetched the record');
+
+  // The correct entity still works, and an unbound entity is unaffected.
+  for (const entity of ['procurement_invoices', 'transactions']) {
+    const ok = await cli(['get', entity, '42', '--json'], { cwd, env });
+    assert.equal(ok.code, 0, `${entity}: ${ok.stderr}`);
+  }
+});
+
+test('describe exposes the bound type in machine-readable output', async () => {
+  const result = await cli(['describe', 'billing_invoices', '--json']);
+  assert.equal(result.code, 0, result.stderr);
+  const def = JSON.parse(result.stdout);
+  assert.equal(def.name, 'transactions');
+  assert.equal(def.canonicalResource, 'billing_invoice');
+  assert.equal(def.transactionType, 3);
+  assert.ok(def.filterOperators.native.includes('~~*'));
 });

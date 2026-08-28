@@ -21,7 +21,7 @@ For cross-platform benchmark guidance, read [business-app-benchmarks.md](./busin
 4. Choose the primary resource first. Do not join across domains until the primary record set is clear.
 5. Choose the interface:
    - Use the CLI for registry-backed CRUD and straightforward list/get/count flows.
-   - Use `@zeyos/client` when you need unsupported resources, `expand`, binary access, richer request control, or multi-step correlation logic.
+   - Use `@zeyos/client` when you need unsupported resources, binary access, richer request control, or multi-step correlation logic. `expand`, `extdata` and `tags` are available on the CLI (`zeyos list/get --expand items --extdata`) and over MCP, so they are no longer a reason to escalate.
 6. Query only the fields needed for the next decision.
 7. Run follow-up queries only for relationships that affect the answer.
 8. State assumptions and ambiguities in the final answer.
@@ -32,15 +32,26 @@ For cross-platform benchmark guidance, read [business-app-benchmarks.md](./busin
 - CLI filters are inline JSON strings. Use `--filter '{"field":123}'`; never run the raw
   JSON as a shell command, and do not use `@filter.json` unless the CLI help explicitly
   documents response-file support.
-- CLI filter arrays normalize to `IN`, e.g. `--filter '{"status":[1,3]}'`.
-- CLI filters also normalize common negative-set aliases to native `!IN`, e.g.
-  `--filter '{"status":{"$nin":[8,9,10]}}'`.
-- Do not invent filter operators. For text search use ZeyOS' documented
-  case-insensitive LIKE operator, e.g. `{"lastname":{"~~*":"%Bureau3%"}}`; do not use
-  `contains`, `like`, or `ilike` unless `zeyos describe` documents that exact operator.
-- For numeric/date comparisons, prefer native ZeyOS operators such as `<`, `<=`, `>`,
-  and `>=`. The CLI also normalizes common Mongo-style range aliases (`$lt`, `$lte`,
-  `$gt`, `$gte`) before sending, but use the native operators in examples and docs.
+- **`zeyos describe <resource>` prints the exact filter vocabulary** in a `filter operators`
+  section (and under `filterOperators` in `--json`). Read it instead of guessing; it is the
+  authoritative list for the CLI you are running.
+- The CLI translates a wide range of operator syntax to native ZeyOS shape before sending,
+  so you do not have to remember which dialect it wants:
+  - arrays mean `IN`: `--filter '{"status":[1,3]}'`
+  - Mongo style: `$lt $lte $gt $gte $ne $in $nin $like $ilike $regex $eq $between`
+  - suffix style: `field__gt`, `field__startswith`, `field__endswith`, `field__contains`,
+    `field__between`, and the single-underscore form where unambiguous (`status_neq`, `ID_gt`)
+  - composite: `{"$or": [...]}` / `{"$and": [...]}` become ZeyOS numbered logical groups
+    (`{"0": ["OR", …]}`), a shape you would otherwise have to write by hand
+- An operator the CLI cannot translate is now **rejected before the request** with the
+  supported list in the error, exit code `2`. If you see that message, pick from the list —
+  do not retry variations.
+- `startswith`/`endswith`/`contains` take **literal** text (wildcards in your value are
+  escaped). `like`/`ilike` take a **pattern** where `%` is a wildcard. Native
+  `{"lastname":{"~~*":"%Bureau3%"}}` still works and is what the translations produce.
+- ZeyOS has **no IS NULL filter**. For "missing X" questions, fetch the candidate rows and
+  compare client-side; the CLI rejects `field__isnull` with that guidance rather than
+  sending something the server will refuse.
 - Creating accounts requires `currency` (e.g. `"EUR"`): the column is NOT NULL with no DB default, so a create that omits it fails with an opaque HTTP 500 even though the OpenAPI spec does not mark it required. `validate('createAccount', …)` now catches this; supply a currency code. (The spec carries no required-field metadata at all, so unknown required fields can still surface only as a server-side 500 — when a create 500s, suspect a missing NOT-NULL column.)
 - Use `visibility: 0` on resources that expose a `visibility` field, unless the user explicitly wants archived or deleted records. Not every resource has the column: `tickets`, `accounts`, and `items` do; **`transactions` does not — filtering `visibility` there returns an opaque HTTP 400**. More generally, filtering on any column a resource lacks 400s with no hint which field was wrong, so filter only on fields `zeyos describe <resource>` lists.
 - Treat list operations as `POST` queries.
@@ -86,8 +97,40 @@ Use `zeyos find <resource> "<text>"` to resolve a human label, then filter relat
 by the returned ID, for example `--filter '{"account":4628}'`. Unknown CLI filter fields
 now fail before any request with a closest-field suggestion and the valid-field list.
 
-For transactions, prefer the business presets `quotes`, `orders`, `invoices`, `credits`,
-`open-invoices`, `overdue-invoices`, and `paid-invoices` on `list`, `count`, or `sum`.
+**Transactions: use the type entity, not a `type` filter.** `transactions` is one table
+holding twelve business documents separated by the `type` column. Each type is its own CLI
+entity, so you never need to know the code:
+
+| Entity | Also accepts | `type` |
+|---|---|---|
+| `billing_quotes` | `quotes` | 0 |
+| `billing_orders` | `orders` | 1 |
+| `billing_deliveries` | `deliveries` | 2 |
+| `billing_invoices` | `invoices` | 3 |
+| `billing_credits` | `credits` | 4 |
+| `procurement_requests` | | 5 |
+| `procurement_orders` | `po`, `purchase_orders` | 6 |
+| `procurement_deliveries` | | 7 |
+| `procurement_invoices` | `bills` | 8 |
+| `procurement_credits` | | 9 |
+| `production_fabrications` | | 10 |
+| `production_disassemblies` | | 11 |
+
+The type is bound on `list`, `count`, `sum`, `find` and `create`, and survives any
+`--preset` or `--filter` you add. Invoice and credit entities take
+`--preset open | overdue | paid | draft | booked | cancelled`.
+
+```bash
+zeyos count billing_invoices --preset overdue
+zeyos sum billing_invoices netamount --preset open
+zeyos list procurement_deliveries --limit 20
+```
+
+Use `transactions` only when you genuinely want every type at once. The older presets on
+`transactions` (`quotes`, `orders`, `invoices`, `credits`, `open-invoices`,
+`overdue-invoices`, `paid-invoices`) still work but the entities are shorter and clearer.
+
+Run `zeyos list` with no entity for the full grouped list of what is queryable.
 
 - Resolve a user with `users.name` or `users.email` first.
 - Resolve a customer with `accounts.customernum`, `accounts.lastname`, `accounts.firstname`, then `contacts.email` or contact name if needed. Company names live in `accounts.lastname`; there is no generic `accounts.name` column.

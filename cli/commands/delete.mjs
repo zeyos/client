@@ -8,8 +8,17 @@
  */
 
 import { createInterface }         from 'node:readline';
-import { buildCliClient, callApi, maybeDryRun, requireRecordId, requireResource } from '../lib/command.mjs';
+import {
+  buildCliClient,
+  callApi,
+  maybeDryRun,
+  requireNoExtraPositionals,
+  requireRecordId,
+  requireResource,
+  verifyBoundTypeBeforeWrite
+} from '../lib/command.mjs';
 import { success, warn }           from '../lib/output.mjs';
+import { EXIT }                    from '../lib/exit.mjs';
 
 export const USAGE = `\
 Usage: zeyos delete <resource> <id> [options]
@@ -37,6 +46,7 @@ export async function run(values, positional) {
 
   const res = requireResource(resourceName, 'zeyos delete <resource> <id>', 'delete', 'deletion');
   requireRecordId(id, 'zeyos delete <resource> <id>');
+  requireNoExtraPositionals(positional, 2, 'zeyos delete <resource> <id>');
 
   const clientState = buildCliClient(values);
 
@@ -44,12 +54,19 @@ export async function run(values, positional) {
   // Show the request without prompting or deleting anything.
   if (await maybeDryRun(clientState, res.delete, { ID: id }, values)) return;
 
+  // Check the target really is this entity BEFORE prompting, so the confirmation
+  // never describes the record as something it is not.
+  await verifyBoundTypeBeforeWrite(clientState, res, resourceName, id, 'delete');
+
   // ── Confirmation ───────────────────────────────────────────────────────────
   if (!values.force) {
     const confirmed = await _confirm(`Delete ${resourceName} #${id}? [y/N] `);
     if (!confirmed) {
+      // Exit non-zero: with stdin closed (CI, a pipe) readline answers with an
+      // empty string, and a silent exit 0 would tell the caller the delete
+      // succeeded. Use --force to delete non-interactively.
       warn('Aborted.');
-      return;
+      process.exit(EXIT.ABORTED);
     }
   }
 
@@ -66,7 +83,21 @@ export async function run(values, positional) {
 function _confirm(prompt) {
   const rl = createInterface({ input: process.stdin, output: process.stderr });
   return new Promise(resolve => {
+    let answered = false;
+
+    // With stdin already closed (CI, `< /dev/null`) the question callback never
+    // fires: the promise would never settle, the event loop would drain, and the
+    // process would exit 0 having deleted nothing. Treat close as "not confirmed".
+    rl.on('close', () => {
+      if (!answered) {
+        answered = true;
+        resolve(false);
+      }
+    });
+
     rl.question(prompt, answer => {
+      if (answered) return;
+      answered = true;
       rl.close();
       resolve(answer.trim().toLowerCase() === 'y');
     });

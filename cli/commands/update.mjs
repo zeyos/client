@@ -15,8 +15,10 @@ import {
   buildRecordPayload,
   callApi,
   maybeDryRun,
+  requireNoExtraPositionals,
   requireRecordId,
-  requireResource
+  requireResource,
+  verifyBoundTypeBeforeWrite
 } from '../lib/command.mjs';
 import { outputMode, printJson, printYaml, printRecord, success } from '../lib/output.mjs';
 
@@ -51,16 +53,19 @@ export async function run(values, positional) {
 
   const res = requireResource(resourceName, 'zeyos update <resource> <id>', 'update', 'updates');
   requireRecordId(id, 'zeyos update <resource> <id>');
+  requireNoExtraPositionals(positional, 3, 'zeyos update <resource> <id> [json]', { jsonBodyAt: 2 });
 
   // ── Build data payload ─────────────────────────────────────────────────────
   // Validate input before requiring credentials.  positional[2] is the
   // (optional) JSON body some callers pass positionally instead of via --data.
-  const data = buildRecordPayload(values, positional[2]);
+  const data = buildRecordPayload(values, positional[2], res.update);
 
   const clientState = buildCliClient(values);
 
   // ── Call API ───────────────────────────────────────────────────────────────
   if (await maybeDryRun(clientState, res.update, { ID: id, body: data }, values)) return;
+
+  await verifyBoundTypeBeforeWrite(clientState, res, resourceName, id, 'update');
 
   const record = await callApi(clientState, res.update, { ID: id, body: data }, {
     notFoundMessage: `${resourceName} #${id} not found.`
@@ -68,10 +73,15 @@ export async function run(values, positional) {
 
   const mode = outputMode(values);
 
+  // When the API returns no body, report the outcome rather than echoing the
+  // request back: a caller cannot tell an echoed payload from a server-confirmed
+  // record, and would read unverified values as confirmed.
+  const payload = record ?? { ID: id, updated: true };
+
   if (mode === 'json') {
-    printJson(record ?? { ID: id, ...data });
+    printJson(payload);
   } else if (mode === 'yaml') {
-    printYaml(record ?? { ID: id, ...data });
+    printYaml(payload);
   } else {
     success(`Updated ${resourceName} #${id}.`);
     if (record) printRecord(record, res.fields);
