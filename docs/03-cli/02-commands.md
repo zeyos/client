@@ -15,8 +15,15 @@ These options work with any command:
 | `--json` | Output as formatted JSON |
 | `--yaml` | Output as YAML |
 | `--profile <name>` | Use a named credential profile for this command |
+| `--dry-run` | Print the request route and body without sending it |
+| `--timeout <seconds>` | Per-request timeout (default 30) |
+| `--no-validate` | Skip schema validation of fields and filters |
 | `--no-color` | Disable ANSI color output |
 | `-h`, `--help` | Show help for a command |
+| `-v`, `--version` | Print the CLI version |
+
+This table is maintained by hand. For the authoritative, always-current list — including which
+flags each individual command accepts — run `zeyos commands --json`.
 
 Global options may be placed before or after the command name:
 

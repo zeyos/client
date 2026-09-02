@@ -102,7 +102,7 @@ Extended data fields are user-defined and may vary between ZeyOS instances. When
 The `filter` parameter lets you restrict results using comparison operators, string-matching operators, and composite logical expressions.
 
 :::tip JavaScript Client: use `filters` (plural)
-The REST API parameter is named `filter` (singular), but the JavaScript client also accepts `filters` (plural). Use `filters` when working with the client — it correctly handles both simple fields and GIN-indexed foreign key fields like `project`, `ticket`, and `account`. See the [Practical Guide](../02-javascript-client/04-practical-guide.md#filter-vs-filters) for details.
+The bundled OpenAPI spec names this parameter `filter` (singular), but ZeyOS's published API documentation uses `filters` (plural) in every worked example — and that is what the JavaScript client and CLI send. Use `filters`. See the [Practical Guide](../02-javascript-client/04-practical-guide.md#always-use-filters-plural).
 :::
 
 ### Filter Syntax

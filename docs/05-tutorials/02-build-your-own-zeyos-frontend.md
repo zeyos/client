@@ -134,7 +134,7 @@ async function loadTickets() {
 Key things to note:
 
 - **List operations are POST requests.** The client handles this; you just pass an object.
-- **Always include `visibility: 0`** to exclude archived/deleted records.
+- **Include `visibility: 0`** to exclude archived/deleted records — on resources that have the column. `transactions`, `payments` and `messages` do not, and filtering on it there returns an opaque HTTP 400.
 - **Use `filters` (plural)** for best compatibility across all field types. This handles both simple equality filters and GIN-indexed foreign key fields.
 - **Always specify `fields`** to keep payloads small. Without it, every field on every record is returned.
 - **Normalise the response.** Use `normalizeListResult()` so list calls share one array/object-wrapper handling path. Use `normalizeCountResult()` for count-only requests.

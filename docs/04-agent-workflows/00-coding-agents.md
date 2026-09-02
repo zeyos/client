@@ -30,6 +30,6 @@ For most agent workflows, start with the CLI:
 
 - Prefer `--json` for agent-driven flows.
 - Prefer `filters`-style JSON payloads in CLI examples so the transition to `@zeyos/client` stays consistent.
-- Include `visibility: 0` unless you intentionally want archived or deleted records.
+- Use `visibility: 0` on resources that **have** the column — `accounts`, `contacts`, `tickets`, `tasks`, `projects`, `items`, `documents`, `notes`, `opportunities`, `appointments`, `campaigns`, `mailinglists`, `storages` — unless you want archived (`1`) or deleted (`2`) records. **Most other resources have no `visibility` column** — `transactions` (and every billing/procurement entity), `payments`, `messages`, `actionsteps`, `addresses`, `users`, `prices`, `dunning` — and filtering on it there returns an opaque HTTP 400. Check with `zeyos describe <entity>` when unsure.
 - Treat `delete` as destructive. The CLI prompts by default; use `--force` only in deliberate automation.
 - Switch to the JavaScript client when the task needs unsupported resources, browser/session behavior, or low-level request control.

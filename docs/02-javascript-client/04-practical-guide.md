@@ -38,26 +38,25 @@ await client.api.updateTask({ ID: taskId, data: { name: 'New name', duedate: ts 
 
 For low-level `client.request()` calls, prefer explicit `body` because there is no generated operation metadata to tell the client which keys are URL parameters.
 
-## `filter` vs `filters`
+## Always use `filters` (plural)
 
-The ZeyOS API exposes two distinct filtering parameters, and the one you need depends on the field type:
+There is one filter parameter, and it is `filters`. Use it for every field type — scalars,
+enums, and GIN-indexed foreign keys alike.
 
-| Parameter | Use for | Example |
-|-----------|---------|---------|
-| `filter` | Simple scalar fields (integers, strings, enums) | `filter: { visibility: 0, status: 1 }` |
-| `filters` | GIN-indexed fields — foreign key references and array-type columns | `filters: { ticket: ticketId, project: projectId }` |
-
-In practice this means:
+The singular `filter` appears once in the bundled OpenAPI spec and nowhere in ZeyOS's
+[published API documentation](https://www.zeyos.com/api/llms-full.txt), whose worked examples
+use `filters` throughout. Treat the spec as the outlier. The CLI's schema validation rejects
+`filter` outright and tells you to use `filters`.
 
 ```js
-// Listing tickets — status and visibility are scalar fields → use 'filter'
+// Scalars, enums and foreign keys all go in the same place
 const tickets = await client.api.listTickets({
   filters: { visibility: 0, project: projectId },
   sort: ['-lastmodified'],
   limit: 500,
 });
 
-// Listing tasks for a ticket — 'ticket' is a GIN-indexed FK → use 'filters'
+// A foreign key is no different
 const tasks = await client.api.listTasks({
   fields: ['ID', 'tasknum', 'name', 'duedate', 'assigneduser'],
   filters: { ticket: ticketId, visibility: 0 },
@@ -67,18 +66,33 @@ const tasks = await client.api.listTasks({
 ```
 
 :::tip
-When in doubt, use `filters`. It appears to handle both scalar and FK fields correctly. Using `filter` for a FK field silently returns unfiltered results rather than throwing an error, which makes this particularly easy to miss.
+Use `filters` for everything. If you pass `filter` with validation enabled, the client rejects it and names the correct key.
 :::
 
-## Always Include `visibility: 0`
+## Use `visibility: 0` — where the column exists
 
-ZeyOS records have a `visibility` field that controls soft-deletion and archiving. Records with `visibility > 0` are typically hidden from normal views. Always include `visibility: 0` in your filters unless you intentionally want to retrieve archived or deleted records:
+Many ZeyOS records have a `visibility` field controlling soft-deletion and archiving, where
+`0` = regular, `1` = archived, `2` = deleted. Records with `visibility > 0` are hidden from
+normal views, so include `visibility: 0` unless you intentionally want them:
 
 ```js
-const filter = { visibility: 0 };
+const filters = { visibility: 0 };
 // Add resource-specific filters after
-if (projectId) filter.project = projectId;
+if (projectId) filters.project = projectId;
 ```
+
+:::warning Not every resource has the column
+`visibility` exists on `accounts`, `contacts`, `tickets`, `tasks`, `projects`, `items`,
+`documents`, `notes`, `opportunities`, `appointments`, `campaigns`, `mailinglists` and
+`storages`.
+
+It does **not** exist on `transactions` — nor any billing/procurement entity derived from it —
+nor on `payments`, `messages`, `actionsteps`, `addresses`, `users`, `prices` or `dunning`.
+Filtering on a column a resource lacks returns an **opaque HTTP 400** that does not name the
+offending field.
+
+Check with `client.schema.describe('<resource>')` or `zeyos describe <entity>` when unsure.
+:::
 
 ## Normalising List Responses
 

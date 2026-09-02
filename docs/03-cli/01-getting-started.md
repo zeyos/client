@@ -154,11 +154,17 @@ zeyos list tickets --filter-file ./filters/open-tickets.json --json
 zeyos count tickets --filter-file ./filters/open-tickets.json --json
 ```
 
-For normal operational views, include `visibility: 0`:
+For normal operational views, include `visibility: 0` on resources that have the column:
 
 ```bash
 zeyos list tickets --filter '{"visibility":0,"status":1}'
 ```
+
+:::warning
+`transactions` and its billing/procurement entities, plus `payments`, `messages`, `actionsteps`
+and `addresses`, have **no** `visibility` column — filtering on it there returns an opaque
+HTTP 400. Run `zeyos describe <entity>` to see which columns a resource actually has.
+:::
 
 ## Sorting and Pagination
 

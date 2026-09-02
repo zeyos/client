@@ -181,15 +181,39 @@ const items = await client.api.listItems({
 
 ### Documents
 
-Business documents such as invoices, quotes, orders, and delivery notes. Documents are linked to accounts and contain line items referencing products/services.
+Stored files and document records — attachments, generated PDFs and similar — linked to
+accounts and other records. Fields include `name`, `documentnum`, `filename` and `status`.
 
 ```js
-const invoices = await client.api.listDocuments({
-  filters: { doctype: 'invoice', visibility: 0 },
+const recent = await client.api.listDocuments({
+  filters: { visibility: 0 },
+  sort: ['-lastmodified'],
+  limit: 25,
+});
+```
+
+:::warning Invoices are not documents
+Invoices, quotes, orders, credits and delivery notes are **transactions**, distinguished by
+`transactions.type` — an invoice is `type: 3`. The `documents` resource has no `doctype`
+column, so filtering on one returns an HTTP 400.
+
+```js
+const invoices = await client.api.listTransactions({
+  filters: { type: 3 },
   sort: ['-date'],
   limit: 25,
 });
 ```
+
+On the CLI, use the entity that binds the type for you:
+
+```bash
+zeyos list billing_invoices --limit 25 --sort -date
+```
+
+See [Transactions](#transactions) and the CLI's
+[transaction entities](../03-cli/02-commands.md#list).
+:::
 
 ## Resource Naming
 

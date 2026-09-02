@@ -2641,3 +2641,58 @@ test('--yes works as an alias of --force on delete', async (t) => {
   assert.equal(result.code, 0, result.stderr);
   assert.equal(server.requests.filter((r) => r.method === 'DELETE').length, 1);
 });
+
+test('documentation does not teach filters that 400 on the target resource', async () => {
+  // Two documentation defects cost real agent turns before this test existed:
+  // blanket "always visibility: 0" advice (wrong for 30 of 43 entities), and an
+  // invoices example filtering `documents` on a non-existent `doctype` column.
+  const { createZeyosClient } = await import('@zeyos/client');
+  const { resolveResource } = await import('../lib/resources.mjs');
+  const schema = createZeyosClient({ auth: { mode: 'none' } }).schema;
+
+  const hasColumn = (entity, column) => {
+    const res = resolveResource(entity);
+    const key = schema.resourceForOperation(res.list || res.get);
+    return Object.prototype.hasOwnProperty.call(schema.describe(key)?.fields || {}, column);
+  };
+
+  // Entities the docs now name as safe for `visibility: 0` must really have it.
+  for (const entity of [
+    'accounts', 'contacts', 'tickets', 'tasks', 'projects', 'items',
+    'documents', 'notes', 'opportunities', 'appointments', 'campaigns',
+    'mailinglists', 'storages'
+  ]) {
+    assert.ok(hasColumn(entity, 'visibility'), `${entity} should have a visibility column`);
+  }
+
+  // And the ones the docs warn about must really lack it.
+  for (const entity of [
+    'transactions', 'billing_invoices', 'procurement_orders', 'payments',
+    'messages', 'actionsteps', 'addresses', 'users', 'prices', 'dunning'
+  ]) {
+    assert.ok(!hasColumn(entity, 'visibility'), `${entity} should NOT have a visibility column`);
+  }
+
+  // `documents` has no doctype — the old invoices example would have 400'd.
+  assert.ok(!hasColumn('documents', 'doctype'), 'documents must not have a doctype column');
+
+  // No doc may still carry the blanket advice or the retired example.
+  const { readFile, readdir } = await import('node:fs/promises');
+  const docsDir = new URL('../../docs/', import.meta.url);
+  const walk = async (dir) => {
+    const out = [];
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+      const child = new URL(entry.name + (entry.isDirectory() ? '/' : ''), dir);
+      if (entry.isDirectory()) out.push(...await walk(child));
+      else if (entry.name.endsWith('.md')) out.push(child);
+    }
+    return out;
+  };
+  for (const file of [...await walk(docsDir), new URL('../../README.md', import.meta.url)]) {
+    const text = await readFile(file, 'utf8');
+    assert.ok(!/[Aa]lways include `visibility: 0`/.test(text),
+      `${file.pathname} still gives unconditional visibility advice`);
+    assert.ok(!/doctype/.test(text) || /has no `doctype`/.test(text),
+      `${file.pathname} still filters on a doctype column`);
+  }
+});

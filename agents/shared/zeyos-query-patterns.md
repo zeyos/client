@@ -53,12 +53,12 @@ For cross-platform benchmark guidance, read [business-app-benchmarks.md](./busin
   compare client-side; the CLI rejects `field__isnull` with that guidance rather than
   sending something the server will refuse.
 - Creating accounts requires `currency` (e.g. `"EUR"`): the column is NOT NULL with no DB default, so a create that omits it fails with an opaque HTTP 500 even though the OpenAPI spec does not mark it required. `validate('createAccount', …)` now catches this; supply a currency code. (The spec carries no required-field metadata at all, so unknown required fields can still surface only as a server-side 500 — when a create 500s, suspect a missing NOT-NULL column.)
-- Use `visibility: 0` on resources that expose a `visibility` field, unless the user explicitly wants archived or deleted records. Not every resource has the column: `tickets`, `accounts`, and `items` do; **`transactions` does not — filtering `visibility` there returns an opaque HTTP 400**. More generally, filtering on any column a resource lacks 400s with no hint which field was wrong, so filter only on fields `zeyos describe <resource>` lists.
+- Use `visibility: 0` only on resources that **have** the column, unless the user explicitly wants archived or deleted records. Just 13 of the 43 CLI entities have it — `accounts`, `contacts`, `tickets`, `tasks`, `projects`, `items`, `documents`, `notes`, `opportunities`, `appointments`, `campaigns`, `mailinglists`, `storages`. It is **absent** from `transactions` and every billing/procurement entity, and from `payments`, `messages`, `actionsteps`, `addresses`, `users`, `prices` and `dunning` — filtering on it there returns an opaque HTTP 400. More generally, filtering on any column a resource lacks 400s with no hint which field was wrong, so filter only on fields `zeyos describe <resource>` lists.
 - Treat list operations as `POST` queries.
-- Treat `filter` versus `filters` as a source inconsistency, not a universal rule:
-  - `api.json` documents `filter`
-  - repo client and sample code use `filters`
-  - the CLI exposes `--filter` but writes `filters` internally
+- **Always send `filters` (plural).** ZeyOS's published API documentation uses `filters` in
+  every worked example; the singular `filter` appears only in the bundled OpenAPI spec, which
+  is the outlier. The CLI's `--filter` flag writes `filters` on the wire, and schema
+  validation rejects the singular and names the correct key.
 - Use `body: { ... }` for PATCH updates that also pass `ID`.
 - Treat `extdata` and `expand` as different features:
   - `extdata` exposes custom fields
@@ -70,6 +70,13 @@ For cross-platform benchmark guidance, read [business-app-benchmarks.md](./busin
   joined, or per-row outputs.
 - Treat `count: true` responses defensively because wrappers vary across resources and client layers.
 - Confirm delete, send, revoke, or bulk-update actions before executing them unless the workflow is already explicitly automated.
+- **A failed command in `--json` mode prints a parseable envelope on stdout**:
+  `{"ok":false,"error":{"code","exitCode","message","field?","suggestion?","actions?"}}`.
+  Read `error.code` and `error.actions` instead of scraping the prose — and use
+  `error.suggestion` directly when it is present, rather than guessing again. Successful
+  output is unwrapped, so an object with `ok:false` means failure.
+- **`zeyos commands --json` lists every command, its aliases and the flags it accepts.** Use it
+  to check a flag exists rather than inferring one from prose help.
 
 ## Benchmark-Backed Semantic Defaults
 
@@ -159,7 +166,7 @@ Run `zeyos list` with no entity for the full grouped list of what is queryable.
 Escalate from the CLI to `@zeyos/client` when you need any of the following:
 
 - unsupported resources or operations
-- `expand` or binary-file access
+- binary-file access (`expand` itself is available on the CLI and over MCP)
 - client-side aggregation after multiple list calls
 - more careful response normalization
 - raw request control or custom retries

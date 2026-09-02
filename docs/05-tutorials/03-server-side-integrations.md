@@ -174,7 +174,7 @@ Recommended job design:
 ## 7. Know the Limits
 
 - Prefer `filters` in client code.
-- Include `visibility: 0` for normal operational queries.
+- Use `visibility: 0` on resources that **have** the column — `accounts`, `contacts`, `tickets`, `tasks`, `projects`, `items`, `documents`, `notes`, `opportunities`, `appointments`, `campaigns`, `mailinglists`, `storages` — unless you want archived (`1`) or deleted (`2`) records. **Most other resources have no `visibility` column** — `transactions` (and every billing/procurement entity), `payments`, `messages`, `actionsteps`, `addresses`, `users`, `prices`, `dunning` — and filtering on it there returns an opaque HTTP 400. Check with `zeyos describe <entity>` when unsure.
 - Use explicit `body` objects for update operations that pass `ID`.
 - Treat count-enabled responses defensively and normalize them in one place inside your backend.
 

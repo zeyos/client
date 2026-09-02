@@ -30,7 +30,7 @@ These docs do **not** cover authoring native ZeyOS platform artifacts.
 
 - Prefer `@zeyos/client` for JavaScript applications.
 - Use `filters` in client code unless you have a reason to stay with raw API `filter`.
-- Include `visibility: 0` for normal business views.
+- Use `visibility: 0` on resources that **have** the column — `accounts`, `contacts`, `tickets`, `tasks`, `projects`, `items`, `documents`, `notes`, `opportunities`, `appointments`, `campaigns`, `mailinglists`, `storages` — unless you want archived (`1`) or deleted (`2`) records. **Most other resources have no `visibility` column** — `transactions` (and every billing/procurement entity), `payments`, `messages`, `actionsteps`, `addresses`, `users`, `prices`, `dunning` — and filtering on it there returns an opaque HTTP 400. Check with `zeyos describe <entity>` when unsure.
 - Use explicit `body` objects for update operations that also include path parameters such as `ID`.
 - Treat `extdata` and `expand` as separate concepts:
   - `extdata` exposes custom fields

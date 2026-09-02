@@ -31,6 +31,38 @@ Both models ranked the same two gaps first and second; this closes them.
 - MCP `describe_resource` now carries `filter_operators` and `transaction_type`,
   matching what `zeyos describe --json` publishes.
 
+### Documentation
+
+A truth pass on documentation that provably contradicted the code. Nothing here changes
+behaviour; all of it changes what an agent or developer is told to do.
+
+- **The blanket "always include `visibility: 0`" advice is gone** from 11 files (10 under
+  `docs/` plus `README.md`). Only 13 of the 43 CLI entities have the column; `transactions`
+  and every billing/procurement entity, plus `payments`, `messages`, `actionsteps`,
+  `addresses`, `users`, `prices` and `dunning`, do not — and filtering on it there returns an
+  opaque HTTP 400. Each site now names which resources have it and points at
+  `zeyos describe <entity>`. No code example was wrong; the defect was the prose that a reader
+  generalizes from.
+- **Invoices are no longer taught as documents.** `docs/01-api-reference/03-resources.md`
+  showed `listDocuments({filters:{doctype:'invoice'}})`; `documents` has no `doctype` column,
+  so it 400s, and invoices are `transactions.type = 3`. The section now describes what
+  `documents` really is and points at `listTransactions` / `zeyos list billing_invoices`.
+- **The `filter` vs `filters` "two parameters" fiction is removed** from both JS-client guides
+  and two API-reference pages. There is one parameter. ZeyOS's published documentation uses
+  `filters` in every worked example and never the singular; the bundled OpenAPI spec is the
+  outlier. The unverified claim that `filter` on a foreign key "silently returns unfiltered
+  results" — which nothing ever tested, and which the guide itself hedged with "it appears
+  to" — has been dropped rather than repeated.
+- Documented that JS-client validation is **off by default** (`validate: true` opts in); the
+  CLI enables it, which is why only the CLI rejects `filter`.
+- The global-options table gained `--dry-run`, `--timeout`, `--no-validate` and `--version`,
+  and now points at `zeyos commands --json` as the authoritative source.
+- Agent skill pack: corrected the same `visibility` and `filters` guidance, removed the stale
+  `expand` entry from the escalation checklist (it contradicted the same file's step 5), and
+  documented the new error envelope and `zeyos commands`.
+- Added a test that fails if any doc reintroduces unconditional `visibility` advice or a
+  `doctype` filter, and that checks the entity lists in the prose against the real schema.
+
 ### Fixed
 
 - **`delete --yes` now works.** `--yes` is the convention in `apt`, `gh` and `npm`

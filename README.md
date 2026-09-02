@@ -513,7 +513,7 @@ The **agent test protocol** drives a coding agent against a live instance and us
 A few platform facts that save debugging time (full list in the [Practical Guide](./docs/02-javascript-client/04-practical-guide.md)):
 
 - **Use `filters` (plural)**, not `filter`, in client/CLI code. `filters` also matches GIN-indexed foreign-key fields (`account`, `project`, `ticket`); `filter` silently ignores them.
-- **Always include `visibility: 0`** in filters unless you want archived (`1`) or deleted (`2`) records.
+- Use `visibility: 0` on resources that **have** the column — `accounts`, `contacts`, `tickets`, `tasks`, `projects`, `items`, `documents`, `notes`, `opportunities`, `appointments`, `campaigns`, `mailinglists`, `storages` — unless you want archived (`1`) or deleted (`2`) records. **Most other resources have no `visibility` column** — `transactions` (and every billing/procurement entity), `payments`, `messages`, `actionsteps`, `addresses`, `users`, `prices`, `dunning` — and filtering on it there returns an opaque HTTP 400. Check with `zeyos describe <entity>` when unsure.
 - **Dates are Unix timestamps in seconds**, not milliseconds (`new Date(value * 1000)`).
 - **`createAccount` requires `currency`** (e.g. `"EUR"`) — it's `NOT NULL` with no default and otherwise fails with an opaque HTTP 500. Accounts use `lastname`/`firstname` (there is no `name` field) and `type` (not `accounttype`).
 - **`operationId`s are CamelCase compounds** that don't always match DB table names (e.g. `dunning` → `listDunningNotices`). Use `client.schema.operationIds()` or `zeyos resources` to discover them.
