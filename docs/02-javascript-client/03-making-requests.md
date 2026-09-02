@@ -156,7 +156,8 @@ Dot-notation field paths (e.g. `contact.city`, `assigneduser.name`) allow you to
 
 ## Filtering
 
-ZeyOS provides two filter parameters. Use `filters` (plural) for the broadest compatibility -- it works with both scalar fields and GIN-indexed foreign key fields:
+Pass filters as `filters` (plural). It covers every field type — scalars, enums and
+GIN-indexed foreign keys:
 
 ```js
 // Standard filtering -- works for all field types
@@ -170,15 +171,20 @@ const projectTickets = await client.api.listTickets({
 });
 ```
 
-### `filter` vs `filters`
+### Why not `filter` (singular)?
 
-| Parameter | Supports | Notes |
-|-----------|----------|-------|
-| `filter` | Scalar fields (status, visibility, priority) | Defined in the OpenAPI spec. May not work for all FK fields. |
-| `filters` | All field types including GIN-indexed foreign keys (project, account, ticket) | Recommended for general use -- handles both scalar and FK fields. |
+The bundled OpenAPI spec names the parameter `filter`, but ZeyOS's
+[published API documentation](https://www.zeyos.com/api/llms-full.txt) uses `filters` in every
+worked example and never mentions the singular. There is one parameter; the spec is the
+outlier.
 
-:::tip
-When in doubt, use `filters` (plural). Using `filter` (singular) with a foreign-key field like `project` silently returns unfiltered results rather than throwing an error, which makes problems hard to spot.
+Schema validation reflects that: `client.schema.validate()` and the CLI both reject `filter`
+and point you at `filters`.
+
+:::note
+Validation is **off by default** in the JS client — pass `validate: true` to
+`createZeyosClient()` (the CLI enables it for you). Without it, a `filter` key is forwarded
+to the server as-is.
 :::
 
 ### Full-Text Search

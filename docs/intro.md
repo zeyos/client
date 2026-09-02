@@ -87,7 +87,7 @@ The API uses the following HTTP methods, which differ from typical REST conventi
 Across the CLI, JavaScript client, and sample applications, the same operational rules apply:
 
 - Prefer `filters` in JavaScript client code for compatibility across scalar and foreign-key fields.
-- Include `visibility: 0` unless you intentionally want archived or deleted records.
+- Use `visibility: 0` on resources that **have** the column — `accounts`, `contacts`, `tickets`, `tasks`, `projects`, `items`, `documents`, `notes`, `opportunities`, `appointments`, `campaigns`, `mailinglists`, `storages` — unless you want archived (`1`) or deleted (`2`) records. **Most other resources have no `visibility` column** — `transactions` (and every billing/procurement entity), `payments`, `messages`, `actionsteps`, `addresses`, `users`, `prices`, `dunning` — and filtering on it there returns an opaque HTTP 400. Check with `zeyos describe <entity>` when unsure.
 - For updates, pass changed fields alongside the `ID` directly (`{ ID, status }`) or wrap them in an explicit `body` object (`{ ID, body: { status } }`) — both work; the explicit `body` is only needed to disambiguate a payload field that collides with a reserved control key.
 - Treat `extdata` and `expand` as separate features:
   - `extdata` includes custom fields

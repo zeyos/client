@@ -7,9 +7,10 @@
  */
 
 import { createZeyosClient } from '@zeyos/client';
-import { canonicalName, resolveResource } from '../lib/resources.mjs';
+import { canonicalName, resolveResource, suggestResource } from '../lib/resources.mjs';
 import { FILTER_VOCABULARY } from '../lib/command.mjs';
-import { colors as c, outputMode, printJson, printYaml, printTable, error } from '../lib/output.mjs';
+import { colors as c, outputMode, printJson, printYaml, printTable, emitError } from '../lib/output.mjs';
+import { EXIT } from '../lib/exit.mjs';
 
 export const USAGE = `\
 Usage: zeyos describe <resource> [options]
@@ -62,14 +63,20 @@ export function run(values, positional = []) {
   const s = schema();
 
   if (!resource) {
-    error('A resource is required. Example: zeyos describe tickets  (run "zeyos resources" to list common ones)');
-    process.exit(1);
+    emitError('A resource is required. Example: zeyos describe tickets', {
+      exitCode: EXIT.USAGE, code: 'usage',
+      actions: ["Run 'zeyos list' to see every entity."] });
+    process.exit(EXIT.USAGE);
   }
 
   const key = schemaKeyFor(s, resource);
   if (!key) {
-    error(`Unknown resource "${resource}". Run "zeyos resources" for common resources.`);
-    process.exit(1);
+    const suggestion = suggestResource(resource);
+    emitError(`Unknown entity "${resource}".` + (suggestion ? `  Did you mean "${suggestion}"?` : ''), {
+      exitCode: EXIT.USAGE, code: 'unknown_entity', field: resource,
+      ...(suggestion ? { suggestion } : {}),
+      actions: ["Run 'zeyos list' to see every entity."] });
+    process.exit(EXIT.USAGE);
   }
   const resourceDef = resolveResource(resource);
   const presetNames = Object.keys(resourceDef?.presets || {});

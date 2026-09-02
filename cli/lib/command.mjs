@@ -4,16 +4,22 @@ import { createZeyosClient, suggestClosest } from '@zeyos/client';
 import { buildClient, syncTokens } from './client.mjs';
 import { collectFieldFlags } from './flags.mjs';
 import { resolveResource, suggestResource, resourceForTransactionType } from './resources.mjs';
-import { error, info, warn, printQuery } from './output.mjs';
+import { emitError, info, warn, printQuery } from './output.mjs';
 import { EXIT } from './exit.mjs';
 
 /**
- * Print an error and terminate.
+ * Report a failure and terminate.
+ *
+ * Emits the human message on stderr and, when `--json`/`--yaml` was requested,
+ * a machine-readable envelope on stdout so an agent piping stdout still learns
+ * why the command failed.
+ *
  * @param {string} message
  * @param {number} [code] - one of EXIT.*; defaults to a generic failure
+ * @param {{code?: string, actions?: string[], field?: string, suggestion?: string}} [details]
  */
-export function fail(message, code = EXIT.ERROR) {
-  error(message);
+export function fail(message, code = EXIT.ERROR, details = {}) {
+  emitError(message, { ...details, exitCode: code });
   process.exit(code);
 }
 
@@ -47,7 +53,8 @@ function fieldDefsForOperation(operationId) {
 
 export function requireResource(resourceName, usage, capability, unsupportedAction) {
   if (!resourceName) {
-    fail(`Missing resource name.  Usage: ${usage}`, EXIT.USAGE);
+    fail(`Missing resource name.  Usage: ${usage}`, EXIT.USAGE,
+      { code: 'missing_argument', field: 'resource', actions: ["Run 'zeyos list' to see every entity."] });
   }
 
   const resource = resolveResource(resourceName);
@@ -59,12 +66,19 @@ export function requireResource(resourceName, usage, capability, unsupportedActi
       `Unknown entity: "${resourceName}".` +
         (suggestion ? `  Did you mean "${suggestion}"?` : '') +
         `  Run 'zeyos list' to see every entity.`,
-      EXIT.USAGE
+      EXIT.USAGE,
+      {
+        code: 'unknown_entity',
+        field: resourceName,
+        ...(suggestion ? { suggestion } : {}),
+        actions: ["Run 'zeyos list' to see every entity."]
+      }
     );
   }
 
   if (capability && !resource[capability]) {
-    fail(`Resource "${resourceName}" does not support ${unsupportedAction}.`, EXIT.USAGE);
+    fail(`Resource "${resourceName}" does not support ${unsupportedAction}.`, EXIT.USAGE,
+      { code: 'unsupported_operation', field: resourceName });
   }
 
   return resource;
@@ -72,7 +86,8 @@ export function requireResource(resourceName, usage, capability, unsupportedActi
 
 export function requireRecordId(id, usage) {
   if (!id) {
-    fail(`Missing record ID.  Usage: ${usage}`, EXIT.USAGE);
+    fail(`Missing record ID.  Usage: ${usage}`, EXIT.USAGE,
+      { code: 'missing_argument', field: 'id' });
   }
 }
 
@@ -106,7 +121,9 @@ export function requireNoExtraPositionals(positional, max, usage, opts = {}) {
     `Unexpected argument${extra.length > 1 ? 's' : ''}: ${extra.map((a) => JSON.stringify(a)).join(', ')}.\n` +
       `  A value containing spaces must be quoted, e.g. --name "Fix login bug".\n` +
       `  Usage: ${usage}`,
-    EXIT.USAGE
+    EXIT.USAGE,
+    { code: 'unexpected_argument',
+      actions: ['Quote any value containing spaces, e.g. --name "Fix login bug".', `Usage: ${usage}`] }
   );
 }
 
@@ -124,12 +141,14 @@ export function parseIntegerOption(raw, flag, opts = {}) {
   if (raw == null) return undefined;
   const text = String(raw).trim();
   if (!/^-?\d+$/.test(text)) {
-    fail(`${flag} must be a whole number.  Got: ${JSON.stringify(String(raw))}`, EXIT.USAGE);
+    fail(`${flag} must be a whole number.  Got: ${JSON.stringify(String(raw))}`, EXIT.USAGE,
+      { code: 'invalid_option_value', field: flag });
   }
   const n = Number(text);
   const min = opts.min ?? 0;
   if (n < min) {
-    fail(`${flag} must be ${min} or greater.  Got: ${n}`, EXIT.USAGE);
+    fail(`${flag} must be ${min} or greater.  Got: ${n}`, EXIT.USAGE,
+      { code: 'invalid_option_value', field: flag });
   }
   return n;
 }
@@ -149,7 +168,7 @@ export function buildCliClient(values = {}) {
       { profile: values.profile }
     );
   } catch (err) {
-    fail(err.message, EXIT.AUTH);
+    fail(err.message, EXIT.AUTH, { code: 'auth_required', actions: ["Run 'zeyos login'."] });
   }
 }
 
@@ -662,12 +681,14 @@ export async function callApi(clientState, operationId, input, options = {}) {
     await syncTokens(clientState.tokenStore, clientState.configSource);
 
     if (err.status === 404 && options.notFoundMessage) {
-      fail(options.notFoundMessage, EXIT.NOT_FOUND);
+      fail(options.notFoundMessage, EXIT.NOT_FOUND, { code: 'not_found' });
     }
     if (err.status === 401 || err.status === 403) {
-      fail(`${err.message}  Run 'zeyos login' to re-authenticate.`, EXIT.AUTH);
+      fail(`${err.message}  Run 'zeyos login' to re-authenticate.`, EXIT.AUTH,
+        { code: 'auth_failed', actions: ["Run 'zeyos login' to re-authenticate."] });
     }
-    fail(formatApiError(clientState, operationId, err, options.errorPrefix ?? 'API error'));
+    fail(formatApiError(clientState, operationId, err, options.errorPrefix ?? 'API error'),
+      EXIT.ERROR, { code: err?.status ? `api_${err.status}` : 'api_error' });
   }
 }
 
@@ -708,7 +729,13 @@ export function buildPresetFilters(res, resourceName, presetName, userFilters) {
     return prepareResourceFilters(res, resourceName, presetName, userFilters);
   } catch (err) {
     // Filter syntax is a usage error: the caller can fix it from the message.
-    fail(err.message, err instanceof FilterSyntaxError ? EXIT.USAGE : EXIT.ERROR);
+    fail(
+      err.message,
+      err instanceof FilterSyntaxError ? EXIT.USAGE : EXIT.ERROR,
+      err instanceof FilterSyntaxError
+        ? { code: 'invalid_filter', actions: ["Run 'zeyos describe <entity>' for the supported filter operators."] }
+        : {}
+    );
   }
 }
 

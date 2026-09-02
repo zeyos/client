@@ -49,7 +49,7 @@ Browser token mode is intentionally limited. Use it for pre-obtained access toke
 
 - List operations are `POST` requests in ZeyOS, even though they behave like queries.
 - Prefer `filters` in client code for consistent handling of scalar and foreign-key fields.
-- Include `visibility: 0` in normal list queries.
+- Use `visibility: 0` on resources that **have** the column — `accounts`, `contacts`, `tickets`, `tasks`, `projects`, `items`, `documents`, `notes`, `opportunities`, `appointments`, `campaigns`, `mailinglists`, `storages` — unless you want archived (`1`) or deleted (`2`) records. **Most other resources have no `visibility` column** — `transactions` (and every billing/procurement entity), `payments`, `messages`, `actionsteps`, `addresses`, `users`, `prices`, `dunning` — and filtering on it there returns an opaque HTTP 400. Check with `zeyos describe <entity>` when unsure.
 - Use `body: { ... }` for updates that also pass `ID`.
 - Treat count-enabled responses defensively. Different endpoints or client layers may return either a count wrapper or a list wrapper with count metadata.
 

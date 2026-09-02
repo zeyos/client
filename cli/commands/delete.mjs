@@ -30,7 +30,7 @@ Arguments:
   id                  Record ID
 
 Options:
-  --force             Skip confirmation prompt
+  --force, --yes      Skip confirmation prompt
   --dry-run           Print the request route + JSON body without sending it
   --no-validate       Skip schema validation
   -h, --help          Show this help
@@ -59,7 +59,10 @@ export async function run(values, positional) {
   await verifyBoundTypeBeforeWrite(clientState, res, resourceName, id, 'delete');
 
   // ── Confirmation ───────────────────────────────────────────────────────────
-  if (!values.force) {
+  // `--yes` is the convention in apt/gh/npm, so an agent reaches for it before
+  // `--force`. Accept both rather than failing on the more idiomatic one.
+  const skipPrompt = values.force || values.yes;
+  if (!skipPrompt) {
     const confirmed = await _confirm(`Delete ${resourceName} #${id}? [y/N] `);
     if (!confirmed) {
       // Exit non-zero: with stdin closed (CI, a pipe) readline answers with an

@@ -26,8 +26,9 @@
 import { createRequire as _createRequire } from 'node:module';
 import { dirname as _dirname } from 'node:path';
 import { fileURLToPath as _fileURLToPath } from 'node:url';
-import { colors as _c } from '../lib/output.mjs';
+import { colors as _c, currentOutputMode, emitError, setOutputModeFromArgv } from '../lib/output.mjs';
 import { OPTIONS } from '../lib/options.mjs';
+import { ALWAYS_FLAGS, COMMANDS, COMMAND_FLAGS, LEADING_FLAGS } from '../lib/command-graph.mjs';
 import { EXIT } from '../lib/exit.mjs';
 const _require = _createRequire(import.meta.url);
 const _VERSION = _require('../package.json').version;
@@ -97,76 +98,8 @@ Global options:
   --no-color           Disable ANSI colors
 `;
 
-// ── Command registry ──────────────────────────────────────────────────────────
-// Maps every command and alias to the module that implements it.
-
-const COMMANDS = {
-  login:     '../commands/login.mjs',
-  logout:    '../commands/logout.mjs',
-  whoami:    '../commands/whoami.mjs',
-  list:      '../commands/list.mjs',
-  find:      '../commands/find.mjs',
-  count:     '../commands/count.mjs',
-  sum:       '../commands/sum.mjs',
-  get:       '../commands/get.mjs',
-  show:      '../commands/get.mjs',
-  create:    '../commands/create.mjs',
-  update:    '../commands/update.mjs',
-  edit:      '../commands/update.mjs',
-  delete:    '../commands/delete.mjs',
-  rm:        '../commands/delete.mjs',
-  remove:    '../commands/delete.mjs',
-  resources: '../commands/resources.mjs',
-  resource:  '../commands/resources.mjs',
-  describe:  '../commands/describe.mjs',
-  doctor:    '../commands/doctor.mjs',
-  skills:    '../commands/skills.mjs',
-  skill:     '../commands/skills.mjs',
-  okf:       '../commands/okf.mjs',
-  profile:   '../commands/profile.mjs',
-  profiles:  '../commands/profile.mjs',
-};
-
-// ── Per-command flag allow-lists ────────────────────────────────────────────────
-// Unknown flags are rejected (e.g. `zeyos list --invalid`) so typos surface
-// immediately instead of being silently ignored. `create`/`update` are the
-// exception: they accept arbitrary `--<field>` flags, marked with `null` below.
-
-const ALWAYS_FLAGS = ['help', 'json', 'yaml', 'no-color', 'profile'];
-const LEADING_FLAGS = [...ALWAYS_FLAGS, 'version', 'dry-run', 'query'];
-const SKILLS_FLAGS = ['target', 'dir', 'global', 'local', 'force', 'yes', 'no-logo'];
-const OKF_FLAGS    = ['dir', 'out', 'force', 'no-logo'];
-const PROFILE_FLAGS = ['base-url', 'client-id', 'secret', 'local', 'from-current'];
-const DATA_FLAGS   = ['dry-run', 'query', 'no-validate', 'timeout'];
-const DELETE_FLAGS = ['force', ...DATA_FLAGS];
-const GET_FLAGS    = ['fields', 'extdata', 'tags', 'expand', 'all', ...DATA_FLAGS];
-
-const COMMAND_FLAGS = {
-  login:     ['base-url', 'client-id', 'secret', 'scope', 'port', 'global', 'force', 'clean', 'manual'],
-  logout:    ['global'],
-  whoami:    ['show-token'],
-  list:      ['fields', 'filter', 'filter-file', 'search', 'preset', 'sort', 'limit', 'offset', 'extdata', 'expand', ...DATA_FLAGS],
-  find:      ['fields', 'limit', ...DATA_FLAGS],
-  count:     ['filter', 'filter-file', 'search', 'preset', ...DATA_FLAGS],
-  sum:       ['filter', 'filter-file', 'preset', 'limit', 'offset', 'page-size', ...DATA_FLAGS],
-  get:       GET_FLAGS,
-  show:      GET_FLAGS,
-  create:    null,
-  update:    null,
-  edit:      null,
-  delete:    DELETE_FLAGS,
-  rm:        DELETE_FLAGS,
-  remove:    DELETE_FLAGS,
-  resources: [],
-  resource:  [],
-  describe:  [],
-  doctor:    ['profile'],
-  skills:    SKILLS_FLAGS,
-  skill:     SKILLS_FLAGS,
-  okf:       OKF_FLAGS,
-  profile:   PROFILE_FLAGS,
-  profiles:  PROFILE_FLAGS,
-};
+// Command tables live in lib/command-graph.mjs so `zeyos commands` can publish
+// them as data; see the note there.
 
 const CREDENTIAL_MUTATION_COMMANDS = new Set(['login', 'logout', 'profile', 'profiles']);
 
@@ -175,6 +108,10 @@ const CREDENTIAL_MUTATION_COMMANDS = new Set(['login', 'logout', 'profile', 'pro
 async function main() {
   // Strip 'node' and script path from argv
   const argv = process.argv.slice(2);
+
+  // Determine the output mode before any parsing, so failures during parsing
+  // can still emit a machine-readable envelope.
+  setOutputModeFromArgv(argv);
 
   if (argv.length === 0 || argv[0] === '--help' || argv[0] === '-h') {
     process.stdout.write(HELP);
@@ -209,7 +146,8 @@ async function main() {
 
   if (process.env.ZEYOS_CREDENTIALS_READONLY && CREDENTIAL_MUTATION_COMMANDS.has(command)) {
     // A policy refusal, not a usage mistake: the command and its flags were valid.
-    process.stderr.write(`Credential command "${command}" is disabled because ZEYOS_CREDENTIALS_READONLY is set.\n`);
+    emitError(`Credential command "${command}" is disabled because ZEYOS_CREDENTIALS_READONLY is set.`,
+      { exitCode: EXIT.ERROR, code: 'credentials_readonly' });
     process.exit(EXIT.ERROR);
   }
 
@@ -221,7 +159,13 @@ async function main() {
 
   const modulePath = COMMANDS[command];
   if (!modulePath) {
-    process.stderr.write(`Unknown command: "${command}"\n\n${HELP}`);
+    const hint = _suggestFlag(command, Object.keys(COMMANDS));
+    emitError(
+      `Unknown command: "${command}".` + (hint ? `  Did you mean "${hint}"?` : ''),
+      { exitCode: EXIT.USAGE, code: 'unknown_command', ...(hint ? { suggestion: hint } : {}),
+        actions: ["Run 'zeyos --help' for the command list."] }
+    );
+    if (currentOutputMode() === 'table') process.stderr.write(`\n${HELP}`);
     process.exit(EXIT.USAGE);
   }
 
@@ -242,9 +186,12 @@ async function main() {
     if (unknown.length > 0) {
       const flag = unknown[0];
       const hint = _suggestFlag(flag, [...allowedSet]);
-      process.stderr.write(
-        `Unknown option: --${flag}${hint ? `  (did you mean --${hint}?)` : ''}\n\n` +
-          `Run 'zeyos ${command} --help' for available options.\n`
+      emitError(
+        `Unknown option: --${flag}${hint ? `  (did you mean --${hint}?)` : ''}\n` +
+          `Run 'zeyos ${command} --help' for available options.`,
+        { exitCode: EXIT.USAGE, code: 'unknown_option', field: flag,
+          ...(hint ? { suggestion: hint } : {}),
+          actions: [`Run 'zeyos ${command} --help' for available options.`] }
       );
       process.exit(EXIT.USAGE);
     }
@@ -339,7 +286,8 @@ function _splitLeadingFlags(argv) {
 }
 
 function _failLeadingOption(flag) {
-  process.stderr.write(`Unknown option: "${flag}".  Run 'zeyos --help' for usage.\n`);
+  emitError(`Unknown option: "${flag}".`, { exitCode: EXIT.USAGE, code: 'unknown_option', field: flag,
+    actions: ["Run 'zeyos --help' for usage."] });
   process.exit(EXIT.USAGE);
 }
 
@@ -349,9 +297,10 @@ function _failLeadingOption(flag) {
  * safety flags like `--force`. Fail instead of guessing.
  */
 function _failBooleanValue(key, value) {
-  process.stderr.write(
-    `Option --${key} is a flag and takes no value (got --${key}=${value}).\n` +
-      `Pass --${key} to enable it, or omit it entirely to leave it off.\n`
+  emitError(
+    `Option --${key} is a flag and takes no value (got --${key}=${value}).`,
+    { exitCode: EXIT.USAGE, code: 'flag_takes_no_value', field: key,
+      actions: [`Pass --${key} to enable it, or omit it entirely to leave it off.`] }
   );
   process.exit(EXIT.USAGE);
 }
@@ -373,7 +322,7 @@ function _formatCommandHelp(usage) {
 function _validateKnownStringValues(values) {
   for (const [key, value] of Object.entries(values)) {
     if (OPTIONS[key]?.type === 'string' && value === '') {
-      process.stderr.write(`Option --${key} requires a value.\n`);
+      emitError(`Option --${key} requires a value.`, { exitCode: EXIT.USAGE, code: 'missing_value', field: key });
       process.exit(EXIT.USAGE);
     }
   }
@@ -474,9 +423,8 @@ function _parsePermissive(argv, options) {
         // Unknown short flags used to be discarded silently, so `zeyos list
         // tickets -j` printed a table and exited 0 — the opposite of what an
         // agent reaching for a `-j` JSON prior expects. Fail like a long flag.
-        process.stderr.write(
-          `Unknown option: "${arg}".  Run 'zeyos --help' for usage, or use the long form (e.g. --json).\n`
-        );
+        emitError(`Unknown option: "${arg}".`, { exitCode: EXIT.USAGE, code: 'unknown_option', field: arg,
+          actions: ["Use the long form, e.g. --json.", "Run 'zeyos --help' for usage."] });
         process.exit(EXIT.USAGE);
       }
       continue;
@@ -527,6 +475,10 @@ main().catch(err => {
   // nothing to act on.
   const cause = err?.cause?.message ?? err?.cause?.code;
   const timeout = err?.isTimeout ? '  Try a longer --timeout.' : '';
-  process.stderr.write(`Fatal: ${err.message}${cause ? ` (${cause})` : ''}${timeout}\n`);
+  emitError(`${err.message}${cause ? ` (${cause})` : ''}`, {
+    exitCode: EXIT.ERROR,
+    code: err?.isTimeout ? 'timeout' : (cause ? 'network' : 'error'),
+    ...(timeout ? { actions: ['Try a longer --timeout.'] } : {})
+  });
   process.exit(EXIT.ERROR);
 });

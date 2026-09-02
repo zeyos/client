@@ -164,7 +164,7 @@ zeyos delete ticket 42 --force
 ## Safe Defaults for Agents
 
 - Use `--json` unless a human is actively reading the output.
-- Include `visibility: 0` in filters for normal business views.
+- Use `visibility: 0` on resources that **have** the column — `accounts`, `contacts`, `tickets`, `tasks`, `projects`, `items`, `documents`, `notes`, `opportunities`, `appointments`, `campaigns`, `mailinglists`, `storages` — unless you want archived (`1`) or deleted (`2`) records. **Most other resources have no `visibility` column** — `transactions` (and every billing/procurement entity), `payments`, `messages`, `actionsteps`, `addresses`, `users`, `prices`, `dunning` — and filtering on it there returns an opaque HTTP 400. Check with `zeyos describe <entity>` when unsure.
 - Prefer `--data '<json>'` over many separate flags in automation.
 - Run `zeyos resources` before assuming a resource is CLI-supported.
 - Use `actionsteps.effort` for time-entry totals; do not infer booked time from task assignment.

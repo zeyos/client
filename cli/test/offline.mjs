@@ -386,8 +386,10 @@ test('describe resolves customfield aliases to the customfields schema', async (
 
 test('describe rejects an unknown resource', async () => {
   const result = await cli(['describe', 'nonexistent-resource']);
-  assert.equal(result.code, 1);
-  assert.match(result.stderr, /Unknown resource/);
+  // Usage error (2), matching the published exit-code contract and the wording
+  // every other command uses. It exited 1 with "Unknown resource" before.
+  assert.equal(result.code, 2);
+  assert.match(result.stderr, /Unknown entity/);
 });
 
 test('table output stays plain and full when piped/NO_COLOR (scriptability)', async () => {
@@ -2561,4 +2563,136 @@ test('describe exposes the bound type in machine-readable output', async () => {
   assert.equal(def.canonicalResource, 'billing_invoice');
   assert.equal(def.transactionType, 3);
   assert.ok(def.filterOperators.native.includes('~~*'));
+});
+
+test('failures emit a machine-readable envelope on stdout in --json mode', async (t) => {
+  const cwd = await tempDir(t);
+  const env = isolatedEnv(cwd, CREDENTIALS);
+
+  // The whole point: an agent piping stdout must learn why the command failed.
+  // Before this, stdout was empty and the reason was prose on stderr.
+  const unknown = await cli(['list', 'billing_invoces', '--json'], { cwd, env });
+  assert.equal(unknown.code, 2);
+  const envelope = JSON.parse(unknown.stdout);
+  assert.equal(envelope.ok, false);
+  assert.equal(envelope.error.code, 'unknown_entity');
+  assert.equal(envelope.error.exitCode, 2);
+  assert.equal(envelope.error.suggestion, 'billing_invoices');
+  assert.ok(Array.isArray(envelope.error.actions));
+  // The human message stays on stderr for people and logs.
+  assert.match(unknown.stderr, /Unknown entity/);
+
+  for (const [args, code] of [
+    [['list', 'tickets', '--nonsense'], 'unknown_option'],
+    [['list', 'tickets', '--limit', '10junk'], 'invalid_option_value'],
+    [['list', 'tickets', '--filter', '{"status":{"$exists":1}}'], 'invalid_filter'],
+    [['create', 'ticket', '--name', 'Fix', 'login'], 'unexpected_argument'],
+    [['delete', 'ticket', '42', '--force=false'], 'flag_takes_no_value']
+  ]) {
+    const res = await cli([...args, '--json'], { cwd, env });
+    const parsed = JSON.parse(res.stdout);
+    assert.equal(parsed.error.code, code, `${args.join(' ')} → ${parsed.error.code}`);
+    assert.equal(parsed.error.exitCode, res.code);
+  }
+});
+
+test('success output is unchanged — no envelope wrapping', async () => {
+  // Only failures gain a shape; a successful --json stays exactly as before.
+  const result = await cli(['describe', 'tickets', '--json']);
+  assert.equal(result.code, 0, result.stderr);
+  const def = JSON.parse(result.stdout);
+  assert.equal(def.name, 'tickets');
+  assert.equal(def.ok, undefined, 'success must not be wrapped in an ok envelope');
+});
+
+test('zeyos commands publishes the command graph as data', async () => {
+  const result = await cli(['commands', '--json']);
+  assert.equal(result.code, 0, result.stderr);
+  const graph = JSON.parse(result.stdout);
+
+  const list = graph.commands.find((c) => c.name === 'list');
+  assert.ok(list, 'list command present');
+  assert.ok(list.flags.includes('--filter'), 'flags are published');
+  assert.ok(list.flags.includes('--json'), 'global flags folded in');
+
+  const create = graph.commands.find((c) => c.name === 'create');
+  assert.equal(create.acceptsArbitraryFields, true, 'create takes --<field> flags');
+
+  // Aliases are folded onto their canonical command rather than duplicated.
+  const del = graph.commands.find((c) => c.name === 'rm' || c.name === 'delete');
+  assert.ok(del.aliases.length > 0, 'aliases are reported');
+  assert.ok(del.flags.includes('--yes'), '--yes is reachable on delete');
+
+  // Option types let a caller know which flags take a value.
+  assert.equal(graph.options['--limit'].type, 'string');
+  assert.equal(graph.options['--json'].type, 'boolean');
+});
+
+test('--yes works as an alias of --force on delete', async (t) => {
+  const cwd = await tempDir(t);
+  const server = await jsonServer(t, (_req, res) => {
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ ok: true }));
+  });
+  const env = isolatedEnv(cwd, { ...CREDENTIALS, ZEYOS_BASE_URL: server.baseUrl });
+
+  // --yes is the apt/gh/npm convention; it used to fail as an unknown option.
+  const result = await cli(['delete', 'ticket', '42', '--yes'], { cwd, env });
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(server.requests.filter((r) => r.method === 'DELETE').length, 1);
+});
+
+test('documentation does not teach filters that 400 on the target resource', async () => {
+  // Two documentation defects cost real agent turns before this test existed:
+  // blanket "always visibility: 0" advice (wrong for 30 of 43 entities), and an
+  // invoices example filtering `documents` on a non-existent `doctype` column.
+  const { createZeyosClient } = await import('@zeyos/client');
+  const { resolveResource } = await import('../lib/resources.mjs');
+  const schema = createZeyosClient({ auth: { mode: 'none' } }).schema;
+
+  const hasColumn = (entity, column) => {
+    const res = resolveResource(entity);
+    const key = schema.resourceForOperation(res.list || res.get);
+    return Object.prototype.hasOwnProperty.call(schema.describe(key)?.fields || {}, column);
+  };
+
+  // Entities the docs now name as safe for `visibility: 0` must really have it.
+  for (const entity of [
+    'accounts', 'contacts', 'tickets', 'tasks', 'projects', 'items',
+    'documents', 'notes', 'opportunities', 'appointments', 'campaigns',
+    'mailinglists', 'storages'
+  ]) {
+    assert.ok(hasColumn(entity, 'visibility'), `${entity} should have a visibility column`);
+  }
+
+  // And the ones the docs warn about must really lack it.
+  for (const entity of [
+    'transactions', 'billing_invoices', 'procurement_orders', 'payments',
+    'messages', 'actionsteps', 'addresses', 'users', 'prices', 'dunning'
+  ]) {
+    assert.ok(!hasColumn(entity, 'visibility'), `${entity} should NOT have a visibility column`);
+  }
+
+  // `documents` has no doctype — the old invoices example would have 400'd.
+  assert.ok(!hasColumn('documents', 'doctype'), 'documents must not have a doctype column');
+
+  // No doc may still carry the blanket advice or the retired example.
+  const { readFile, readdir } = await import('node:fs/promises');
+  const docsDir = new URL('../../docs/', import.meta.url);
+  const walk = async (dir) => {
+    const out = [];
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+      const child = new URL(entry.name + (entry.isDirectory() ? '/' : ''), dir);
+      if (entry.isDirectory()) out.push(...await walk(child));
+      else if (entry.name.endsWith('.md')) out.push(child);
+    }
+    return out;
+  };
+  for (const file of [...await walk(docsDir), new URL('../../README.md', import.meta.url)]) {
+    const text = await readFile(file, 'utf8');
+    assert.ok(!/[Aa]lways include `visibility: 0`/.test(text),
+      `${file.pathname} still gives unconditional visibility advice`);
+    assert.ok(!/doctype/.test(text) || /has no `doctype`/.test(text),
+      `${file.pathname} still filters on a doctype column`);
+  }
 });

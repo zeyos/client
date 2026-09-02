@@ -9,8 +9,8 @@ This page documents the fields, types, and relationships for the most commonly u
 ## Conventions
 
 - **Timestamps** are Unix timestamps in **seconds** (not milliseconds). Convert with `new Date(value * 1000)` in JavaScript.
-- **Visibility** controls soft-delete behaviour: `0` = regular, `1` = archived, `2` = deleted. Always include `visibility: 0` in filters to exclude archived and deleted records.
-- **GIN-indexed fields** support the `filters` (plural) parameter. Using `filter` (singular) with these fields silently returns unfiltered results. See the [Practical Guide](../02-javascript-client/04-practical-guide.md#filter-vs-filters) for details.
+- **Visibility** controls soft-delete behaviour: `0` = regular, `1` = archived, `2` = deleted. Include `visibility: 0` to exclude archived and deleted records — but only on resources that actually have the column. It is absent from `transactions` and every billing/procurement entity, `payments`, `messages`, `actionsteps`, `addresses` and `users`, where filtering on it returns an opaque HTTP 400. `zeyos describe <entity>` lists the columns a resource really has.
+- **GIN-indexed fields** (foreign keys such as `project`, `account`, `ticket`) are filtered the same way as any other column. Pass every filter as `filters` (plural) — see the [Practical Guide](../02-javascript-client/04-practical-guide.md#always-use-filters-plural).
 - Fields marked **(required)** are `NOT NULL` in the database. Most of them have a server-side default (for example `creator` defaults to the authenticated user, `creationdate`/`lastmodified` default to the current time, integer flags default to `0`), so a create that omits them still succeeds. The exception to watch is **`currency` on accounts**: it is `NOT NULL` with no default, so `createAccount` without it fails with an opaque HTTP 500. On updates (PATCH), only the fields you send are changed.
 - **Foreign key fields** (e.g. `account`, `project`, `ticket`) accept integer IDs referencing the related resource.
 

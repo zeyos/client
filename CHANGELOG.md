@@ -3,6 +3,78 @@
 Notable changes to `@zeyos/client` and `@zeyos/cli`. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+Acting on a two-model review (Kimi K3 and Grok 4.6, each independently validated)
+comparing this CLI against SAP, Salesforce, Workday and others on agent usability.
+Both models ranked the same two gaps first and second; this closes them.
+
+### Added
+
+- **Machine-readable failures.** In `--json`/`--yaml` mode a failure now writes a
+  structured envelope to **stdout** — `{ ok: false, error: { code, exitCode,
+  message, field?, suggestion?, actions? } }` — so a command piped to `jq` still
+  reports why it failed. Previously stdout was empty and the reason was prose on
+  stderr, which made the published exit-code contract unusable for its stated
+  purpose. Success output is unchanged: a list is still a bare array, and the two
+  are told apart by shape.
+  - `error.code` is a stable slug (`unknown_entity`, `invalid_filter`,
+    `flag_takes_no_value`, `auth_required`, `api_<status>`, …), and carries the
+    same suggestion the human message shows.
+  - The envelope is written with a synchronous write: `process.exit()` discards
+    buffered pipe writes, which silently truncated the first implementation.
+  - MCP `errorResult()` now returns the same shape instead of a bare string.
+- **`zeyos commands`** publishes the command graph — every command, its aliases,
+  the flags it accepts, and each option's type — as data. `zeyos describe` exposes
+  the data model; this exposes the command model, so an agent no longer infers
+  flags from prose help. The equivalent of `sf commands --json`.
+- MCP `describe_resource` now carries `filter_operators` and `transaction_type`,
+  matching what `zeyos describe --json` publishes.
+
+### Documentation
+
+A truth pass on documentation that provably contradicted the code. Nothing here changes
+behaviour; all of it changes what an agent or developer is told to do.
+
+- **The blanket "always include `visibility: 0`" advice is gone** from 11 files (10 under
+  `docs/` plus `README.md`). Only 13 of the 43 CLI entities have the column; `transactions`
+  and every billing/procurement entity, plus `payments`, `messages`, `actionsteps`,
+  `addresses`, `users`, `prices` and `dunning`, do not — and filtering on it there returns an
+  opaque HTTP 400. Each site now names which resources have it and points at
+  `zeyos describe <entity>`. No code example was wrong; the defect was the prose that a reader
+  generalizes from.
+- **Invoices are no longer taught as documents.** `docs/01-api-reference/03-resources.md`
+  showed `listDocuments({filters:{doctype:'invoice'}})`; `documents` has no `doctype` column,
+  so it 400s, and invoices are `transactions.type = 3`. The section now describes what
+  `documents` really is and points at `listTransactions` / `zeyos list billing_invoices`.
+- **The `filter` vs `filters` "two parameters" fiction is removed** from both JS-client guides
+  and two API-reference pages. There is one parameter. ZeyOS's published documentation uses
+  `filters` in every worked example and never the singular; the bundled OpenAPI spec is the
+  outlier. The unverified claim that `filter` on a foreign key "silently returns unfiltered
+  results" — which nothing ever tested, and which the guide itself hedged with "it appears
+  to" — has been dropped rather than repeated.
+- Documented that JS-client validation is **off by default** (`validate: true` opts in); the
+  CLI enables it, which is why only the CLI rejects `filter`.
+- The global-options table gained `--dry-run`, `--timeout`, `--no-validate` and `--version`,
+  and now points at `zeyos commands --json` as the authoritative source.
+- Agent skill pack: corrected the same `visibility` and `filters` guidance, removed the stale
+  `expand` entry from the escalation checklist (it contradicted the same file's step 5), and
+  documented the new error envelope and `zeyos commands`.
+- Added a test that fails if any doc reintroduces unconditional `visibility` advice or a
+  `doctype` filter, and that checks the entity lists in the prose against the real schema.
+
+### Fixed
+
+- **`delete --yes` now works.** `--yes` is the convention in `apt`, `gh` and `npm`
+  and is what an agent reaches for first, but it was declared without being
+  allow-listed, so it failed as an unknown option. It is now an alias of `--force`.
+- **`zeyos describe` honours the published exit-code contract**, exiting `2` for an
+  unknown entity rather than `1`, and now offers a spelling suggestion like every
+  other command.
+- Command tables moved to `cli/lib/command-graph.mjs` so the entry point and
+  `zeyos commands` cannot drift apart — the same consolidation already applied to
+  the option table.
+
 ## 0.7.0 — 2026-08-28
 
 A full review of the CLI, its credential layer, the MCP server, and the release
