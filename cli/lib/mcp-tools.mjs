@@ -5,7 +5,7 @@ import {
   ZeyosApiError
 } from '@zeyos/client';
 import { buildClient, syncTokens } from './client.mjs';
-import { assertNoBoundConflict, prepareResourceFilters, validateInput } from './command.mjs';
+import { assertNoBoundConflict, FILTER_VOCABULARY, prepareResourceFilters, validateInput } from './command.mjs';
 import { getListFields } from './resource-config.mjs';
 import { canonicalName, listResources, resolveResource, resourceDescription } from './resources.mjs';
 
@@ -186,14 +186,19 @@ export async function callMcpTool(name, args = {}, options = {}) {
     throw error;
   }
   if (WRITE_TOOLS.some((entry) => entry.name === name) && !allowWrites) {
-    return errorResult('Writes are disabled. Set ZEYOS_MCP_ALLOW_WRITES=1 when starting the server to expose write tools.');
+    return errorResult('Writes are disabled. Set ZEYOS_MCP_ALLOW_WRITES=1 when starting the server to expose write tools.',
+      { code: 'writes_disabled', actions: ['Restart the server with ZEYOS_MCP_ALLOW_WRITES=1 if the user authorized writes.'] });
   }
 
   try {
     const payload = await executeTool(name, args);
     return textResult(payload);
   } catch (err) {
-    return errorResult(formatToolError(err, args));
+    const status = err?.status;
+    return errorResult(formatToolError(err, args), {
+      code: status ? `api_${status}` : (err?.name === 'ZeyosApiError' ? 'api_error' : 'invalid_request'),
+      ...(status === 401 || status === 403 ? { actions: ['Re-authenticate with `zeyos login`.'] } : {})
+    });
   }
 }
 
@@ -360,6 +365,12 @@ function describeResource(input) {
       filters: resource.filterAliases || {}
     },
     presets: Object.keys(resource.presets || {}),
+    // Same vocabulary `zeyos describe --json` publishes, so an MCP-only agent
+    // does not have to discover the filter syntax by trial and error.
+    filter_operators: FILTER_VOCABULARY,
+    ...(resource.boundFilters?.type === undefined
+      ? {}
+      : { transaction_type: resource.boundFilters.type }),
     operations: schema().operations(key),
     cli_operations: ['list', 'get', 'create', 'update', 'delete'].filter((operation) => resource[operation])
   };
@@ -433,8 +444,18 @@ function textResult(payload) {
   return { content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }] };
 }
 
-function errorResult(message) {
-  return { content: [{ type: 'text', text: message }], isError: true };
+/**
+ * Structured tool failure.
+ *
+ * Mirrors the CLI's `--json` error envelope so an agent gets the same shape on
+ * both transports: a bare prose string leaves it nothing to branch on.
+ */
+function errorResult(message, details = {}) {
+  const envelope = {
+    ok: false,
+    error: { code: details.code ?? 'error', message, ...(details.actions ? { actions: details.actions } : {}) }
+  };
+  return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }], isError: true };
 }
 
 export { EMPTY_RESULT_HINT };

@@ -1,3 +1,5 @@
+import { writeSync } from 'node:fs';
+
 /**
  * Output formatters: pretty table, JSON, YAML.
  * ANSI colors are stripped when stdout is not a TTY or --no-color is set.
@@ -32,6 +34,98 @@ export function outputMode(values) {
   if (values.json) return 'json';
   if (values.yaml) return 'yaml';
   return 'table';
+}
+
+// ── Machine-readable failures ─────────────────────────────────────────────────
+//
+// The output mode is tracked process-wide because failures happen at every depth
+// — including during argument parsing, before a `values` object exists. Set it
+// once from raw argv at startup so every error path can honour it.
+
+let _outputMode = 'table';
+
+/** Record the requested output mode from raw argv, before parsing. */
+export function setOutputModeFromArgv(argv = []) {
+  _outputMode = argv.includes('--json') ? 'json'
+    : argv.includes('--yaml') ? 'yaml'
+    : 'table';
+}
+
+/** The output mode in force for this process. */
+export function currentOutputMode() {
+  return _outputMode;
+}
+
+/** Default machine-readable error code for an exit status. */
+const CODE_FOR_EXIT = {
+  1: 'error',
+  2: 'usage',
+  3: 'auth',
+  4: 'not_found',
+  5: 'aborted'
+};
+
+/**
+ * Report a failure to both audiences at once.
+ *
+ * The human message always goes to stderr. When machine output was requested,
+ * a structured envelope also goes to **stdout** — otherwise an agent running
+ * `zeyos … --json | jq` receives zero bytes and cannot tell what went wrong,
+ * which defeats the exit-code contract this CLI publishes.
+ *
+ * Success shapes are deliberately unchanged (a list is still a bare array), so
+ * a caller distinguishes the two by shape: an object carrying `ok: false`.
+ *
+ * @param {string} message
+ * @param {{exitCode?: number, code?: string, actions?: string[], field?: string, suggestion?: string}} [details]
+ */
+export function emitError(message, details = {}) {
+  const { exitCode = 1, code, actions = [], field, suggestion } = details;
+
+  // Written synchronously: every caller exits immediately afterwards, and
+  // process.exit() discards buffered writes to a pipe. `zeyos … --json | jq`
+  // was losing the whole envelope for exactly that reason.
+  writeAllSync(2, `${c.red('✗')} ${message}\n`);
+
+  if (_outputMode !== 'json' && _outputMode !== 'yaml') return;
+
+  const envelope = {
+    ok: false,
+    error: {
+      code: code ?? CODE_FOR_EXIT[exitCode] ?? 'error',
+      exitCode,
+      message,
+      ...(field ? { field } : {}),
+      ...(suggestion ? { suggestion } : {}),
+      ...(actions.length ? { actions } : {})
+    }
+  };
+
+  const text = _outputMode === 'json'
+    ? JSON.stringify(envelope, null, 2)
+    : toYaml(envelope).replace(/^\n/, '');
+  writeAllSync(1, `${text}\n`);
+}
+
+/**
+ * Write a whole string to a file descriptor, synchronously.
+ *
+ * A partial write is possible on a pipe, and a non-blocking pipe can answer
+ * EAGAIN, so loop until the buffer is drained. EPIPE means the reader is gone
+ * (`| head`), which is not an error worth surfacing.
+ */
+function writeAllSync(fd, text) {
+  const buf = Buffer.from(text, 'utf8');
+  let offset = 0;
+  while (offset < buf.length) {
+    try {
+      offset += writeSync(fd, buf, offset, buf.length - offset);
+    } catch (err) {
+      if (err.code === 'EAGAIN') continue;
+      if (err.code === 'EPIPE') return;
+      throw err;
+    }
+  }
 }
 
 // ── JSON ──────────────────────────────────────────────────────────────────────

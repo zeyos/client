@@ -3,6 +3,46 @@
 Notable changes to `@zeyos/client` and `@zeyos/cli`. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+Acting on a two-model review (Kimi K3 and Grok 4.6, each independently validated)
+comparing this CLI against SAP, Salesforce, Workday and others on agent usability.
+Both models ranked the same two gaps first and second; this closes them.
+
+### Added
+
+- **Machine-readable failures.** In `--json`/`--yaml` mode a failure now writes a
+  structured envelope to **stdout** — `{ ok: false, error: { code, exitCode,
+  message, field?, suggestion?, actions? } }` — so a command piped to `jq` still
+  reports why it failed. Previously stdout was empty and the reason was prose on
+  stderr, which made the published exit-code contract unusable for its stated
+  purpose. Success output is unchanged: a list is still a bare array, and the two
+  are told apart by shape.
+  - `error.code` is a stable slug (`unknown_entity`, `invalid_filter`,
+    `flag_takes_no_value`, `auth_required`, `api_<status>`, …), and carries the
+    same suggestion the human message shows.
+  - The envelope is written with a synchronous write: `process.exit()` discards
+    buffered pipe writes, which silently truncated the first implementation.
+  - MCP `errorResult()` now returns the same shape instead of a bare string.
+- **`zeyos commands`** publishes the command graph — every command, its aliases,
+  the flags it accepts, and each option's type — as data. `zeyos describe` exposes
+  the data model; this exposes the command model, so an agent no longer infers
+  flags from prose help. The equivalent of `sf commands --json`.
+- MCP `describe_resource` now carries `filter_operators` and `transaction_type`,
+  matching what `zeyos describe --json` publishes.
+
+### Fixed
+
+- **`delete --yes` now works.** `--yes` is the convention in `apt`, `gh` and `npm`
+  and is what an agent reaches for first, but it was declared without being
+  allow-listed, so it failed as an unknown option. It is now an alias of `--force`.
+- **`zeyos describe` honours the published exit-code contract**, exiting `2` for an
+  unknown entity rather than `1`, and now offers a spelling suggestion like every
+  other command.
+- Command tables moved to `cli/lib/command-graph.mjs` so the entry point and
+  `zeyos commands` cannot drift apart — the same consolidation already applied to
+  the option table.
+
 ## 0.7.0 — 2026-08-28
 
 A full review of the CLI, its credential layer, the MCP server, and the release

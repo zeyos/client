@@ -693,6 +693,37 @@ tell failure modes apart without parsing stderr.
 | `4` | Not found | The requested record does not exist |
 | `5` | Aborted | A confirmation prompt was declined, or could not be answered because stdin was closed |
 
+### Machine-readable failures
+
+In `--json` or `--yaml` mode a failure writes a structured envelope to **stdout**, so a
+command that is piped to `jq` still tells you what went wrong. The human message goes to
+stderr as usual.
+
+```bash
+$ zeyos list billing_invoces --json
+```
+```json
+{
+  "ok": false,
+  "error": {
+    "code": "unknown_entity",
+    "exitCode": 2,
+    "message": "Unknown entity: \"billing_invoces\".  Did you mean \"billing_invoices\"?",
+    "field": "billing_invoces",
+    "suggestion": "billing_invoices",
+    "actions": ["Run 'zeyos list' to see every entity."]
+  }
+}
+```
+
+Successful output is **unchanged** — a list is still a bare array. Tell the two apart by
+shape: a failure is an object carrying `ok: false`.
+
+`error.code` is a stable slug. Current values include `unknown_entity`, `unknown_command`,
+`unknown_option`, `invalid_option_value`, `invalid_filter`, `unexpected_argument`,
+`flag_takes_no_value`, `missing_argument`, `auth_required`, `auth_failed`, `not_found`,
+`timeout`, `network`, and `api_<status>` for a server error.
+
 ```bash
 zeyos get ticket 999999 --json
 case $? in
@@ -753,3 +784,24 @@ ZEYOS_LOCALE=en-US zeyos list billing_invoices   # 17,009.00
 Formatting applies to human-readable output only. `--json` and `--yaml` always emit the raw
 number, so scripts and agents are unaffected by the terminal's locale.
 :::
+
+---
+
+## commands
+
+Publish the command graph — every command, its aliases, and the flags it accepts — as data.
+
+```
+zeyos commands [--json|--yaml]
+```
+
+`zeyos describe` exposes the *data* model; `zeyos commands` exposes the *command* model, so
+an agent can discover which flags exist without parsing prose help. Runs offline.
+
+```bash
+zeyos commands --json | jq '.commands[] | select(.name=="list") | .flags'
+```
+
+Each entry carries `name`, `aliases`, `flags` (global flags folded in), and
+`acceptsArbitraryFields` — true for `create`/`update`, which take `--<field> <value>` for any
+column. A top-level `options` map gives each flag's type, so a caller knows which take a value.
