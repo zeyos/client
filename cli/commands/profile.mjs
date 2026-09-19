@@ -21,7 +21,8 @@ import {
   resolveProfileSelection, loadConfigWithSource, profilesConfigPath,
   tokenStatus
 } from '../lib/config.mjs';
-import { outputMode, printJson, printYaml, printTable, success, error, info, warn } from '../lib/output.mjs';
+import { outputMode, printJson, printYaml, printTable, success, error, info, warn, emitError } from '../lib/output.mjs';
+import { EXIT } from '../lib/exit.mjs';
 
 export const USAGE = `\
 Usage: zeyos profile <command> [options]
@@ -66,9 +67,10 @@ export async function run(values, positional) {
     case 'rm':
     case 'delete':  return cmdRemove(values, positional[1]);
     default:
-      error(`Unknown profile command: "${sub}".`);
-      process.stderr.write(`\n${USAGE}`);
-      process.exit(1);
+      emitError(`Unknown profile command "${sub}".`, {
+        exitCode: EXIT.USAGE, code: 'unknown_command', field: sub,
+        actions: ['Run \'zeyos profile --help\' for the subcommands.'] });
+      process.exit(EXIT.USAGE);
   }
 }
 
@@ -207,12 +209,13 @@ function cmdRemove(values, name) {
 function failUnknown(name) {
   const names = Object.keys(listProfiles().profiles);
   const known = names.length ? `Known profiles: ${names.join(', ')}.` : 'No profiles defined yet.';
-  fail(`No such profile: "${name}". ${known}`);
+  fail(`No such profile: "${name}".`, {
+    code: 'unknown_profile', field: name, actions: [known] });
 }
 
-function fail(message) {
-  error(message);
-  process.exit(1);
+function fail(message, details = {}) {
+  emitError(message, { exitCode: EXIT.USAGE, code: 'usage', ...details });
+  process.exit(details.exitCode ?? EXIT.USAGE);
 }
 
 async function promptProfileCredentials(name, ask) {

@@ -67,6 +67,10 @@ const filterProperty = {
   description: 'Field filters. Arrays mean IN; common $ operators and field__suffix forms are normalized.',
   additionalProperties: true
 };
+const dryRunProperty = {
+  type: 'boolean',
+  description: 'Resolve and return the request that would be sent, without sending it. Nothing is written.'
+};
 const presetProperty = {
   type: 'string',
   description: 'Business-vocabulary preset such as open-invoices; caller filters override preset values.'
@@ -102,7 +106,9 @@ const READ_TOOLS = [
       limit: { type: 'integer', minimum: 1, maximum: 1000, default: 50 },
       offset: { type: 'integer', minimum: 0, default: 0 },
       search: { type: 'string' },
+      distinct: { type: 'boolean', description: 'Eliminate duplicate rows (useful when joins multiply results).' },
       extdata: { type: 'boolean', description: 'Include extended/custom field values.' },
+      tags: { type: 'boolean', description: 'Include tags.' },
       expand: {
         type: 'array',
         items: { type: 'string' },
@@ -116,7 +122,8 @@ const READ_TOOLS = [
       resource: resourceProperty,
       filter: filterProperty,
       preset: presetProperty,
-      search: { type: 'string' }
+      search: { type: 'string' },
+      distinct: { type: 'boolean', description: 'Count distinct rows only.' }
     }, ['resource'])),
   tool('sum_records',
     'Sums one numeric field across every record matching an optional filter or preset and reports the inspected row count. Use it for simple ungrouped totals after describe_resource confirms the numeric field and currency basis. Narrow with a filter or preset first: max_rows caps how many records are inspected, and the result reports whether the cap truncated the sum.',
@@ -152,17 +159,19 @@ const READ_TOOLS = [
 
 const WRITE_TOOLS = [
   tool('create_record',
-    'Creates one record after applying field aliases and local schema validation. Use it only when the user has explicitly authorized creation and the exact payload is known.',
+    'Creates one record after applying field aliases and local schema validation. Use it only when the user has explicitly authorized creation and the exact payload is known. Set dry_run to see the exact request without writing anything.',
     objectSchema({
       resource: resourceProperty,
-      data: { type: 'object', additionalProperties: true }
+      data: { type: 'object', additionalProperties: true },
+      dry_run: dryRunProperty
     }, ['resource', 'data'])),
   tool('update_record',
-    'Updates selected fields on one record after applying field aliases and local schema validation. Use it only after reading the exact target and obtaining authorization for the specific ID and changes.',
+    'Updates selected fields on one record after applying field aliases and local schema validation. Use it only after reading the exact target and obtaining authorization for the specific ID and changes. Set dry_run to see the exact request without writing anything.',
     objectSchema({
       resource: resourceProperty,
       id: { oneOf: [{ type: 'integer' }, { type: 'string', minLength: 1 }] },
-      data: { type: 'object', additionalProperties: true }
+      data: { type: 'object', additionalProperties: true },
+      dry_run: dryRunProperty
     }, ['resource', 'id', 'data']))
 ];
 
@@ -251,6 +260,7 @@ async function executeTool(name, args) {
     const filters = prepareResourceFilters(resource, resourceName, args.preset, args.filter);
     if (filters !== undefined) body.filters = filters;
     if (args.search != null) body.query = args.search;
+    if (args.distinct) body.distinct = true;
     validateInput(schema(), resource.list, body);
     const state = buildClient({ validate: true });
     const count = normalizeCountResult(await invoke(state, resource.list, body));
@@ -335,6 +345,11 @@ async function executeTool(name, args) {
   const input = name === 'create_record' ? data : { ID: args.id, body: data };
   validateInput(schema(), operationId, input);
   const state = buildClient({ validate: true });
+  if (args.dry_run) {
+    // Same descriptor `zeyos create --dry-run` prints: no auth, no network.
+    const descriptor = await state.client.api[operationId](input, { dryRun: true });
+    return { dry_run: true, ...descriptor };
+  }
   return invoke(state, operationId, input);
 }
 
@@ -389,6 +404,8 @@ function buildListBody(resource, resourceName, args) {
   if (args.sort) body.sort = Array.isArray(args.sort) ? args.sort : args.sort.split(',').map((part) => part.trim()).filter(Boolean);
   if (args.search != null) body.query = args.search;
   if (args.extdata) body.extdata = 1;
+  if (args.tags) body.tags = 1;
+  if (args.distinct) body.distinct = true;
   if (args.expand) body.expand = args.expand;
   return body;
 }

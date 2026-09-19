@@ -63,6 +63,11 @@ export async function run(values, positional) {
   // `--force`. Accept both rather than failing on the more idiomatic one.
   const skipPrompt = values.force || values.yes;
   if (!skipPrompt) {
+    // Some entities are an append-only record rather than a working document, so
+    // say what is actually lost before asking. --force still honours the caller.
+    if (res.historyBearing) {
+      warn(`${resourceName} #${id} is ${res.historyBearing}.`);
+    }
     const confirmed = await _confirm(`Delete ${resourceName} #${id}? [y/N] `);
     if (!confirmed) {
       // Exit non-zero: with stdin closed (CI, a pipe) readline answers with an

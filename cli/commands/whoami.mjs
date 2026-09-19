@@ -12,7 +12,7 @@
 import { createInterface } from 'node:readline';
 import { buildClient, syncTokens } from '../lib/client.mjs';
 import { globalConfigPath, profilesConfigPath } from '../lib/config.mjs';
-import { outputMode, printJson, printYaml, printRecord, formatDate, error } from '../lib/output.mjs';
+import { outputMode, printJson, printYaml, printRecord, formatDate, error, emitError } from '../lib/output.mjs';
 import { EXIT } from '../lib/exit.mjs';
 import { run as runLogin } from './login.mjs';
 
@@ -36,7 +36,19 @@ export async function run(values) {
     userInfo = await _fetchUserInfo(state);
   } catch (err) {
     const handled = await _handleFetchError(err, state, values);
-    if (!handled) process.exit(1);
+    if (!handled) {
+      // _handleFetchError already wrote a detailed diagnostic to stderr, so emit
+      // only the machine envelope here rather than repeating it.
+      const status = err?.status;
+      const auth = status === 401 || status === 403 || _authFailureSummary(err);
+      emitError(err?.message ?? 'Failed to fetch user info.', {
+        quiet: true,
+        exitCode: auth ? EXIT.AUTH : EXIT.ERROR,
+        code: auth ? 'auth_failed' : (status ? `api_${status}` : 'error'),
+        ...(auth ? { actions: ["Run 'zeyos login --force' to re-authenticate."] } : {})
+      });
+      process.exit(auth ? EXIT.AUTH : EXIT.ERROR);
+    }
     state = handled.state;
     userInfo = handled.userInfo;
   }
@@ -89,8 +101,14 @@ function _buildClientState(values) {
     };
   } catch (err) {
     // Missing/unusable credentials — distinct from a generic runtime failure so
-    // callers can tell "re-authenticate" apart from "the request failed".
-    error(err.message);
+    // callers can tell "re-authenticate" apart from "the request failed". Goes
+    // through emitError so `whoami --json`, usually an agent's first call, still
+    // gets a parseable answer instead of empty stdout.
+    emitError(err.message, {
+      exitCode: EXIT.AUTH,
+      code: 'auth_required',
+      actions: ["Run 'zeyos login'."]
+    });
     process.exit(EXIT.AUTH);
   }
 }

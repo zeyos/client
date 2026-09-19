@@ -4,7 +4,7 @@ import { createZeyosClient, suggestClosest } from '@zeyos/client';
 import { buildClient, syncTokens } from './client.mjs';
 import { collectFieldFlags } from './flags.mjs';
 import { resolveResource, suggestResource, resourceForTransactionType } from './resources.mjs';
-import { emitError, info, warn, printQuery } from './output.mjs';
+import { emitError, info, warn, printQuery, jsonErrorReason } from './output.mjs';
 import { EXIT } from './exit.mjs';
 
 /**
@@ -180,7 +180,8 @@ export function parseJsonOption(value, flagName) {
   } catch (err) {
     // Report the parse error, not the payload: a malformed --data can contain a
     // password or other private text that would otherwise land in CI logs.
-    fail(`--${flagName} must be valid JSON (${err.message}).`);
+    fail(`--${flagName} must be valid JSON (${jsonErrorReason(err)}).`, EXIT.USAGE,
+      { code: 'invalid_option_value', field: `--${flagName}` });
   }
 }
 
@@ -208,7 +209,8 @@ export function parseJsonFileOption(value, flagName) {
   try {
     return JSON.parse(text);
   } catch (err) {
-    fail(`--${flagName} file must contain valid JSON: ${filePath} (${err.message || err})`);
+    fail(`--${flagName} file must contain valid JSON: ${filePath} (${jsonErrorReason(err)})`, EXIT.USAGE,
+      { code: 'invalid_option_value', field: `--${flagName}` });
   }
 }
 
@@ -413,9 +415,15 @@ function normalizeFilterOperand(field, operand, options, ctx) {
     const alias = FILTER_OPERATOR_ALIASES[rawOp];
     const op = alias ?? rawOp;
 
-    // {field: {$eq: v}} is just {field: v}.
+    // {field: {$eq: v}} alone collapses to {field: v}; mixed with siblings it must
+    // become the native `=` operator instead. Returning early here silently threw
+    // away every other operator the caller wrote.
     if (rawOp === '$eq' || rawOp === 'eq' || rawOp === '=' || rawOp === 'is') {
-      return normalizeFilterValue(rawValue, options, ctx);
+      if (Object.keys(operand).length === 1) {
+        return normalizeFilterValue(rawValue, options, ctx);
+      }
+      out['='] = normalizeFilterValue(rawValue, options, ctx);
+      continue;
     }
     if (rawOp === '$between' || rawOp === 'between' || rawOp === '$range' || rawOp === 'range') {
       const pair = asRangePair(field, rawOp, rawValue);
@@ -798,6 +806,20 @@ export function prepareResourceFilters(res, resourceName, presetName, userFilter
 }
 
 /**
+ * Compare a caller-supplied bound value with the expected one.
+ *
+ * A filter arriving as JSON can carry `"3"` where the registry holds `3`; those
+ * mean the same thing and must not read as a conflict. `assertRecordMatchesBinding`
+ * already compares loosely, so comparing JSON text here made the two disagree.
+ */
+function sameFilterValue(a, b) {
+  if (a === b) return true;
+  const scalar = (v) => v === null || ['string', 'number', 'boolean'].includes(typeof v);
+  if (scalar(a) && scalar(b)) return String(a) === String(b);
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+/**
  * Verify that a record reached by ID actually belongs to the entity that named it.
  *
  * `zeyos delete billing_invoices 42` addresses the transactions table directly, so
@@ -860,7 +882,7 @@ export function assertNoBoundConflict(bound, supplied, resourceName, origin) {
   if (!supplied) return;
   for (const [key, boundValue] of Object.entries(bound)) {
     if (!Object.prototype.hasOwnProperty.call(supplied, key)) continue;
-    if (JSON.stringify(supplied[key]) === JSON.stringify(boundValue)) continue;
+    if (sameFilterValue(supplied[key], boundValue)) continue;
 
     const wanted = key === 'type' && typeof supplied[key] === 'number'
       ? resourceForTransactionType(supplied[key])

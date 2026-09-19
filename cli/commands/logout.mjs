@@ -17,7 +17,8 @@ import {
   clearLocalCredentialsForSource,
   listProfiles
 } from '../lib/config.mjs';
-import { success, warn, info, error }          from '../lib/output.mjs';
+import { success, warn, info, emitError } from '../lib/output.mjs';
+import { EXIT }                               from '../lib/exit.mjs';
 
 export const USAGE = `\
 Usage: zeyos logout [options]
@@ -42,8 +43,10 @@ export async function run(values) {
     if (loaded.profile?.missing) {
       const names = Object.keys(listProfiles().profiles);
       const known = names.length ? `Known profiles: ${names.join(', ')}.` : 'No profiles defined yet.';
-      error(`Profile "${loaded.profile.name}" not found (selected via ${loaded.profile.origin}). ${known}`);
-      process.exit(1);
+      emitError(`Profile "${loaded.profile.name}" not found (selected via ${loaded.profile.origin}).`, {
+        exitCode: EXIT.USAGE, code: 'unknown_profile', field: loaded.profile.name,
+        actions: [known] });
+      process.exit(EXIT.USAGE);
     }
     config = loaded.config;
     source = loaded.source;

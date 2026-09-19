@@ -47,6 +47,7 @@ export const OPTIONS = {
   'page-size':  { type: 'string' },
   'expand':     { type: 'string' },
   'extdata':    { type: 'boolean' },
+  'distinct':   { type: 'boolean' },
   'tags':       { type: 'boolean' },
   // get
   'all':        { type: 'boolean' },

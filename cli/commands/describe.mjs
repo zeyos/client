@@ -95,6 +95,7 @@ export function run(values, positional = []) {
       // machine consumer cannot tell it is looking at a bound subset.
       canonicalResource: canonicalName(resource) ?? null,
       ...(resourceDef?.boundFilters ? { boundFilters: resourceDef.boundFilters } : {}),
+      ...(resourceDef?.historyBearing ? { historyBearing: resourceDef.historyBearing } : {}),
       ...(resourceDef?.boundFilters?.type === undefined
         ? {}
         : { transactionType: resourceDef.boundFilters.type }),
@@ -156,6 +157,9 @@ export function run(values, positional = []) {
   }
   if (presetNames.length > 0) {
     process.stdout.write(`  ${c.bold('presets')}  ${c.dim(presetNames.join(', '))}\n\n`);
+  }
+  if (resourceDef?.historyBearing) {
+    process.stdout.write(`  ${c.bold('caution')}  ${c.dim(`each record is ${resourceDef.historyBearing}`)}\n\n`);
   }
 
   // Filter syntax reference. Without it the only way to learn the operator

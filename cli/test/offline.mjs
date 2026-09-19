@@ -347,7 +347,7 @@ test('skills install rejects an unknown --target', async (t) => {
     { cwd, env: isolatedEnv(cwd) }
   );
 
-  assert.equal(result.code, 1);
+  assert.equal(result.code, 2, 'a bad flag value is a usage error, not a generic failure');
   assert.match(result.stderr, /Unknown --target "bogus"/);
   assert.match(result.stderr, /claude, codex, opencode, droid, pi, agents/);
 });
@@ -908,7 +908,7 @@ test('--filter-file errors do not echo file contents', async (t) => {
     { cwd, env: isolatedEnv(cwd, CREDENTIALS) }
   );
 
-  assert.equal(result.code, 1);
+  assert.equal(result.code, 2)  // malformed JSON is a usage error;
   assert.match(result.stderr, /--filter-file file must contain valid JSON/);
   assert.doesNotMatch(result.stderr, /very-secret-token/);
 });
@@ -951,7 +951,7 @@ test('--data-file errors do not echo file contents', async (t) => {
     env: isolatedEnv(cwd, NO_CREDENTIALS)
   });
 
-  assert.equal(result.code, 1);
+  assert.equal(result.code, 2)  // malformed JSON is a usage error;
   assert.match(result.stderr, /--data-file file must contain valid JSON/);
   assert.doesNotMatch(result.stderr, /very-secret-token/);
 });
@@ -1059,7 +1059,9 @@ test('sum pages through matching records and emits a numeric total', async (t) =
   );
 
   assert.equal(result.code, 0, result.stderr);
-  assert.deepEqual(JSON.parse(result.stdout), { sum: 50, count: 5, field: 'effort' });
+  // `truncated` is reported in-band so an agent reading stdout can tell a complete
+  // total from one capped by --limit.
+  assert.deepEqual(JSON.parse(result.stdout), { sum: 50, count: 5, field: 'effort', truncated: false });
   assert.equal(server.requests.length, 3);
   assert.deepEqual(JSON.parse(server.requests[0].body), {
     fields: ['effort'],
@@ -1478,7 +1480,7 @@ test('whoami reports invalid refresh tokens with platform and source details', a
     env: isolatedEnv(cwd, { ...NO_CREDENTIALS, ZEYOS_PROFILE: '' })
   });
 
-  assert.equal(result.code, 1);
+  assert.equal(result.code, 3, 'auth failure — an invalid/expired token is exit 3, not a generic 1');
   assert.match(result.stderr, /Your stored refresh token is invalid or expired/);
   assert.match(result.stderr, /Platform URL: http:\/\/127\.0\.0\.1:\d+\/dev/);
   assert.match(result.stderr, /Credential source: local file .*\.zeyos[/\\]auth\.json/);
@@ -1530,7 +1532,7 @@ test('explicit ZEYOS_TOKEN is token-only and never refreshes from local credenti
     })
   });
 
-  assert.equal(result.code, 1);
+  assert.equal(result.code, 3, 'auth failure — an invalid/expired token is exit 3, not a generic 1');
   assert.match(result.stderr, /Your session has expired or is invalid/);
   assert.match(result.stderr, /Credential source: environment variables/);
   assert.equal(server.requests.length, 1);
@@ -1781,9 +1783,10 @@ test('an unknown --profile fails loudly with the known profiles listed', async (
     dev: { baseUrl: 'https://zeyos.example.com/dev', clientId: 'd', clientSecret: 's', accessToken: 't' }
   } });
   const res = await cli(['whoami', '--profile', 'nope'], { cwd, env: isolatedEnv(home, CLEAN_ENV) });
-  assert.notEqual(res.code, 0);
+  assert.equal(res.code, 3, 'a profile with no usable credentials is an auth failure');
   assert.match(res.stderr, /Profile "nope" not found/);
-  assert.match(res.stderr, /Known profiles: dev/);
+  assert.match(res.stderr, /Known profiles: dev/,
+    'the way out of the error must reach the terminal, not only the JSON envelope');
 });
 
 test('logout --profile fails loudly when the selected profile is unknown', async (t) => {
@@ -1794,9 +1797,10 @@ test('logout --profile fails loudly when the selected profile is unknown', async
   } });
 
   const res = await cli(['logout', '--profile', 'nope'], { cwd, env: isolatedEnv(home, CLEAN_ENV) });
-  assert.notEqual(res.code, 0);
+  assert.equal(res.code, 2, 'naming a profile that does not exist is a usage error');
   assert.match(res.stderr, /Profile "nope" not found/);
-  assert.match(res.stderr, /Known profiles: dev/);
+  assert.match(res.stderr, /Known profiles: dev/,
+    'the way out of the error must reach the terminal, not only the JSON envelope');
 });
 
 test('logout clears the full legacy local credential set', async (t) => {
@@ -2143,7 +2147,7 @@ test('login rejects an invalid callback port before prompting', async (t) => {
   const cwd = await tempDir(t);
   const res = await cli(['login', '--port', 'not-a-port'], { cwd, env: isolatedEnv(home, CLEAN_ENV) });
 
-  assert.equal(res.code, 1);
+  assert.equal(res.code, 2, 'a bad flag value is a usage error, not a generic failure');
   assert.match(res.stderr, /--port must be an integer between 1 and 65535/);
 });
 
@@ -2695,4 +2699,284 @@ test('documentation does not teach filters that 400 on the target resource', asy
     assert.ok(!/doctype/.test(text) || /has no `doctype`/.test(text),
       `${file.pathname} still filters on a doctype column`);
   }
+});
+
+test('newly registered entities route to their real operations', async (t) => {
+  const cwd = await tempDir(t);
+  const env = isolatedEnv(cwd, CREDENTIALS);
+  const { createZeyosClient } = await import('@zeyos/client');
+  const { resolveResource } = await import('../lib/resources.mjs');
+  const schema = createZeyosClient({ auth: { mode: 'none' } }).schema;
+
+  for (const [entity, path] of [
+    ['contracts', '/contracts'],
+    ['suppliers', '/suppliers'],
+    ['stocktransactions', '/stocktransactions'],
+    ['comments', '/comments'],
+    ['ledgers', '/ledgers']
+  ]) {
+    const res = await cli(['list', entity, '--dry-run', '--json'], { cwd, env });
+    assert.equal(res.code, 0, `${entity}: ${res.stderr}`);
+    assert.match(JSON.parse(res.stdout).url, new RegExp(`${path}$`), `${entity} routes to ${path}`);
+
+    // Display fields must be real columns, or the table renders blanks forever.
+    const def = resolveResource(entity);
+    const valid = new Set(schema.fields(schema.resourceForOperation(def.list)));
+    for (const field of def.fields) {
+      assert.ok(valid.has(String(field).split('.')[0]), `${entity}.${field} is a real column`);
+    }
+  }
+});
+
+test('every registered entity has valid display fields and a group', async () => {
+  // Guards the whole registry, not just today's additions: a new entity with a
+  // typo'd field renders a permanently blank column, and one missing from the
+  // group map silently lands in "Other".
+  const { createZeyosClient } = await import('@zeyos/client');
+  const { listResources, resolveResource, listResourceGroups } = await import('../lib/resources.mjs');
+  const schema = createZeyosClient({ auth: { mode: 'none' } }).schema;
+
+  const offenders = [];
+  for (const name of listResources()) {
+    const res = resolveResource(name);
+    const key = schema.resourceForOperation(res.list || res.get);
+    if (!key) { offenders.push(`${name}: no schema resource`); continue; }
+    const valid = new Set(schema.fields(key));
+    for (const field of res.fields || []) {
+      if (!valid.has(String(field).split('.')[0])) offenders.push(`${name}.${field}`);
+    }
+  }
+  assert.deepEqual(offenders, [], `invalid display fields:\n  ${offenders.join('\n  ')}`);
+
+  const grouped = new Set(listResourceGroups().flatMap((g) => g.entities.map((e) => e.name)));
+  const ungrouped = listResources().filter((n) => !grouped.has(n));
+  assert.deepEqual(ungrouped, [], `entities missing from the group map: ${ungrouped.join(', ')}`);
+});
+
+test('MCP write tools support dry_run', async () => {
+  const { callMcpTool } = await import('../lib/mcp-tools.mjs');
+  const previous = process.env.ZEYOS_BASE_URL;
+  process.env.ZEYOS_BASE_URL = 'https://mcp.example.invalid/demo';
+  process.env.ZEYOS_TOKEN = 'dry-run-token';
+  try {
+    const result = await callMcpTool(
+      'create_record',
+      { resource: 'billing_invoices', data: { account: 42, currency: 'EUR' }, dry_run: true },
+      { allowWrites: true }
+    );
+    assert.equal(result.isError, undefined, result.content[0].text);
+    const payload = JSON.parse(result.content[0].text);
+    assert.equal(payload.dry_run, true);
+    assert.match(payload.url, /\/transactions$/);
+    // The pseudo-entity's bound type is present in the previewed body.
+    assert.equal(payload.body.type, 3);
+  } finally {
+    if (previous === undefined) delete process.env.ZEYOS_BASE_URL;
+    else process.env.ZEYOS_BASE_URL = previous;
+    delete process.env.ZEYOS_TOKEN;
+  }
+});
+
+test('--distinct reaches the request body on list and count', async (t) => {
+  const cwd = await tempDir(t);
+  const env = isolatedEnv(cwd, CREDENTIALS);
+
+  const listed = await cli(['list', 'tickets', '--distinct', '--dry-run', '--json'], { cwd, env });
+  assert.equal(listed.code, 0, listed.stderr);
+  assert.equal(JSON.parse(listed.stdout).body.distinct, true);
+
+  const counted = await cli(['count', 'tickets', '--distinct', '--dry-run', '--json'], { cwd, env });
+  assert.equal(counted.code, 0, counted.stderr);
+  assert.equal(JSON.parse(counted.stdout).body.distinct, true);
+});
+
+test('--fields parse errors emit an envelope and do not echo the input', async (t) => {
+  const cwd = await tempDir(t);
+  const env = isolatedEnv(cwd, CREDENTIALS);
+
+  // This path used to exit(1) straight past the envelope, on a flag agents use
+  // constantly — and echoed the raw value back into the error.
+  const result = await cli(['list', 'tickets', '--fields', '{"Secret": bad', '--json'], { cwd, env });
+  assert.equal(result.code, 2);
+  const envelope = JSON.parse(result.stdout);
+  assert.equal(envelope.error.code, 'invalid_option_value');
+  assert.equal(envelope.error.field, '--fields');
+  assert.ok(!result.stdout.includes('Secret'), 'must not echo the --fields value back');
+  assert.ok(!result.stderr.includes('Secret'), 'must not echo the --fields value back');
+});
+
+test('an $eq operator never silently discards its siblings', async () => {
+  // `{status:{$eq:9,$ne:3}}` collapsed to `{status:9}` — the caller asked for two
+  // conditions and the server saw one, with no error anywhere.
+  const { normalizeFilterOperators } = await import('../lib/command.mjs');
+
+  assert.deepEqual(normalizeFilterOperators({ status: { $eq: 9 } }, {}), { status: 9 },
+    '$eq alone still collapses to a plain value');
+  assert.deepEqual(normalizeFilterOperators({ status: { $eq: 9, $ne: 3 } }, {}),
+    { status: { '=': 9, '!=': 3 } }, '$eq with siblings becomes the native = operator');
+  assert.deepEqual(normalizeFilterOperators({ status: { $ne: 3, $eq: 9 } }, {}),
+    { status: { '!=': 3, '=': 9 } }, 'order must not change the outcome');
+});
+
+test('a bound value supplied as a string is not treated as a conflict', async () => {
+  // JSON filters can carry "3" where the registry holds 3. The record-side check
+  // already compared loosely, so comparing JSON text here made the two disagree.
+  const { assertNoBoundConflict } = await import('../lib/command.mjs');
+
+  assertNoBoundConflict({ type: 3 }, { type: 3 }, 'billing_invoices', '--filter');
+  assertNoBoundConflict({ type: 3 }, { type: '3' }, 'billing_invoices', '--filter');
+  assert.throws(
+    () => assertNoBoundConflict({ type: 3 }, { type: 8 }, 'billing_invoices', '--filter'),
+    /fixed to type 3/
+  );
+});
+
+test('the published command graph names the documented command, not its alias', async () => {
+  // The heuristic picked the SHORTEST spelling, so `zeyos commands --json` told
+  // agents the commands were rm/edit/resource/skill — the opposite of the docs,
+  // in the very surface built for them to learn from.
+  const result = await cli(['commands', '--json']);
+  assert.equal(result.code, 0, result.stderr);
+  const graph = JSON.parse(result.stdout);
+  const nameOf = (alias) =>
+    graph.commands.find((c) => c.name === alias || c.aliases.includes(alias))?.name;
+
+  assert.equal(nameOf('rm'), 'delete');
+  assert.equal(nameOf('edit'), 'update');
+  assert.equal(nameOf('resource'), 'resources');
+  assert.equal(nameOf('skill'), 'skills');
+  assert.equal(nameOf('show'), 'get');
+
+  // Every canonical name must be one the global help actually lists.
+  const help = await cli(['--help']);
+  for (const command of graph.commands) {
+    assert.ok(help.stdout.includes(command.name),
+      `${command.name} is published as canonical but absent from --help`);
+  }
+});
+
+test('whoami emits a machine-readable envelope when credentials are missing', async (t) => {
+  // An agent's usual first call. This path used to exit past the envelope.
+  const cwd = await tempDir(t);
+  const result = await cli(['whoami', '--json'], {
+    cwd,
+    env: isolatedEnv(cwd, NO_CREDENTIALS)
+  });
+  assert.equal(result.code, 3);
+  const envelope = JSON.parse(result.stdout);
+  assert.equal(envelope.ok, false);
+  assert.equal(envelope.error.code, 'auth_required');
+  assert.equal(envelope.error.exitCode, 3);
+});
+
+test('get --fields rejects malformed JSON instead of querying a nonsense column', async (t) => {
+  const cwd = await tempDir(t);
+  const env = isolatedEnv(cwd, CREDENTIALS);
+  // This returned { keys: ['{"Alias": bad'] } and queried that literal string.
+  const result = await cli(['get', 'ticket', '42', '--fields', '{"s3cr3tcolumn": bad', '--json'], { cwd, env });
+  assert.equal(result.code, 2);
+  const envelope = JSON.parse(result.stdout);
+  assert.equal(envelope.error.code, 'invalid_option_value');
+  assert.equal(envelope.error.field, '--fields');
+  assert.ok(!result.stdout.includes('s3cr3tcolumn'), 'must not echo the --fields value');
+  assert.ok(!result.stderr.includes('s3cr3tcolumn'), 'must not echo the --fields value');
+});
+
+test('list counts distinct rows when --distinct is set', async (t) => {
+  const cwd = await tempDir(t);
+  const server = await jsonServer(t, (req, res) => {
+    res.writeHead(200, { 'content-type': 'application/json' });
+    const body = JSON.parse(req.__body || '{}');
+    res.end(JSON.stringify(body.count ? { count: 3 } : [{ ID: 1 }, { ID: 2 }]));
+  });
+  const env = isolatedEnv(cwd, { ...CREDENTIALS, ZEYOS_BASE_URL: server.baseUrl });
+
+  await cli(['list', 'tickets', '--distinct', '--limit', '2'], { cwd, env });
+  const countRequest = server.requests
+    .map((r) => JSON.parse(r.body || '{}'))
+    .find((b) => b.count);
+  if (countRequest) {
+    assert.equal(countRequest.distinct, true,
+      'the count that produces "of N" must mirror the distinct query it describes');
+  }
+});
+
+// ── Destructive-entity policy ────────────────────────────────────────────────
+
+test('history-bearing entities announce what a delete destroys', async (t) => {
+  const cwd = await tempDir(t);
+  const env = isolatedEnv(cwd, CREDENTIALS);
+
+  // These three are an append-only record, not a working document. The warning
+  // is what separates "delete this draft" from "rewrite the money trail".
+  for (const entity of ['stocktransaction', 'ledger', 'payment']) {
+    const described = await cli(['describe', entity, '--json'], { cwd, env });
+    assert.equal(described.code, 0, `${entity} should describe cleanly`);
+    assert.ok(JSON.parse(described.stdout).historyBearing,
+      `${entity} must carry historyBearing so an agent sees it before deleting`);
+  }
+
+  // ...and an ordinary document must NOT, or the warning means nothing.
+  const ticket = await cli(['describe', 'ticket', '--json'], { cwd, env });
+  assert.equal(JSON.parse(ticket.stdout).historyBearing, undefined,
+    'a plain entity must not be marked, or the marker stops carrying signal');
+});
+
+test('the delete prompt states the consequence for a history-bearing entity', async (t) => {
+  const cwd = await tempDir(t);
+  const env = isolatedEnv(cwd, CREDENTIALS);
+  // Answer "n": the warning must appear before the question, and nothing is sent.
+  const result = await cliWithInput(['delete', 'payment', '99'], 'n\n', { cwd, env });
+  assert.equal(result.code, 5, 'declining a delete exits ABORTED');
+  assert.ok(/rewrites the money trail/.test(result.stderr),
+    `the prompt must say what is lost; got: ${result.stderr}`);
+});
+
+// ── Error envelope: every command, not just the data commands ────────────────
+
+test('auth, skills, okf and profile failures carry the machine envelope', async (t) => {
+  const cwd = await tempDir(t);
+  const env = isolatedEnv(cwd, CREDENTIALS);
+
+  // These five commands used to exit(1) with a bare stderr line, so a caller
+  // could not tell a bad argument from an outage without parsing English.
+  const cases = [
+    { args: ['skills', 'show'],                    code: 2, error: 'usage' },
+    { args: ['skills', 'frobnicate'],              code: 2, error: 'unknown_command' },
+    { args: ['skills', 'install', '--target', 'nope'], code: 2, error: 'usage' },
+    { args: ['okf', 'show', 'no_such_concept'],    code: 2, error: 'unknown_concept' },
+    { args: ['okf', 'frobnicate'],                 code: 2, error: 'unknown_command' },
+    { args: ['profile', 'use', 'ghost'],           code: 2, error: 'unknown_profile' },
+    { args: ['profile', 'frobnicate'],             code: 2, error: 'unknown_command' },
+    { args: ['login', '--port', '99999'],          code: 2, error: 'usage' }
+  ];
+
+  for (const { args, code, error } of cases) {
+    const result = await cli([...args, '--json'], { cwd, env });
+    assert.equal(result.code, code, `${args.join(' ')} should exit ${code}`);
+    const envelope = JSON.parse(result.stdout);
+    assert.equal(envelope.ok, false, `${args.join(' ')} must report ok:false`);
+    assert.equal(envelope.error.code, error, `${args.join(' ')} error code`);
+    assert.equal(envelope.error.exitCode, code);
+  }
+});
+
+test('a corrupt resource config names the file without echoing its contents', async (t) => {
+  const cwd = await tempDir(t);
+  const env = isolatedEnv(cwd, CREDENTIALS);
+  await mkdir(join(cwd, '.zeyos', 'api'), { recursive: true });
+  // Node's JSON.parse embeds the offending input in its message, so a config
+  // holding a token would print it to the terminal and into any log scraping it.
+  await writeFile(
+    join(cwd, '.zeyos', 'api', 'ticket.json'),
+    '{ "fields": ["ID"], "token": "sk-live-SUPERSECRET-42",, }'
+  );
+
+  const result = await cli(['list', 'ticket', '--json'], { cwd, env });
+  assert.equal(result.code, 1);
+  const envelope = JSON.parse(result.stdout);
+  assert.equal(envelope.error.code, 'config_invalid');
+  assert.ok(envelope.error.message.includes('ticket.json'), 'must name the file to open');
+  assert.ok(!result.stdout.includes('SUPERSECRET'), 'must not echo the config contents');
+  assert.ok(!result.stderr.includes('SUPERSECRET'), 'must not echo the config contents');
 });

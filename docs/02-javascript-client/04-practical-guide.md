@@ -83,8 +83,8 @@ if (projectId) filters.project = projectId;
 
 :::warning Not every resource has the column
 `visibility` exists on `accounts`, `contacts`, `tickets`, `tasks`, `projects`, `items`,
-`documents`, `notes`, `opportunities`, `appointments`, `campaigns`, `mailinglists` and
-`storages`.
+`documents`, `notes`, `opportunities`, `appointments`, `campaigns`, `mailinglists`,
+`storages`, `contracts` and `ledgers`.
 
 It does **not** exist on `transactions` — nor any billing/procurement entity derived from it —
 nor on `payments`, `messages`, `actionsteps`, `addresses`, `users`, `prices` or `dunning`.

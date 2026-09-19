@@ -12,7 +12,8 @@ import { createInterface } from 'node:readline';
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { outputMode, printJson, printYaml, printTable, colors, success, error, info, warn } from '../lib/output.mjs';
+import { outputMode, printJson, printYaml, printTable, colors, success, info, warn, emitError } from '../lib/output.mjs';
+import { EXIT } from '../lib/exit.mjs';
 
 const require = createRequire(import.meta.url);
 
@@ -171,8 +172,10 @@ async function resolveTarget(values) {
   if (values.target) {
     agent = AGENTS.find((a) => a.key === values.target);
     if (!agent) {
-      error(`Unknown --target "${values.target}". Use one of: ${AGENT_KEYS.join(', ')}.`);
-      process.exit(1);
+      emitError(`Unknown --target "${values.target}".`, {
+        exitCode: EXIT.USAGE, code: 'usage', field: 'target',
+        actions: [`Use one of: ${AGENT_KEYS.join(', ')}.`] });
+      process.exit(EXIT.USAGE);
     }
   } else if (interactive) {
     agent = await promptAgent();
@@ -183,8 +186,9 @@ async function resolveTarget(values) {
   // (b) Install globally or just for this project?
   let scope;
   if (values.global && values.local) {
-    error('Pass only one of --global or --local.');
-    process.exit(1);
+    emitError('Pass only one of --global or --local.', {
+      exitCode: EXIT.USAGE, code: 'usage' });
+    process.exit(EXIT.USAGE);
   } else if (values.global) {
     scope = 'global';
   } else if (values.local) {
@@ -267,8 +271,10 @@ function runList(skills, values) {
 function runShow(skills, name) {
   const skill = skills.find((s) => s.name === name || s.dirName === name);
   if (!skill) {
-    error(`Unknown skill "${name}". Run "zeyos skills list".`);
-    process.exit(1);
+    emitError(`Unknown skill "${name}".`, {
+      exitCode: EXIT.USAGE, code: 'unknown_skill', field: name,
+      actions: ['Run \'zeyos skills list\' to see every bundled skill.'] });
+    process.exit(EXIT.USAGE);
   }
   process.stdout.write(readFileSync(path.join(skill.dir, 'SKILL.md'), 'utf8'));
 }
@@ -284,8 +290,10 @@ async function runInstall(agentsDir, skills, names, values) {
 
   const missing = selected.filter((s) => s.missing).map((s) => s.missing);
   if (missing.length > 0) {
-    error(`Unknown skill(s): ${missing.join(', ')}. Run "zeyos skills list".`);
-    process.exit(1);
+    emitError(`Unknown skill(s): ${missing.join(', ')}.`, {
+      exitCode: EXIT.USAGE, code: 'unknown_skill',
+      actions: ['Run \'zeyos skills list\' to see every bundled skill.'] });
+    process.exit(EXIT.USAGE);
   }
 
   mkdirSync(target.root, { recursive: true });
@@ -335,8 +343,10 @@ async function runInstall(agentsDir, skills, names, values) {
 export async function run(values, positional = []) {
   const agentsDir = findAgentsDir();
   if (!agentsDir) {
-    error('Could not locate the bundled ZeyOS skills (the @zeyos/client agents/ directory).');
-    process.exit(1);
+    emitError('Could not locate the bundled ZeyOS skills (the @zeyos/client agents/ directory).', {
+      exitCode: EXIT.ERROR, code: 'missing_bundle',
+      actions: ['Reinstall @zeyos/cli, which ships @zeyos/client with it.'] });
+    process.exit(EXIT.ERROR);
   }
 
   const skills = listSkills(agentsDir);
@@ -349,8 +359,10 @@ export async function run(values, positional = []) {
       return;
     case 'show':
       if (!rest[0]) {
-        error('Usage: zeyos skills show <skill>');
-        process.exit(1);
+        emitError('A skill name is required. Example: zeyos skills show zeyos', {
+          exitCode: EXIT.USAGE, code: 'usage',
+          actions: ['Run \'zeyos skills list\' to see every bundled skill.'] });
+        process.exit(EXIT.USAGE);
       }
       runShow(skills, rest[0]);
       return;
@@ -358,7 +370,9 @@ export async function run(values, positional = []) {
       await runInstall(agentsDir, skills, rest, values);
       return;
     default:
-      error(`Unknown skills command "${sub}".\n\n${USAGE}`);
-      process.exit(1);
+      emitError(`Unknown skills command "${sub}".`, {
+        exitCode: EXIT.USAGE, code: 'unknown_command', field: sub,
+        actions: ['Run \'zeyos skills --help\' for the subcommands.'] });
+      process.exit(EXIT.USAGE);
   }
 }

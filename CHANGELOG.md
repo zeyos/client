@@ -3,7 +3,7 @@
 Notable changes to `@zeyos/client` and `@zeyos/cli`. This project follows
 [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 0.8.0 — 2026-09-19
 
 Acting on a two-model review (Kimi K3 and Grok 4.6, each independently validated)
 comparing this CLI against SAP, Salesforce, Workday and others on agent usability.
@@ -24,12 +24,31 @@ Both models ranked the same two gaps first and second; this closes them.
   - The envelope is written with a synchronous write: `process.exit()` discards
     buffered pipe writes, which silently truncated the first implementation.
   - MCP `errorResult()` now returns the same shape instead of a bare string.
+- **Destructive entities say what a delete destroys.** `stocktransaction`, `ledger`
+  and `payment` are an append-only record rather than a working document, so they
+  now carry a `historyBearing` note. `zeyos describe` publishes it (human and
+  `--json`) and the delete confirmation states the consequence before asking. The
+  capability is unchanged — the platform exposes these deletes and `--force` still
+  honours the caller — but the caller is told what it is about to rewrite.
 - **`zeyos commands`** publishes the command graph — every command, its aliases,
   the flags it accepts, and each option's type — as data. `zeyos describe` exposes
   the data model; this exposes the command model, so an agent no longer infers
   flags from prose help. The equivalent of `sf commands --json`.
 - MCP `describe_resource` now carries `filter_operators` and `transaction_type`,
   matching what `zeyos describe --json` publishes.
+- **Five more entities**: `contracts`, `suppliers`, `stocktransactions`, `comments` and
+  `ledgers`, each with full CRUD. `contracts` was the notable gap — ZeyOS's own
+  documentation lists it among the commonly-used resources, and `listContracts` already
+  existed on the client. The registry now covers 48 entities.
+- **`--distinct`** on `list` and `count` (and on the matching MCP tools), exposing a
+  documented query parameter the client already accepted but no CLI flag reached.
+- **MCP `dry_run`** on `create_record` and `update_record`, returning the same request
+  descriptor `zeyos create --dry-run` prints. The CLI had a dry run on every data command;
+  MCP had none, so an agent could not preview a write.
+- **MCP `tags` on `list_records`**, matching `get_record`.
+- **`sum --json` reports `truncated`** in-band, so an agent reading stdout can tell a
+  complete total from one capped by `--limit`. MCP already did this; the CLI only said so
+  on stderr.
 
 ### Documentation
 
@@ -37,7 +56,7 @@ A truth pass on documentation that provably contradicted the code. Nothing here 
 behaviour; all of it changes what an agent or developer is told to do.
 
 - **The blanket "always include `visibility: 0`" advice is gone** from 11 files (10 under
-  `docs/` plus `README.md`). Only 13 of the 43 CLI entities have the column; `transactions`
+  `docs/` plus `README.md`). Only 15 of the 48 CLI entities have the column; `transactions`
   and every billing/procurement entity, plus `payments`, `messages`, `actionsteps`,
   `addresses`, `users`, `prices` and `dunning`, do not — and filtering on it there returns an
   opaque HTTP 400. Each site now names which resources have it and points at
@@ -74,6 +93,31 @@ behaviour; all of it changes what an agent or developer is told to do.
 - Command tables moved to `cli/lib/command-graph.mjs` so the entry point and
   `zeyos commands` cannot drift apart — the same consolidation already applied to
   the option table.
+- **`--fields` parse errors no longer bypass the error envelope.** That path exited
+  straight past it with empty stdout, on a flag agents use constantly.
+- **JSON parse errors no longer leak the payload.** Node embeds a snippet of the input in
+  its own message (`Unexpected token 'b', "{"password": hunter2" is not valid JSON`), so
+  reporting `err.message` verbatim defeated the earlier fix that stopped echoing `--data`.
+  A new `jsonErrorReason()` strips the snippet, and it is applied to `--data`, `--fields`,
+  `--filter` and both `-file` variants.
+- **`zeyos whoami` exits 3 on an auth failure** rather than a generic 1, and emits the
+  machine envelope without duplicating the detailed diagnostic it already prints.
+- Malformed `--filter-file` / `--data-file` JSON now exits 2 (usage) rather than 1.
+- **Every command now emits the error envelope.** `login`, `logout`, `profile`,
+  `skills` and `okf` still exited `1` with a bare stderr line, so a caller could
+  not tell a bad argument from an outage without parsing English. All twenty
+  remaining sites are routed through it and carry a real exit code — a bad
+  `--port` or `--target` is now `2`, a failed token exchange `3`, a missing
+  bundled directory `1` with a `missing_bundle` code.
+- **Error hints reached `--json` callers but not the terminal.** `actions` — the
+  way out of the error — was written into the envelope only, so the person who
+  most needed "Run 'zeyos okf list'" was the one who never saw it. They are now
+  written to stderr alongside the message, which applies to every existing call
+  site as well.
+- **A corrupt resource config no longer echoes its own contents.** The same
+  `JSON.parse` leak fixed for `--data` applied to `.zeyos/api/<resource>.json`,
+  which can hold field names or a token. It now reports the file, the position
+  and a `config_invalid` code, without the snippet.
 
 ## 0.7.0 — 2026-08-28
 

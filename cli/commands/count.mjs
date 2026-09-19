@@ -64,6 +64,7 @@ export async function run(values, positional) {
     body.filters = filters;
   }
   if (values.search != null) body.query = values.search;
+  if (values.distinct) body.distinct = true;
 
   // ── Call API ───────────────────────────────────────────────────────────────
   const clientState = buildCliClient(values);
