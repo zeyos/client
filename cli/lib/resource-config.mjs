@@ -13,7 +13,8 @@ import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { error } from './output.mjs';
+import { emitError, error, jsonErrorReason } from './output.mjs';
+import { EXIT } from './exit.mjs';
 
 /** @typedef {import('./types.mjs').ResourceDef} ResourceDef */
 /** @typedef {import('./types.mjs').ResourceFieldConfig} ResourceFieldConfig */
@@ -130,8 +131,18 @@ export function getGetFields(name, override) {
           }
           return { keys, labels };
         }
-      } catch {
-        // Fall through
+      } catch (e) {
+        // A value that opens with `{` was meant as JSON. Falling through here
+        // silently treated the malformed text as a single literal field name,
+        // so `get ticket 42 --fields '{bad'` queried a nonsense column instead
+        // of reporting the mistake.
+        emitError(`--fields is not valid JSON (${jsonErrorReason(e)}).`, {
+          exitCode: EXIT.USAGE,
+          code: 'invalid_option_value',
+          field: '--fields',
+          actions: [`Expected format: '{"Alias": "field.path", ...}'`]
+        });
+        process.exit(EXIT.USAGE);
       }
     }
 
@@ -193,8 +204,16 @@ function _parseFieldsOverride(raw, fieldAliases = {}) {
         return { apiFields, displayColumns: Object.keys(apiFields) };
       }
     } catch (e) {
-      error(`--fields JSON is invalid: ${e.message}\n  Got: ${trimmed}\n  Expected format: '{"Alias": "field.path", ...}'`);
-      process.exit(1);
+      // Route through emitError so `--fields <bad> --json` still yields a
+      // parseable failure, and report the parse error rather than echoing the
+      // input back — a --fields value can carry private field names.
+      emitError(`--fields is not valid JSON (${jsonErrorReason(e)}).`, {
+        exitCode: EXIT.USAGE,
+        code: 'invalid_option_value',
+        field: '--fields',
+        actions: [`Expected format: '{"Alias": "field.path", ...}'`]
+      });
+      process.exit(EXIT.USAGE);
     }
   }
 
@@ -209,8 +228,16 @@ function _parseFieldsOverride(raw, fieldAliases = {}) {
         return { apiFields, displayColumns: paths };
       }
     } catch (e) {
-      error(`--fields JSON is invalid: ${e.message}\n  Got: ${trimmed}\n  Expected format: '["field1", "field2", ...]'`);
-      process.exit(1);
+      // Route through emitError so `--fields <bad> --json` still yields a
+      // parseable failure, and report the parse error rather than echoing the
+      // input back — a --fields value can carry private field names.
+      emitError(`--fields is not valid JSON (${jsonErrorReason(e)}).`, {
+        exitCode: EXIT.USAGE,
+        code: 'invalid_option_value',
+        field: '--fields',
+        actions: [`Expected format: '["field1", "field2", ...]'`]
+      });
+      process.exit(EXIT.USAGE);
     }
   }
 
@@ -288,6 +315,18 @@ function _readJson(path) {
     if (err?.code === 'ENOENT') {
       return null;
     }
-    throw new Error(`Failed to read resource config ${path}: ${err.message || err}`);
+    // Never interpolate err.message raw: Node's JSON.parse embeds the offending
+    // input in it, so a corrupt config would print its own contents — which may
+    // hold a token or a customer name — into the terminal and any log scraping it.
+    const reason = err instanceof SyntaxError
+      ? `not valid JSON (${jsonErrorReason(err)})`
+      : (err?.message || String(err));
+    // Classify it: a bare exit 1 leaves a caller unable to tell a broken config
+    // from a failed API call, and the one thing it needs to know is which file
+    // to open. Not EXIT.USAGE — nothing is wrong with the arguments.
+    emitError(`Failed to read resource config ${path}: ${reason}`, {
+      exitCode: EXIT.ERROR, code: 'config_invalid', field: path,
+      actions: [`Fix or remove ${path}.`] });
+    process.exit(EXIT.ERROR);
   }
 }

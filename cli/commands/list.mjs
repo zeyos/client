@@ -57,6 +57,7 @@ Options:
   --limit <n>         Max records (default: 50)
   --offset <n>        Skip first N records (default: 0)
   --extdata           Include extended data fields
+  --distinct          Eliminate duplicate rows (useful with joins)
   --expand <list>     Expand JSON/binary columns (e.g. binfile, items)
   --json              Output as JSON
   --yaml              Output as YAML
@@ -144,6 +145,11 @@ export async function run(values, positional) {
     body.extdata = 1;
   }
 
+  // --distinct drops duplicate rows, which joins and multi-value columns produce
+  if (values.distinct) {
+    body.distinct = true;
+  }
+
   // --expand is for JSON/binary column expansion only (e.g. binfile, items, data)
   if (values.expand) {
     body.expand = values.expand.split(',').map(s => s.trim()).filter(Boolean);
@@ -213,6 +219,8 @@ export async function run(values, positional) {
       const countBody = { count: true };
       if (body.filters) countBody.filters = body.filters;
       if (body.query) countBody.query = body.query;
+      // Must mirror the query being counted, or "of N" reports non-distinct rows.
+      if (body.distinct) countBody.distinct = body.distinct;
       const countResult = await fn(countBody);
       const total = normalizeCountResult(countResult);
       // Compare against the last row actually shown, not the page size: at
@@ -228,7 +236,10 @@ export async function run(values, positional) {
     } catch {
       // Non-critical — skip pagination info
     }
-  } else if (offset > 0) {
+  } else if (offset > 0 && records.length > 0) {
     info(`→ Showing ${from}–${to} of ${to}`);
+  } else if (offset > 0) {
+    // Past the end: `from` would exceed `to` and read as "Showing 501–500 of 500".
+    info(`→ No records at --offset ${offset}; the result ends before it.`);
   }
 }

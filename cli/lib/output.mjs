@@ -77,15 +77,24 @@ const CODE_FOR_EXIT = {
  * a caller distinguishes the two by shape: an object carrying `ok: false`.
  *
  * @param {string} message
- * @param {{exitCode?: number, code?: string, actions?: string[], field?: string, suggestion?: string}} [details]
+ * `quiet` suppresses the stderr line for callers that already printed a richer,
+ * command-specific diagnostic and only need the machine envelope.
+ *
+ * @param {{exitCode?: number, code?: string, actions?: string[], field?: string, suggestion?: string, quiet?: boolean}} [details]
  */
 export function emitError(message, details = {}) {
-  const { exitCode = 1, code, actions = [], field, suggestion } = details;
+  const { exitCode = 1, code, actions = [], field, suggestion, quiet = false } = details;
 
   // Written synchronously: every caller exits immediately afterwards, and
   // process.exit() discards buffered writes to a pipe. `zeyos … --json | jq`
   // was losing the whole envelope for exactly that reason.
-  writeAllSync(2, `${c.red('✗')} ${message}\n`);
+  if (!quiet) {
+    writeAllSync(2, `${c.red('✗')} ${message}\n`);
+    // stderr is the human channel and stdout the machine one, so the actions
+    // belong on BOTH. Kept in the envelope only, the way out of the error was
+    // visible to `--json` callers and invisible to the person at the terminal.
+    for (const action of actions) writeAllSync(2, `  ${c.dim(action)}\n`);
+  }
 
   if (_outputMode !== 'json' && _outputMode !== 'yaml') return;
 
@@ -105,6 +114,26 @@ export function emitError(message, details = {}) {
     ? JSON.stringify(envelope, null, 2)
     : toYaml(envelope).replace(/^\n/, '');
   writeAllSync(1, `${text}\n`);
+}
+
+/**
+ * Reduce a JSON parse error to its reason, without the payload.
+ *
+ * Node embeds a snippet of the input in the message — `Unexpected token 'b',
+ * "{\"Secret\": bad" is not valid JSON` — so reporting `err.message` verbatim
+ * leaks the value. A malformed `--data` or `--fields` can carry a password or
+ * private field names into a CI log.
+ *
+ * @param {unknown} err
+ * @returns {string}
+ */
+export function jsonErrorReason(err) {
+  const message = String(err?.message ?? err ?? 'invalid JSON');
+  // Drop everything from the echoed snippet onwards; keep any trailing position.
+  const withoutSnippet = message.replace(/,?\s*"[\s\S]*?"\s*is not valid JSON/, '');
+  const position = message.match(/at position \d+/);
+  const reason = withoutSnippet.trim() || 'invalid JSON';
+  return position && !reason.includes('position') ? `${reason} ${position[0]}` : reason;
 }
 
 /**

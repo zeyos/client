@@ -38,7 +38,7 @@ Options:
   --page-size <n>     Records per API page (default: 50)
   --limit <n>         Maximum records to inspect
   --offset <n>        Initial offset (default: 0)
-  --json              Output as JSON ({ "sum": N, "count": N })
+  --json              Output as JSON ({ "sum", "count", "field", "truncated" })
   --yaml              Output as YAML
   --dry-run           Print the first page request without sending it
   --no-validate       Skip schema validation
@@ -69,6 +69,7 @@ export async function run(values, positional) {
 
   let sum = 0;
   let count = 0;
+  let stoppedAtCap = false;
 
   while (count < maxRows) {
     const remaining = maxRows - count;
@@ -85,13 +86,30 @@ export async function run(values, positional) {
 
     if (rows.length < limit || rows.length === 0) break;
     offset += rows.length;
+    // A full page delivered right at the cap means the server may still hold more.
+    if (count >= maxRows) stoppedAtCap = true;
   }
+
+  // Report truncation in-band: an agent reading only stdout must be able to tell
+  // a complete total from one capped by --limit. MCP already did this; the CLI
+  // only said so on stderr.
+  // `hitCap` alone is not truncation: a set of exactly --limit rows is complete.
+  // Only the loop knowing it stopped early can say more remain.
+  const truncated = stoppedAtCap;
+  const payload = {
+    sum,
+    count,
+    field,
+    ...(truncated
+      ? { truncated: true, nextOffset: offset, hint: `Stopped at --limit ${maxRows}; the sum covers only those rows.` }
+      : { truncated: false })
+  };
 
   const mode = outputMode(values);
   if (mode === 'json') {
-    printJson({ sum, count, field });
+    printJson(payload);
   } else if (mode === 'yaml') {
-    printYaml({ sum, count, field });
+    printYaml(payload);
   } else {
     process.stdout.write(`${sum}\n`);
   }

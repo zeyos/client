@@ -56,6 +56,7 @@ ${_c.bold('Commands:')}
   ${_c.cyan('delete')} <resource> <id>  Delete a record
   ${_c.cyan('resources')}            List all available resource types
   ${_c.cyan('describe')} <resource>  Show a resource's fields, types and enums
+  ${_c.cyan('commands')}             List every command and its flags as data (--json)
   ${_c.cyan('doctor')} agent         Check local CLI readiness for coding agents
   ${_c.cyan('skills')} <command>     List / show / install ZeyOS agent skills
   ${_c.cyan('okf')} <command>        List / show / check / export the OKF knowledge bundle

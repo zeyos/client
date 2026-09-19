@@ -15,7 +15,8 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 
 import { loadOkfBundle, validateOkfFiles, buildOkf, OKF_VERSION } from '@zeyos/client';
-import { outputMode, printJson, printYaml, printTable, colors, success, error, info, warn } from '../lib/output.mjs';
+import { outputMode, printJson, printYaml, printTable, colors, success, error, info, warn, emitError } from '../lib/output.mjs';
+import { EXIT } from '../lib/exit.mjs';
 
 const require = createRequire(import.meta.url);
 
@@ -82,8 +83,11 @@ function resolveInputDir(values) {
   if (values.dir) return path.resolve(expandHome(values.dir));
   const found = findOkfDir();
   if (!found) {
-    error('Could not locate the bundled OKF bundle (the @zeyos/client okf/ directory). Pass --dir <path>.');
-    process.exit(1);
+    emitError('Could not locate the bundled OKF bundle (the @zeyos/client okf/ directory).', {
+      exitCode: EXIT.ERROR, code: 'missing_bundle',
+      actions: ['Pass --dir <path> to point at a bundle.',
+                'Or reinstall @zeyos/cli, which ships @zeyos/client with it.'] });
+    process.exit(EXIT.ERROR);
   }
   return found;
 }
@@ -115,8 +119,10 @@ function runShow(values, name) {
       return;
     }
   }
-  error(`Unknown concept "${name}". Run "zeyos okf list".`);
-  process.exit(1);
+  emitError(`Unknown concept "${name}".`, {
+    exitCode: EXIT.USAGE, code: 'unknown_concept', field: name,
+    actions: ['Run \'zeyos okf list\' to see every concept.'] });
+  process.exit(EXIT.USAGE);
 }
 
 async function runCheck(values) {
@@ -131,8 +137,10 @@ async function runCheck(values) {
     return;
   }
   for (const err of result.errors) error(`${err.path}: ${err.message}`);
-  error(`OKF bundle is NOT conformant: ${result.errors.length} error(s).`);
-  process.exit(1);
+  emitError(`OKF bundle is NOT conformant: ${result.errors.length} error(s).`, {
+    exitCode: EXIT.ERROR, code: 'validation_failed',
+    actions: ['Regenerate the bundle with scripts/generate-okf.mjs.'] });
+  process.exit(EXIT.ERROR);
 }
 
 function writeBundle(outDir, files) {
@@ -163,8 +171,10 @@ function runExport(values) {
       warn(`Source and target are the same (${displayPath(outDir)}); nothing to do.`);
       return;
     }
-    error(`Target ${displayPath(outDir)} already exists. Use --force to overwrite.`);
-    process.exit(1);
+    emitError(`Target ${displayPath(outDir)} already exists.`, {
+      exitCode: EXIT.USAGE, code: 'target_exists', field: displayPath(outDir),
+      actions: ['Pass --force to overwrite it.'] });
+    process.exit(EXIT.USAGE);
   }
   cpSync(dir, outDir, { recursive: true });
   const mode = outputMode(values);
@@ -180,13 +190,20 @@ export async function run(values, positional = []) {
   switch (sub) {
     case 'list': return runList(values);
     case 'show':
-      if (!rest[0]) { error('Usage: zeyos okf show <concept>'); process.exit(1); }
+      if (!rest[0]) {
+        emitError('A concept is required. Example: zeyos okf show ticket', {
+          exitCode: EXIT.USAGE, code: 'usage',
+          actions: ['Run \'zeyos okf list\' to see every concept.'] });
+        process.exit(EXIT.USAGE);
+      }
       return runShow(values, rest[0]);
     case 'check': return runCheck(values);
     case 'build': return runBuild(values);
     case 'export': return runExport(values);
     default:
-      error(`Unknown okf command "${sub}".\n\n${USAGE}`);
-      process.exit(1);
+      emitError(`Unknown okf command "${sub}".`, {
+        exitCode: EXIT.USAGE, code: 'unknown_command', field: sub,
+        actions: ['Run \'zeyos okf --help\' for the subcommands.'] });
+      process.exit(EXIT.USAGE);
   }
 }

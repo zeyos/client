@@ -23,7 +23,8 @@ import { randomBytes }                    from 'node:crypto';
 import { createZeyosClient, MemoryTokenStore } from '@zeyos/client';
 import { saveConfig, loadConfig, getProfile, upsertProfile, setActiveProfile } from '../lib/config.mjs';
 import { waitForCallback, callbackUri, BrowserUnavailableError } from '../lib/login-server.mjs';
-import { success, error, info, warn }     from '../lib/output.mjs';
+import { success, error, info, warn, emitError } from '../lib/output.mjs';
+import { EXIT }                          from '../lib/exit.mjs';
 
 const DEFAULT_CALLBACK_PORT = 9005;
 
@@ -51,8 +52,9 @@ export async function run(values) {
   const scope = values.global ? 'global' : 'local';
   const port  = values.port ? Number(values.port) : DEFAULT_CALLBACK_PORT;
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
-    error('--port must be an integer between 1 and 65535.');
-    process.exit(1);
+    emitError('--port must be an integer between 1 and 65535.', {
+      exitCode: EXIT.USAGE, code: 'usage', field: 'port' });
+    process.exit(EXIT.USAGE);
   }
   const redirectUri = callbackUri(port);
 
@@ -89,8 +91,10 @@ export async function run(values) {
   if (!clientSecret) clientSecret = await _promptSecret('Application secret');
 
   if (!baseUrl || !clientId || !clientSecret) {
-    error('ZeyOS URL, application ID and secret are all required.');
-    process.exit(1);
+    emitError('ZeyOS URL, application ID and secret are all required.', {
+      exitCode: EXIT.USAGE, code: 'usage',
+      actions: ['Pass --url, --client-id and --client-secret, or answer the prompts.'] });
+    process.exit(EXIT.USAGE);
   }
 
   // Save connection params immediately so they are available on retries
@@ -149,8 +153,10 @@ export async function run(values) {
   }
 
   if (!code) {
-    error('No authorization code provided.');
-    process.exit(1);
+    emitError('No authorization code provided.', {
+      exitCode: EXIT.USAGE, code: 'usage',
+      actions: ['Re-run \'zeyos login\' and complete the browser flow.'] });
+    process.exit(EXIT.USAGE);
   }
 
   // ── Exchange code for tokens ───────────────────────────────────────────────
@@ -173,8 +179,10 @@ export async function run(values) {
       ? `Logged in — profile "${profileName}" is now active.`
       : 'Logged in successfully.');
   } catch (err) {
-    error(`Token exchange failed: ${err.message}`);
-    process.exit(1);
+    emitError(`Token exchange failed: ${err.message}`, {
+      exitCode: EXIT.AUTH, code: 'auth_failed',
+      actions: ['Check the application ID and secret, then run \'zeyos login\' again.'] });
+    process.exit(EXIT.AUTH);
   }
 }
 

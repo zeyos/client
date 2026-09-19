@@ -58,9 +58,9 @@ export const COMMAND_FLAGS = {
   login:     ['base-url', 'client-id', 'secret', 'scope', 'port', 'global', 'force', 'clean', 'manual'],
   logout:    ['global'],
   whoami:    ['show-token'],
-  list:      ['fields', 'filter', 'filter-file', 'search', 'preset', 'sort', 'limit', 'offset', 'extdata', 'expand', ...DATA_FLAGS],
+  list:      ['fields', 'filter', 'filter-file', 'search', 'preset', 'sort', 'limit', 'offset', 'extdata', 'expand', 'distinct', ...DATA_FLAGS],
   find:      ['fields', 'limit', ...DATA_FLAGS],
-  count:     ['filter', 'filter-file', 'search', 'preset', ...DATA_FLAGS],
+  count:     ['filter', 'filter-file', 'search', 'preset', 'distinct', ...DATA_FLAGS],
   sum:       ['filter', 'filter-file', 'preset', 'limit', 'offset', 'page-size', ...DATA_FLAGS],
   get:       GET_FLAGS,
   show:      GET_FLAGS,
@@ -96,8 +96,12 @@ function buildCommands() {
   }
 
   return [...byModule.values()].map((names) => {
-    // The shortest spelling is the canonical one; the rest are aliases.
-    const [name, ...aliases] = [...names].sort((a, b) => a.length - b.length || a.localeCompare(b));
+    // The FIRST spelling declared in COMMANDS is canonical; the rest are aliases.
+    // Insertion order already matches the help text (`update` before `edit`,
+    // `delete` before `rm`). Sorting by length instead published `rm`, `edit`,
+    // `resource` and `skill` as the real command names — the opposite of what
+    // the docs say, in the very surface an agent consults to learn them.
+    const [name, ...aliases] = names;
     const allowed = COMMAND_FLAGS[name];
     const flags = allowed === null
       ? [...ALWAYS_FLAGS]
