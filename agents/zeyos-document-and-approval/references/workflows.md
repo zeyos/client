@@ -25,7 +25,7 @@ contradiction. The formal FINAL document is the authoritative source.
 # 1. Fetch exact target + current status
 zeyos get document <id> --json
 # 2. Preview the change (no write) and surface any same-name conflict
-zeyos update document <id> --query --status 4
+zeyos update document <id> --dry-run --status 4
 # 3. Only after explicit confirmation of the exact ID:
 zeyos update document <id> --status 4
 # 4. Re-read and report old/new status

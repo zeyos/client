@@ -3,6 +3,9 @@ import { spawn } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
+import { normalizeMcpArguments, listMcpTools } from '../lib/mcp-tools.mjs';
+import { resolveResource, canonicalName } from '../lib/resources.mjs';
+import { validateSchema } from '../../test/agent-protocol/harness/jsonschema.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SERVER = resolve(HERE, '..', 'bin', 'zeyos-mcp.mjs');
@@ -118,6 +121,13 @@ test('MCP server initializes, lists read tools, and handles offline validation',
   assert.equal(description.name, 'accounts');
   assert.ok(description.fields.lastname);
   assert.equal(description.aliases.filters.companyname, 'lastname');
+  assert.deepEqual(described.result.structuredContent, { ok: true, data: description });
+  const describeDefinition = listed.result.tools.find((tool) => tool.name === 'describe_resource');
+  assert.equal(validateSchema(described.result.structuredContent, describeDefinition.outputSchema).valid, true);
+  for (const tool of listed.result.tools) {
+    assert.equal(tool.outputSchema.type, 'object');
+    assert.equal(tool.annotations.readOnlyHint, true);
+  }
 
   const invalid = await server.request('tools/call', {
     name: 'list_records',
@@ -125,6 +135,32 @@ test('MCP server initializes, lists read tools, and handles offline validation',
   });
   assert.equal(invalid.result.isError, true);
   assert.match(invalid.result.content[0].text, /Unknown field/);
+  assert.equal(invalid.result.structuredContent.ok, false);
+  assert.match(invalid.result.structuredContent.warnings[0], /deprecated/);
+  const listDefinition = listed.result.tools.find((tool) => tool.name === 'list_records');
+  assert.equal(validateSchema(invalid.result.structuredContent, listDefinition.outputSchema).valid, true);
+  assert.equal(listDefinition.inputSchema.properties.filter.deprecated, true);
+  assert.equal(listDefinition.inputSchema.properties.filters.type, 'object');
+
+  for (const name of ['list_records', 'count_records', 'sum_records']) {
+    const conflict = await server.request('tools/call', {
+      name,
+      arguments: { resource: 'accounts', ...(name === 'sum_records' ? { field: 'ID' } : {}), filter: {}, filters: {} }
+    });
+    assert.equal(conflict.error.code, -32602);
+    assert.match(conflict.error.message, /cannot combine filters and filter/);
+    const canonical = await server.request('tools/call', {
+      name,
+      arguments: { resource: 'accounts', ...(name === 'sum_records' ? { field: 'ID' } : {}), filters: { definitely_not_a_field: 1 } }
+    });
+    assert.equal(canonical.result.structuredContent.error.code, 'invalid_request');
+    assert.match(canonical.result.structuredContent.error.message, /Unknown field/);
+    assert.equal(canonical.result.structuredContent.warnings, undefined);
+  }
+
+  const discovered = await server.request('tools/call', { name: 'list_resource_types', arguments: {} });
+  assert.equal(validateSchema(discovered.result.structuredContent, listed.result.tools[0].outputSchema).valid, true);
+  assert.deepEqual(discovered.result.structuredContent.data, JSON.parse(discovered.result.content[0].text));
 
   const unknown = await server.request('tools/call', {
     name: 'not_a_tool',
@@ -149,4 +185,26 @@ test('MCP server exposes write tools only when explicitly enabled', async (t) =>
   assert.ok(names.includes('create_record'));
   assert.ok(names.includes('update_record'));
   assert.equal(names.includes('delete_record'), false);
+  assert.equal(listed.result.tools.find((tool) => tool.name === 'create_record').annotations.readOnlyHint, false);
+  const negotiated = await server.request('initialize', { protocolVersion: '2025-06-18' });
+  assert.equal(negotiated.result.protocolVersion, '2025-06-18');
+});
+
+test('MCP filter aliases normalize without mutating arguments and invoices retain their type binding', () => {
+  for (const name of ['list_records', 'count_records', 'sum_records']) {
+    const args = { resource: 'accounts', filter: { companyname: 'Acme' } };
+    const normalized = normalizeMcpArguments(name, args);
+    assert.deepEqual(normalized, { resource: 'accounts', filters: { companyname: 'Acme' } });
+    assert.ok(Object.prototype.hasOwnProperty.call(args, 'filter'));
+    assert.ok(!Object.prototype.hasOwnProperty.call(normalized, 'filter'));
+    assert.throws(() => normalizeMcpArguments(name, { filter: {}, filters: {} }), /cannot be used together/);
+  }
+  for (const alias of ['invoice', 'invoices', 'billing_invoices']) {
+    assert.equal(canonicalName(alias), 'billing_invoice');
+    const resource = resolveResource(alias);
+    assert.equal(resource.list, 'listTransactions');
+    assert.equal(resource.boundFilters.type, 3);
+  }
+  assert.equal(resolveResource('documents').list, 'listDocuments');
+  assert.equal(listMcpTools().find((tool) => tool.name === 'list_records').inputSchema.not.required.length, 2);
 });

@@ -292,3 +292,4 @@ export function resolveResult(stdout, contract = {}, { workspaceDir } = {}) {
     return { value: null, mode: markers.mode, format, raw: markers.raw, error: err.message || String(err) };
   }
 }
+export const RESULT_FORMATS = Object.freeze(['json', 'yaml', 'csv', 'ndjson', 'markdown', 'text', 'scalar']);

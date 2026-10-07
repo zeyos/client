@@ -424,6 +424,12 @@ When a task needs a resource or request shape the CLI doesn't expose, the agent 
 
 See [Agent Workflows](./docs/04-agent-workflows/00-coding-agents.md): [quickstart](./docs/04-agent-workflows/01-agent-quickstart.md), [recipes](./docs/04-agent-workflows/02-agent-recipes.md), and [CLI coverage & escalation](./docs/04-agent-workflows/03-cli-coverage-and-escalation.md).
 
+The bundled [MCP server](./docs/03-cli/04-mcp-server.md) exposes the same resource
+registry and validation to agent hosts. Query tools use canonical `filters`
+(`filter` is a deprecated alias; supplying both fails before dispatch), and
+return an `outputSchema` with structured success/error results. Existing text
+results remain available. For CLI request previews, use `--dry-run`.
+
 ---
 
 ## Open Knowledge Format (OKF)
@@ -501,6 +507,16 @@ npm test -- --live             # adds a live OAuth smoke test (needs config.test
 npm run test:cli-integration   # live CLI CRUD lifecycle (requires `zeyos login`)
 npm run test:agent-protocol    # agent-driven live protocol; --dry-run to verify wiring first
 ```
+
+Knowledge and MCP contract checks can also run locally without tenant requests:
+
+```bash
+npm run okf:check
+node --test test/agent-protocol/harness/catalog.test.mjs cli/test/mcp-server.test.mjs
+```
+
+The scenario catalog rejects missing skill or OKF references and unknown coverage
+entities, operations, result formats, or rule IDs before a live protocol run.
 
 The CLI has its own offline suite: `node --test cli/test/offline.mjs`.
 

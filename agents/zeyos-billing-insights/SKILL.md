@@ -32,9 +32,9 @@ Typical prompts:
    - use `transactions` for invoice and credit value
    - use `payments` for cash movement
    - use `documents` only when the question is about the formal document artifact
-   - use `dunning` plus `dunning2transactions` when the question is really about receivables follow-up or collection state. In the CLI, call `zeyos count/list dunning` and `zeyos list dunning2transactions`; in `@zeyos/client`, call `listDunningNotices` and `listDunningToTransactions`.
+   - use `dunning` plus `dunning2transactions` when the question is really about receivables follow-up or collection state. In the CLI, call `zeyos count dunning` or `zeyos list dunning`, and `zeyos list dunning2transactions`; in `@zeyos/client`, call `listDunningNotices` and `listDunningToTransactions`.
 4. State the default metric if the prompt is ambiguous. Do not silently switch between net, gross, invoiced, and paid.
-5. Pull line-item detail only when necessary, usually with `expand: ['items']` through `@zeyos/client`.
+5. Pull line-item detail only when necessary. Use `zeyos list billing_invoices --expand items --json` for matching invoices, or `zeyos get billing_invoices <ID> --expand items --json` for one known invoice. MCP `expand` and client `expand: ['items']` also support line items.
 6. If the prompt is mainly about overdue notices, reminder stages, or next collection actions, treat that as a collections workflow rather than a pure revenue workflow.
 7. Present totals, counts, and exceptional records separately.
 8. Keep finance answers explicit about assumptions, especially around statuses, credits, and payment allocation.

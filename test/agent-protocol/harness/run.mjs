@@ -53,6 +53,7 @@ import { runAgent } from './opencode-adapter.mjs';
 import { judgeManual } from './judge.mjs';
 import { normalizeScenario, validateScenarioSet } from './scenario-schema.mjs';
 import { knownOperationIds } from './route-map.mjs';
+import { validateCatalogReferences } from './catalog-references.mjs';
 import { createOwnershipManifest, orphanRecipesFromScenarios } from './fixtures.mjs';
 import { startPolicyProxy } from './policy-proxy.mjs';
 import { resolveResult } from './result.mjs';
@@ -355,6 +356,9 @@ async function main() {
   // unsafe write/result-path declarations, unknown seed aliases, etc. before anything runs.
   // Validate the on-disk (raw) shape, not the normalized projection.
   const validation = validateScenarioSet(all.map((s) => s._raw || s), { canaryIds: canarySet, knownOps: knownOperationIds() });
+  const references = validateCatalogReferences(all.map((s) => s._raw || s), { skillRoot, okfRoot });
+  validation.errors.push(...references.errors);
+  validation.valid = validation.valid && references.valid;
   for (const w of validation.warnings) console.warn(`⚠ ${w}`);
   if (!validation.valid) {
     fail(`Scenario validation failed:\n${validation.errors.map((e) => `  - ${e}`).join('\n')}`);

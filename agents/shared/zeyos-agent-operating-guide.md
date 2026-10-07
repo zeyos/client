@@ -64,7 +64,7 @@ records or the count fails.
 | "Is resource X even available?" | `zeyos resources --json` |
 | A simple numeric total / sum | `zeyos sum <resource> <field> --filter '{…}'` |
 | A grouped or joined total | `zeyos list <resource> --filter '{…}' --fields … --limit 10000 --json`, then aggregate client-side |
-| "Will this request do what I think?" | append `--query` to any data command to print the route + JSON body **without sending it** (preview a write before running it) |
+| "Will this request do what I think?" | append `--dry-run` to any data command to print the route + JSON body **without sending it** (preview a write before running it) |
 
 Then read [zeyos-query-patterns.md](./zeyos-query-patterns.md) for the rules that make
 those commands correct (filters vs filter, `visibility: 0`, counting, time windows), and
@@ -172,7 +172,7 @@ contract above as checkable invariants.
 | Action | Default |
 |---|---|
 | Read / list / count / describe | Allowed |
-| Query preview / dry run (`--query`) | Allowed |
+| Query preview / dry run (`--dry-run`) | Allowed |
 | Create a test-owned internal record explicitly requested | Allowed only within exact scope |
 | Update an existing record | Preview + exact confirmation |
 | Delete / archive / cancel / revoke | Exact IDs + confirmation; never bulk by default |

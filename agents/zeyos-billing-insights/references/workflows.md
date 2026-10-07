@@ -70,7 +70,8 @@ the wrong document type.
 Filtering an unknown column (like `visibility` on `transactions`) returns an opaque
 HTTP 400, so only filter on fields `zeyos describe billing_invoices` actually lists.
 
-Client example (use when you need `expand`, richer control, or to subtract credits in one pass):
+Client example (use when you need richer control or to subtract credits in one pass;
+line-item expansion is also available through CLI `--expand items` and MCP `expand`):
 
 ```js
 const invoices = await client.api.listTransactions({

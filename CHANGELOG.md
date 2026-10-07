@@ -3,6 +3,19 @@
 Notable changes to `@zeyos/client` and `@zeyos/cli`. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+- MCP query tools expose canonical `filters`, retain singular `filter` as a
+  deprecated alias, and reject both keys together before dispatch. Tool results
+  now include an `outputSchema`, behavior annotations and structured success/error
+  data, while preserving the existing text payload. MCP `2025-06-18` is supported
+  alongside `2025-03-26` negotiation.
+- Add the missing OKF output-contracts concept and unanswered-ticket-mail playbook.
+  Scenario loading validates skill, OKF and coverage references before live work.
+- Bundled skills use `--dry-run` for request previews and reflect CLI/MCP expansion
+  support. Invoice aliases continue to resolve to billing transactions, with a
+  regression check protecting their type binding.
+
 ## 0.8.0 — 2026-09-19
 
 Acting on a two-model review (Kimi K3 and Grok 4.6, each independently validated)

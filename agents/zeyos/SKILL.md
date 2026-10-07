@@ -76,14 +76,16 @@ zeyos update <resource> <id> --status 2
 zeyos delete <resource> <id> --force         # per-record only; see Safety
 ```
 
-Resource names accept singular, plural, or aliases (`ticket` / `tickets` / `invoice`).
+Resource names accept singular, plural, or aliases (`ticket` / `tickets`). Billing
+invoices use `billing_invoices` (`invoice` / `invoices` alias that transaction type);
+formal document artifacts use `documents`. Procurement invoices use `procurement_invoices`.
 Add `--json` whenever another step will parse the output.
 
-**Preview before you run:** append `--query` to any data command (`list`, `count`,
+**Preview before you run:** append `--dry-run` to any data command (`list`, `count`,
 `get`, `create`, `update`, `delete`) to print the resolved route + JSON payload
 **without sending the request**. Use it to confirm a filter/body is shaped the way
 you intend before hitting the live instance — especially before any write. Add
-`--json` to `--query` for the full machine-readable request descriptor.
+`--json` to `--dry-run` for the full machine-readable request descriptor.
 
 ## Things that bite people (read before querying)
 
@@ -116,7 +118,7 @@ you intend before hitting the live instance — especially before any write. Add
 - **Discover before guessing:** `zeyos describe <resource>` shows the real field names and
   enum values. operationId / REST names don't always match the dbref noun.
 - **Resource not in the CLI?** If `zeyos resources` doesn't list what you need (platform,
-  pricing, campaign-recipient, permission, channel, follower resources, `expand`, binary
+  pricing, campaign-recipient, permission, channel, follower resources, or binary
   files), escalate to `@zeyos/client` — import from the repo's `src/index.js`.
 
 ## Worked example: "how many open customers do we have?"

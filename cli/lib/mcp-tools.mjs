@@ -67,6 +67,11 @@ const filterProperty = {
   description: 'Field filters. Arrays mean IN; common $ operators and field__suffix forms are normalized.',
   additionalProperties: true
 };
+const legacyFilterProperty = {
+  ...filterProperty,
+  deprecated: true,
+  description: 'Deprecated alias for filters. Use filters; supplying both keys is an error.'
+};
 const dryRunProperty = {
   type: 'boolean',
   description: 'Resolve and return the request that would be sent, without sending it. Nothing is written.'
@@ -94,7 +99,8 @@ const READ_TOOLS = [
     'Lists matching records with optional filters, preset, fields, sorting, pagination, and full-text search; company names live in accounts.lastname, business terms can use presets such as open-invoices, and dates are Unix seconds. Use it after resolving human names to IDs when you need record details or a paginated result set. Set extdata for custom fields, or expand for JSON/binary columns such as transaction line items.',
     objectSchema({
       resource: resourceProperty,
-      filter: filterProperty,
+      filters: filterProperty,
+      filter: legacyFilterProperty,
       preset: presetProperty,
       fields: { type: 'array', items: { type: 'string' }, minItems: 1 },
       sort: {
@@ -120,7 +126,8 @@ const READ_TOOLS = [
     'Counts records matching an optional filter, preset, or full-text search without fetching every row. Use it for “how many” questions instead of counting a limited list response.',
     objectSchema({
       resource: resourceProperty,
-      filter: filterProperty,
+      filters: filterProperty,
+      filter: legacyFilterProperty,
       preset: presetProperty,
       search: { type: 'string' },
       distinct: { type: 'boolean', description: 'Count distinct rows only.' }
@@ -130,7 +137,8 @@ const READ_TOOLS = [
     objectSchema({
       resource: resourceProperty,
       field: { type: 'string', minLength: 1 },
-      filter: filterProperty,
+      filters: filterProperty,
+      filter: legacyFilterProperty,
       preset: presetProperty,
       max_rows: {
         type: 'integer',
@@ -176,11 +184,57 @@ const WRITE_TOOLS = [
 ];
 
 function tool(name, description, inputSchema) {
-  return { name, description, inputSchema };
+  const readOnly = !['create_record', 'update_record'].includes(name);
+  return {
+    name, description, inputSchema,
+    outputSchema: {
+      type: 'object',
+      properties: {
+        ok: { type: 'boolean' },
+        data: outputPayloadSchema(name),
+        warnings: { type: 'array', items: { type: 'string' } },
+        error: {
+          type: 'object',
+          properties: {
+            code: { type: 'string' },
+            message: { type: 'string' },
+            actions: { type: 'array', items: { type: 'string' } }
+          },
+          required: ['code', 'message'],
+          additionalProperties: false
+        }
+      },
+      required: ['ok'],
+      oneOf: [
+        { properties: { ok: { const: true } }, required: ['data'] },
+        { properties: { ok: { const: false } }, required: ['error'] }
+      ],
+      additionalProperties: false
+    },
+    annotations: {
+      readOnlyHint: readOnly,
+      destructiveHint: !readOnly,
+      idempotentHint: readOnly,
+      openWorldHint: !['list_resource_types', 'describe_resource'].includes(name)
+    }
+  };
 }
 
 function objectSchema(properties = {}, required = []) {
-  return { type: 'object', properties, required, additionalProperties: false };
+  return {
+    type: 'object', properties, required, additionalProperties: false,
+    ...(properties.filters && properties.filter ? { not: { required: ['filters', 'filter'] } } : {})
+  };
+}
+
+function outputPayloadSchema(name) {
+  if (name === 'list_resource_types') return { type: 'array', items: { type: 'object', required: ['name', 'description', 'presets'] } };
+  if (name === 'describe_resource') return { type: 'object', required: ['name', 'fields', 'canonical_resource', 'operations'] };
+  if (name === 'list_records' || name === 'find_records') return { type: 'object', properties: { rows: { type: 'array', items: { type: 'object' } } }, required: ['rows'] };
+  if (name === 'count_records') return { type: 'object', properties: { count: { type: 'integer', minimum: 0 } }, required: ['count'] };
+  if (name === 'sum_records') return { type: 'object', properties: { sum: { type: 'number' }, count: { type: 'integer', minimum: 0 }, field: { type: 'string' } }, required: ['sum', 'count', 'field'] };
+  // Single-record/write responses follow the selected API operation's response.
+  return {};
 }
 
 export function listMcpTools({ allowWrites = process.env.ZEYOS_MCP_ALLOW_WRITES === '1' } = {}) {
@@ -200,15 +254,31 @@ export async function callMcpTool(name, args = {}, options = {}) {
   }
 
   try {
-    const payload = await executeTool(name, args);
-    return textResult(payload);
+    const normalizedArgs = normalizeMcpArguments(name, args);
+    const payload = await executeTool(name, normalizedArgs);
+    const warnings = Object.prototype.hasOwnProperty.call(args, 'filter')
+      ? ['The filter argument is deprecated; use filters.'] : [];
+    return textResult(payload, warnings);
   } catch (err) {
     const status = err?.status;
     return errorResult(formatToolError(err, args), {
       code: status ? `api_${status}` : (err?.name === 'ZeyosApiError' ? 'api_error' : 'invalid_request'),
+      ...(args && Object.prototype.hasOwnProperty.call(args, 'filter') ? { warnings: ['The filter argument is deprecated; use filters.'] } : {}),
       ...(status === 401 || status === 403 ? { actions: ['Re-authenticate with `zeyos login`.'] } : {})
     });
   }
+}
+
+/** Normalize the compatibility spelling before resource validation or dispatch. */
+export function normalizeMcpArguments(name, args) {
+  if (!args || typeof args !== 'object' || Array.isArray(args)) throw new Error('Tool arguments must be an object.');
+  if (!['list_records', 'count_records', 'sum_records'].includes(name)) return args;
+  const hasFilter = Object.prototype.hasOwnProperty.call(args, 'filter');
+  const hasFilters = Object.prototype.hasOwnProperty.call(args, 'filters');
+  if (hasFilter && hasFilters) throw new Error('Supply filters only; filter and filters cannot be used together.');
+  if (!hasFilter) return args;
+  const { filter, ...rest } = args;
+  return { ...rest, filters: filter };
 }
 
 async function executeTool(name, args) {
@@ -257,7 +327,7 @@ async function executeTool(name, args) {
 
   if (name === 'count_records') {
     const body = { count: true };
-    const filters = prepareResourceFilters(resource, resourceName, args.preset, args.filter);
+    const filters = prepareResourceFilters(resource, resourceName, args.preset, args.filters);
     if (filters !== undefined) body.filters = filters;
     if (args.search != null) body.query = args.search;
     if (args.distinct) body.distinct = true;
@@ -275,7 +345,7 @@ async function executeTool(name, args) {
     // otherwise page forever, and an MCP client has no way to call it off.
     const maxRows = Math.min(args.max_rows ?? DEFAULT_SUM_ROWS, MAX_SUM_ROWS);
     const body = { fields: [field], limit: Math.min(SUM_PAGE_SIZE, maxRows), offset: 0 };
-    const filters = prepareResourceFilters(resource, resourceName, args.preset, args.filter);
+    const filters = prepareResourceFilters(resource, resourceName, args.preset, args.filters);
     if (filters !== undefined) body.filters = filters;
     validateInput(schema(), resource.list, body);
     const state = buildClient({ validate: true });
@@ -393,7 +463,7 @@ function describeResource(input) {
 
 function buildListBody(resource, resourceName, args) {
   const body = { limit: args.limit ?? 50, offset: args.offset ?? 0 };
-  const filters = prepareResourceFilters(resource, resourceName, args.preset, args.filter);
+  const filters = prepareResourceFilters(resource, resourceName, args.preset, args.filters);
   if (filters !== undefined) body.filters = filters;
   if (args.fields) {
     body.fields = Object.fromEntries(args.fields.map((field) => [field, normalizeField(field, resource.fieldAliases)]));
@@ -449,7 +519,7 @@ async function invoke(state, operationId, input) {
 function formatToolError(err, args) {
   if (err instanceof ZeyosApiError || err?.name === 'ZeyosApiError') {
     const status = err.status || 0;
-    const hint = status === 400 && (args?.filter || args?.preset)
+    const hint = status === 400 && (args?.filters || args?.filter || args?.preset)
       ? ' Hint: run describe_resource for this resource and check the filter fields and enum values.'
       : '';
     return `ZeyOS API error (HTTP ${status}): ${err.message}.${hint}`;
@@ -457,8 +527,11 @@ function formatToolError(err, args) {
   return err?.message || String(err);
 }
 
-function textResult(payload) {
-  return { content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }] };
+function textResult(payload, warnings = []) {
+  return {
+    content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
+    structuredContent: { ok: true, data: payload, ...(warnings.length ? { warnings } : {}) }
+  };
 }
 
 /**
@@ -470,9 +543,10 @@ function textResult(payload) {
 function errorResult(message, details = {}) {
   const envelope = {
     ok: false,
+    ...(details.warnings ? { warnings: details.warnings } : {}),
     error: { code: details.code ?? 'error', message, ...(details.actions ? { actions: details.actions } : {}) }
   };
-  return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }], isError: true };
+  return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }], structuredContent: envelope, isError: true };
 }
 
 export { EMPTY_RESULT_HINT };

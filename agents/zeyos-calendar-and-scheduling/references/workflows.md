@@ -25,7 +25,7 @@ Two intervals conflict when `aFrom < bTo && bFrom < aTo`. A zero-length appointm
 
 ```bash
 # Preview first (no write):
-zeyos create appointment --query \
+zeyos create appointment --dry-run \
   --name "Review" --datefrom 1893484800 --dateto 1893486600 --assigneduser <me>
 # After the user confirms the exact time + attendee, create and re-read:
 zeyos create appointment --name "Review" --datefrom 1893484800 --dateto 1893486600 --assigneduser <me>

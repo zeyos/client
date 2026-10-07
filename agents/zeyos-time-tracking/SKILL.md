@@ -39,7 +39,7 @@ Interactivity here means **act first, then ask only when real data is ambiguous*
 ## Safety
 
 - Read views are read-only; run them directly.
-- Logging time is a **create**, allowed because the user explicitly asked to log it. Preview with `--query` and confirm the target first; create exactly one record; then read it back.
+- Logging time is a **create**, allowed because the user explicitly asked to log it. Preview with `--dry-run` and confirm the target first; create exactly one record; then read it back.
 - Never delete or bulk-modify time entries on a category ("clear my logged time", "remove old entries") — those are per-record, by id, after preview. See the destructive-operations rules in [../zeyos-work-management/SKILL.md](../zeyos-work-management/SKILL.md).
 
 ## Output discipline

@@ -23,10 +23,15 @@ for (const def of Object.values(SERVICES)) {
 // exchangeAuthorizationCode, …) that are valid calls but not generated operations.
 const liveClient = createZeyosClient({
   platform: 'https://example.test/inst/',
-  auth: { mode: 'none' },
-  fetch: async () => new Response('{}', { headers: { 'content-type': 'application/json' } })
+  auth: { mode: 'none' }
 });
 const isClientMethod = (service, op) => liveClient[service] != null && op in liveClient[service];
+
+test('agent guidance uses canonical --dry-run request previews', () => {
+  const files = walk(path.join(ROOT, 'agents'), ['.md']);
+  const stale = files.filter((file) => readFileSync(file, 'utf8').includes('--query'));
+  assert.deepEqual(stale.map((file) => path.relative(ROOT, file)), [], 'use --dry-run instead of legacy --query in agent guidance');
+});
 
 // Deliberate "don't do this — it will fail" examples written into the guidance.
 const KNOWN_NEGATIVES = new Set([

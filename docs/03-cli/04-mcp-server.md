@@ -8,6 +8,9 @@ sidebar_label: MCP Server
 
 The server uses newline-delimited JSON-RPC 2.0 over stdio. It writes protocol messages to stdout and reserves stderr for diagnostics.
 
+It supports MCP `2025-06-18` and retains `2025-03-26` negotiation for older hosts.
+The structured output contract follows the [MCP tools specification](https://modelcontextprotocol.io/specification/2025-06-18/server/tools).
+
 ## Install and run
 
 Install the package globally to make both executables available:
@@ -76,6 +79,39 @@ The same `command`, `args`, and `env` shape works in generic stdio MCP hosts. Th
 | `update_record` | Update one validated record; hidden unless writes are enabled. |
 
 There is deliberately no delete tool.
+
+## Filters and structured results
+
+`list_records`, `count_records`, and `sum_records` accept canonical `filters`:
+
+```json
+{
+  "name": "list_records",
+  "arguments": {
+    "resource": "tickets",
+    "filters": { "visibility": 0, "status": 4 },
+    "limit": 25
+  }
+}
+```
+
+The singular `filter` spelling remains a deprecated alias and produces a warning
+in a successful structured result. Supplying both keys fails validation before
+authentication or an API request. Upstream requests contain only `filters`.
+The human CLI flag remains `--filter`; request previews use `--dry-run`.
+
+Every tool advertises an `outputSchema` and behavior annotations. The result
+contains `structuredContent: { ok: true, data: ... }` on success, or
+`structuredContent: { ok: false, error: { code, message, actions? } }` together
+with `isError: true` for tool failures. Hosts can branch on `ok` and consume
+`data` without parsing JSON from text. The existing text payload is retained for
+compatibility. Resource discovery's `data` is an array; lists contain
+`data.rows`; count and sum tools expose their named values inside `data`.
+
+Billing `invoice` / `invoices` aliases resolve to `billing_invoice`, whose
+transaction type is bound to `3`. Use `documents` for formal document artifacts
+and `procurement_invoices` for supplier invoices. The aliases never route a
+billing query to document records.
 
 ## Write gating
 

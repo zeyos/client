@@ -141,9 +141,9 @@ zeyos create actionstep \
   --account <accountId> \
   --assigneduser <sub> \
   --effort 60 --status 1 --date <nowSeconds> \
-  --query
+  --dry-run
 
-# after the user confirms, drop --query to actually create, then read it back
+# after the user confirms, drop --dry-run to actually create, then read it back
 zeyos create actionstep --name "Call about the renewal" --ticket <ticketId> \
   --assigneduser <sub> --effort 60 --status 1 --date <nowSeconds> --json
 zeyos get actionstep <newId> --json
@@ -267,10 +267,10 @@ const totalMinutes = [...rowsById.values()]
 For "actually that was 90 minutes, not 60" or "move that time to ticket 813" right after logging — or any later correction.
 
 1. Get the entry first so you preview the current values: `zeyos get actionstep <id> --json`.
-2. Build a minimal PATCH with only the changed fields. Preview with `--query`, confirm with the user (it is a mutation on an existing record), then update and read back.
+2. Build a minimal PATCH with only the changed fields. Preview with `--dry-run`, confirm with the user (it is a mutation on an existing record), then update and read back.
 
 ```bash
-zeyos update actionstep <id> --effort 90 --query        # preview the change
+zeyos update actionstep <id> --effort 90 --dry-run        # preview the change
 zeyos update actionstep <id> --effort 90 --json         # after confirmation
 zeyos get actionstep <id> --json                        # verify
 ```

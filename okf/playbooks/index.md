@@ -11,3 +11,4 @@
 * [Revenue This Year](revenue-this-year.md) - Answer "what have we invoiced/collected this year?" end to end.
 * [Supplier Scorecard](supplier-scorecard.md) - Rank suppliers and score procurement performance.
 * [Ticket Work Packet](ticket-work-packet.md) - Trace a ticket down to its tasks and follow-ups.
+* [Unanswered Ticket Mail](unanswered-ticket-mail.md) - Count ticket-linked inbox messages without a later reply on the same ticket.

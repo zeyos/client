@@ -7,8 +7,8 @@ import { resolveResource } from '../lib/resources.mjs';
 
 const require = createRequire(import.meta.url);
 const VERSION = require('../package.json').version;
-const FALLBACK_PROTOCOL_VERSION = '2025-03-26';
-const SUPPORTED_PROTOCOL_VERSIONS = new Set([FALLBACK_PROTOCOL_VERSION]);
+const FALLBACK_PROTOCOL_VERSION = '2025-06-18';
+const SUPPORTED_PROTOCOL_VERSIONS = new Set(['2025-03-26', FALLBACK_PROTOCOL_VERSION]);
 const allowWrites = process.env.ZEYOS_MCP_ALLOW_WRITES === '1';
 
 const input = createInterface({ input: process.stdin, terminal: false, crlfDelay: Infinity });
@@ -85,6 +85,9 @@ async function dispatch(method, params) {
 
 function validateArguments(schema, value, path = 'arguments') {
   if (!isPlainObject(value)) return `${path} must be an object.`;
+  if (schema.not?.required?.every((key) => Object.prototype.hasOwnProperty.call(value, key))) {
+    return `${path} cannot combine filters and filter; use filters only.`;
+  }
   for (const required of schema.required || []) {
     if (!Object.prototype.hasOwnProperty.call(value, required)) return `${path}.${required} is required.`;
   }
