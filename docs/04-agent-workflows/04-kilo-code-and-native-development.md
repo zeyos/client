@@ -20,6 +20,21 @@ This setup covers both native iXML/Zymba development and external integrations. 
 
 The client validator and MCP server do not compile iXML or Zymba. The SDK's `run` command executes code remotely; it is not an offline linter.
 
+## Check the client version
+
+The join and custom-field validation below requires client/CLI **1.0.0 or later**. Check `zeyos --version` and the package version used by your application. A successful install of the registry's current `latest` is not proof that it contains these checks. Compare the [release status](https://github.com/zeyos/client/releases/tag/v1.0.0) and the registry version before upgrading.
+
+If the registry has not yet published the required version, use the reviewed tagged source in an isolated local checkout:
+
+```bash
+git clone --branch v1.0.0 --depth 1 https://github.com/zeyos/client.git zeyos-client
+cd zeyos-client
+npm install --prefix cli --no-save --ignore-scripts "$PWD"
+node cli/bin/zeyos.mjs --version
+```
+
+Use `node /absolute/path/zeyos-client/cli/bin/zeyos.mjs` for CLI commands and `node /absolute/path/zeyos-client/cli/bin/zeyos-mcp.mjs` as the MCP command. This keeps the CLI and its client dependency on the same source release without a global installation.
+
 ## Configure Kilo Code
 
 1. Install Kilo Code using its [official installation instructions](https://kilo.ai/docs/getting-started/installing). Open the application repository as the workspace.
