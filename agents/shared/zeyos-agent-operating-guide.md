@@ -179,3 +179,18 @@ contract above as checkable invariants.
 | Finalize / approve / book / pay | Exact target + current/new state + confirmation |
 | Send email / campaign / dunning / invitation | Prohibited in protocol; explicit interactive confirmation otherwise |
 | Bulk update / delete / send | Refuse unless a dedicated, allowlisted automation workflow exists |
+
+## Join and custom-field preflight
+
+Use client/CLI 1.0.0 or later for complete FK-path validation. Check every selected,
+filtered and sorted path; never invent a destination column or infer a missing FK
+from a name. Explicit JavaScript `customFields` or a CLI/MCP
+`ZEYOS_CUSTOM_FIELDS_FILE` snapshot supplies the complete reviewed extdata key map
+for each relevant canonical resource. A missing map is unavailable metadata, not
+permission to pass. Confirm the snapshot instance in `customFieldSource`, refresh
+after configuration changes, and retain definition provenance outside credentials.
+Use `customfields.context` for ownership and `reference` for the key (`source: 0`,
+`activity: 0`); verify pagination/access before treating the results as complete.
+Display types do not establish JSON wire types. Do not disable validation to make
+an unverified field pass. Runtime permissions, required parameters, SQL semantics,
+join cardinality, and endpoint behavior still require separate evidence.

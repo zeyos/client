@@ -25,7 +25,7 @@ before calling `@zeyos/client`.
 ## First Commands For Counts
 
 - All custom fields: `zeyos count customfields --json`
-- Custom fields for tickets: `zeyos count customfields --filter '{"entity":"tickets"}' --json`
+- Active extdata definitions for tickets: `zeyos count customfields --filter '{"context":"tickets","source":0,"activity":0}' --json`
 
 `customfields` is read-only and has no `visibility` field. In the JS client the list
 operation is `listCustomFields`, not `listCustomfields`.
@@ -56,9 +56,10 @@ Use this for prompts like:
 Recommended approach:
 
 1. Query `customfields`.
-2. Filter by target entity where the field model exposes it.
-3. Report identifier, data type, activity state, and indexing implications if relevant.
-4. If the user needs values rather than definitions, switch to the extdata views or the resource itself with `extdata`.
+2. Filter `context` by the owning resource, with `source: 0` for EXTDATA and `activity: 0` for active definitions. Do not use `entity` as the owner: it is the target for an entity-valued display field.
+3. Report `reference` (the custom key), display `type`, activity, and relevant options. Page through all definitions and verify access/completeness. Do not automatically convert display types or labels into JSON types/enums.
+4. Supply a reviewed `customFields` contract or CLI/MCP `ZEYOS_CUSTOM_FIELDS_FILE` instance snapshot before referencing or writing individual custom keys. Unknown and missing metadata must remain errors. Refresh after configuration changes.
+5. If the user needs values rather than definitions, use the resource with `extdata`; retrieving the collection does not establish that a particular guessed key exists.
 
 ## Pattern: Service Hooks For An Entity
 

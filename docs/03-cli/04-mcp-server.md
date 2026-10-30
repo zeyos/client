@@ -64,6 +64,8 @@ For an existing named CLI profile, avoid copying credentials into the host confi
 
 The same `command`, `args`, and `env` shape works in generic stdio MCP hosts. The server starts and provides schema/discovery tools even when credentials are missing; authenticated calls return the CLI’s actionable configuration guidance as a tool error.
 
+For individual custom-field references and writes, add `ZEYOS_CUSTOM_FIELDS_FILE` to the host environment with an absolute path to the [instance-specific snapshot](./03-configuration.md#custom-field-validation). `describe_resource` returns `customFields` and `customFieldSource` (snapshot URL, `live: false`). The server reloads metadata per call and checks the resolved instance before dispatch. Joined paths are checked through each foreign key to the terminal field; missing custom metadata returns an actionable error. Discovery remains offline and does not certify that the snapshot is current or complete.
+
 ## Tools
 
 | Tool | Purpose |

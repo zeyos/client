@@ -28,6 +28,10 @@ For cross-platform benchmark guidance, read [business-app-benchmarks.md](./busin
 
 ## Common Guardrails
 
+- Validate the complete path, not just the first field: every join hop needs a documented FK and the terminal field must exist. The current validator checks selections, filters and sorting; missing FK metadata is not evidence for inventing a relationship.
+- Individual `extdata.*` references and writes need reviewed metadata: `customFields` in JavaScript or an absolute `ZEYOS_CUSTOM_FIELDS_FILE` snapshot for CLI/MCP. Check `customFieldSource.platform` in offline discovery and refresh after tenant configuration changes. Missing metadata fails; a resource map `{}` means known empty, not unknown. Do not bypass these errors. Discover keys using `customfields.context`, `source: 0`, `activity: 0`, and `reference`; verify pagination and completeness. Do not derive JSON value constraints from display types.
+
+
 - Discover before guessing: `zeyos describe <resource>` (or `client.schema.describe(resource)`) lists a resource's fields, types, foreign keys, and enum values; both run offline. `zeyos describe`, `create`, `update`, and `list` all accept singular, plural, or aliased resource names (`ticket`/`tickets`/`invoice`). Pre-check a call with `client.schema.validate(operationId, input)` — it flags unknown fields (with suggestions), `filter` vs `filters`, invalid enum values, and missing required create fields. An unknown operation name rejects with a "did you mean …?" suggestion.
 - CLI filters are inline JSON strings. Use `--filter '{"field":123}'`; never run the raw
   JSON as a shell command, and do not use `@filter.json` unless the CLI help explicitly

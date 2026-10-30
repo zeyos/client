@@ -330,7 +330,7 @@ const result = client.schema.validate('createAccount', { lastname: 'Acme' });
 // → { valid: false, errors: [{ field: 'currency', message: 'Missing required field "currency" …' }] }
 ```
 
-Enable validation on every call with `createZeyosClient({ validate: true })`, or per call with `client.api.createAccount(input, { validate: true })` (throws `ZeyosValidationError`).
+Enable validation on generated and known-operation calls with `createZeyosClient({ validate: true })`, or per call with `client.api.createAccount(input, { validate: true })` (throws `ZeyosValidationError`). Join paths are checked through every foreign key to the terminal field, including selections, nested filters and sorting. From 1.0.0, individual custom fields require an explicit `customFields` contract; CLI/MCP load it from an instance-bound `ZEYOS_CUSTOM_FIELDS_FILE` snapshot. Missing definitions fail rather than silently passing. See [contracts and migration](./docs/02-javascript-client/03-making-requests.md#custom-field-contracts) and [CLI configuration](./docs/03-cli/03-configuration.md#custom-field-validation).
 
 ### Error handling
 
@@ -360,6 +360,12 @@ Full client reference: [docs/02-javascript-client](./docs/02-javascript-client/0
 ---
 
 ## Using ZeyOS with a coding agent
+
+For Kilo Code and other agents working on native iXML/Zymba as well as API integrations,
+start with [Kilo Code and Native Development](./docs/04-agent-workflows/04-kilo-code-and-native-development.md)
+and the [copyable ZeyOS project instructions](./docs/04-agent-workflows/05-zeyos-project-instructions.md).
+These cover reference retrieval, model evaluation, XML formatting, parameter and
+schema validation, and bounded sandbox execution.
 
 ZeyOS ships **agent skills** — curated instructions and query playbooks that teach a coding agent (Claude Code, Codex, etc.) how to operate against ZeyOS with the right conventions out of the box. This is the fastest way to let an agent read and write your business data correctly.
 

@@ -395,10 +395,10 @@ client.schema.suggestOperation('listDunning');            // 'listDunningNotices
 
 ### Validating a Call
 
-`client.schema.validate(operationId, input)` returns structured, self-correcting hints. It never throws and is lenient about dot-notation joins (`contact.city`) and extended fields (`extdata.*`):
+`client.schema.validate(operationId, input)` returns structured, self-correcting hints. It returns `{ valid, errors }` without a network call. Each dot-notation hop must be a documented foreign key and the terminal field must exist. This covers selected fields (including alias maps), nested filters, and sorting. Custom keys under `extdata` require an explicit field contract:
 
 ```js
-const result = client.schema.validate('createAccount', { name: 'Acme' });
+const result = client.schema.validate('createAccount', { name: 'Acme', currency: 'EUR' });
 // {
 //   valid: false,
 //   errors: [{ field: 'name', message: 'Unknown field "name". Did you mean "lastname"?', suggestion: 'lastname' }]
@@ -414,7 +414,7 @@ client.schema.validate('createAccount', { lastname: 'Acme' });
 
 ### Pre-flight Validation
 
-Set `validate: true` on the client to validate every request before it is sent and throw a `ZeyosValidationError` (rather than letting the server reject it):
+Set `validate: true` on the client to validate generated API methods and known-operation `client.request()` calls before they are sent and throw a `ZeyosValidationError` (rather than letting the server reject it):
 
 ```js
 import { ZeyosValidationError } from '@zeyos/client';
@@ -431,7 +431,49 @@ try {
 }
 ```
 
-Validation is **off by default** so that custom and extended fields are never blocked; enable it in agent or development workflows where fast, descriptive feedback is more valuable.
+Validation is **off by default** in JavaScript and on by default in CLI/MCP data commands. Enable it for agent workflows. A raw `client.request({ method, path })` without an operation ID has no schema mapping and bypasses these checks.
+
+### Custom-field contracts
+
+Supply the complete reviewed key allowlist for each relevant API resource, using canonical resource names (for example `transactions`, not a CLI invoice alias):
+
+```js
+const client = createZeyosClient({
+  auth: { mode: 'none' }, // Local validation only; configure auth for API access.
+  validate: true,
+  customFields: {
+    accounts: { region: { type: 'string', enum: ['EMEA', 'APAC'] } },
+    contacts: { preferred: { type: 'boolean' } },
+    tickets: {},
+  },
+});
+
+client.schema.validate('listAccounts', {
+  fields: ['ID', 'contact.city', 'contact.extdata.preferred'],
+  filters: { 'extdata.region': 'EMEA' },
+}); // valid: true for this supplied contract
+
+client.schema.validate('listAccounts', { fields: ['contact.invented'] });
+// valid: false; unknown terminal field on contacts
+client.schema.validate('listAccounts', { fields: ['extdata.invented'] });
+// valid: false; unknown custom field
+client.schema.validate('updateAccount', { id: 42, extdata: { region: 'INVALID' } });
+// valid: false; value outside the configured enum (no request sent)
+```
+
+A definition `{}` validates only the key. Optional `type` supports JSON `string`, `number`, `integer`, `boolean`, `object`, and `array`; optional `enum` is an array of finite JSON scalar values, and `description` is a string. Constraints are explicit application contracts, **not** automatic conversions from the platform's display types. Equality and membership filter operands and write values use these constraints; ordering operands check type without requiring enum membership. This is not a complete filter-operator parser.
+
+A missing resource map returns `custom_fields_unavailable`; an empty map means the resource is known to have no allowed custom keys. Unknown keys return `unknown_custom_field`. A key containing dots is matched literally after `extdata.`; it is not interpreted as a nested JSON property. `extdata: 1` on reads still requests the collection without naming individual keys. Writes use an `extdata` object; a known key set to `null` deletes that value on update. Joined query paths are not writable fields: update the related resource explicitly.
+
+`client.schema.describe(resource).customFields` returns the supplied definitions, or `null` when unavailable. Metadata is copied at client creation; recreate the client after refreshing it. The library does not fetch tenant definitions or verify that your supplied contract belongs to the authenticated instance. CLI/MCP provide an [instance-bound snapshot loader](../03-cli/03-configuration.md#custom-field-validation).
+
+To discover configured extdata definitions, query `customfields` using `context` for the owning entity, `source: 0` for EXTDATA, and `activity: 0` for active definitions. `reference` is the custom key. The `entity` column is the target of an entity-valued display field, **not** the owner. Page through every result and verify access/completeness; do not turn an incomplete or denied response into an empty allowlist. Retrieve `type` and `options` when reviewing value constraints, but do not infer JSON types or enums from labels alone. Record the instance, review date and provenance separately from credentials.
+
+### Coverage and migration
+
+The validator now rejects join suffixes and custom keys that older clients accepted unchecked. Existing validated integrations using `extdata.*` must supply the reviewed contract before upgrading. CLI/MCP users set `ZEYOS_CUSTOM_FIELDS_FILE`; do not suppress errors with `--no-validate` merely to make a request run.
+
+Validation checks known metadata, not server permissions, record existence, all base-field types, every required parameter, join cardinality, arbitrary SQL, or native iXML/Zymba syntax. The curated create requirement remains account `currency`; the OpenAPI source does not supply a complete required-field contract. `group` and `having` return unsupported-validation errors rather than a silent pass. Operations with no bundled resource schema cannot receive field-level checks. A passing preflight still needs a bounded sandbox request for runtime behavior.
 
 ## Retries and Rate Limiting
 

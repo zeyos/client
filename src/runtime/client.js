@@ -696,7 +696,7 @@ export function createZeyosClient(rawConfig = {}) {
   // Whether to transparently retry network errors / timeouts. `undefined` (default)
   // means "auto": retry only read operations. `true`/`false` force the behavior.
   const defaultRetryOnNetworkError = typeof config.retryOnNetworkError === 'boolean' ? config.retryOnNetworkError : undefined;
-  const schemaApi = createSchema({ services: SERVICES, schema: SCHEMA });
+  const schemaApi = createSchema({ services: SERVICES, schema: SCHEMA, customFields: config.customFields });
   const validateByDefault = config.validate === true;
   const operationLookup = new Map();
 
@@ -1027,6 +1027,18 @@ export function createZeyosClient(rawConfig = {}) {
     throw new Error('Unable to execute request due to missing authentication candidates.');
   }
 
+  function validateOperationInput(operation, input, requestOptions) {
+    if (validateByDefault || requestOptions?.validate === true) {
+      const result = schemaApi.validate(operation.operationId, input);
+      if (!result.valid) {
+        throw new ZeyosValidationError(
+          `${operation.operationId}: ${result.errors.map((entry) => entry.message).join(' ')}`,
+          { operationId: operation.operationId, errors: result.errors }
+        );
+      }
+    }
+  }
+
   function bindService(serviceKey) {
     const service = SERVICES[serviceKey];
     if (!service) {
@@ -1038,15 +1050,7 @@ export function createZeyosClient(rawConfig = {}) {
 
     for (const operation of service.operations) {
       namespace[operation.operationId] = async (input, requestOptions) => {
-        if (validateByDefault || requestOptions?.validate === true) {
-          const result = schemaApi.validate(operation.operationId, input);
-          if (!result.valid) {
-            throw new ZeyosValidationError(
-              `${operation.operationId}: ${result.errors.map((entry) => entry.message).join(' ')}`,
-              { operationId: operation.operationId, errors: result.errors }
-            );
-          }
-        }
+        validateOperationInput(operation, input, requestOptions);
         const prepared = prepareOperationInput(operation, input);
         return executeOperation({ serviceKey, operation, prepared, requestOptions });
       };
@@ -1108,6 +1112,15 @@ export function createZeyosClient(rawConfig = {}) {
         raw: input.raw,
         baseUrl: input.baseUrl
       };
+
+      // Known operations have the same contract whether called through api.*
+      // or the lower-level request interface. Anonymous method/path requests
+      // intentionally have no operation schema to validate against.
+      validateOperationInput(operation, {
+        path: prepared.pathParams,
+        query: prepared.query,
+        ...(Object.prototype.hasOwnProperty.call(input, 'body') ? { body: input.body } : {}),
+      }, requestOptions);
 
       return executeOperation({ serviceKey, operation, prepared, requestOptions });
     }

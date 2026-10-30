@@ -14,7 +14,7 @@ These docs are organized around two entry paths:
 - **[Application Developers](./05-tutorials/00-application-developers.md)** for browser UIs, server-side integrations, and connected apps
 
 :::info Scope
-This documentation set currently focuses on **external integrations**. It covers the CLI, the JavaScript client, raw REST/OpenAPI usage, and reusable sample application patterns. It does not document authoring native ZeyOS platform artifacts.
+This documentation set primarily covers **external integrations**: the CLI, JavaScript client, REST/OpenAPI, and reusable application patterns. The [coding-agent setup](./04-agent-workflows/04-kilo-code-and-native-development.md) also connects this workflow to native iXML/Zymba development, with [reusable instructions](./04-agent-workflows/05-zeyos-project-instructions.md) and links to the language references.
 :::
 
 ## How Are You Integrating?

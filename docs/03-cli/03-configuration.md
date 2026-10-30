@@ -251,3 +251,33 @@ zeyos get ticket 42           # Table with formatted dates
 zeyos get ticket 42 --json    # Raw JSON with Unix timestamps
 zeyos get ticket 42 --yaml    # YAML with readable structure
 ```
+
+## Custom-field validation
+
+`ZEYOS_CUSTOM_FIELDS_FILE` is an **absolute path** to a UTF-8 JSON snapshot with exactly these top-level properties:
+
+```json
+{
+  "platform": "https://cloud.zeyos.com/your-instance",
+  "customFields": {
+    "accounts": {
+      "region": { "type": "string", "enum": ["EMEA", "APAC"] }
+    },
+    "tickets": {}
+  }
+}
+```
+
+This is an illustrative contract; replace it with reviewed definitions from your instance. Keep private snapshots outside tracked files and omit credentials and record values. Use canonical API resource names. Populate keys from active `customfields` definitions: `context` identifies the owner, `source: 0` selects EXTDATA, and `reference` is the key. Verify pagination, visibility and application-defined keys before treating the map as complete. Display `type` is not a JSON type; specify constraints only when verified. See [the custom-field contract](../02-javascript-client/03-making-requests.md#custom-field-contracts).
+
+```bash
+export ZEYOS_CUSTOM_FIELDS_FILE=/absolute/private/path/custom-fields.json
+zeyos describe accounts --json
+zeyos list accounts --fields 'ID,extdata.region' --limit 5 --dry-run --json
+```
+
+The loader checks the snapshot's full instance URL against the resolved request target, including the instance path; trailing slashes are normalized. A mismatch blocks dispatch. Malformed metadata is an error, never silently ignored. Offline `describe` requires no login and displays `customFieldSource.platform` with `live: false`; it describes the selected snapshot, not a live tenant. Confirm that provenance against the intended profile before using it.
+
+A missing resource map means metadata is unavailable; `{}` means known empty. Both reject unverified keys, with different diagnostics. CLI and MCP reload the snapshot per command/tool call, so refresh the file after configuration changes. There is no automatic discovery or freshness guarantee. Reading all extdata with `--extdata` does not require a key allowlist; referencing or writing individual keys does.
+
+These stricter checks require client/CLI 1.0.0 or later. Deploy the matching client and instructions together; older releases may accept these names unchecked.

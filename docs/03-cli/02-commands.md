@@ -215,8 +215,10 @@ Run `zeyos describe <entity>` for the authoritative operator list — it is prin
 
 Before sending, data commands validate filter, selected, sorted, and written fields against
 the generated schema. Unknown fields fail fast with a suggestion and the valid-field list;
-joins such as `contact.city` and `extdata.*` remain accepted. Use `--no-validate` only as an
-escape hatch. If a filtered or searched list is empty, the CLI prints a stderr hint pointing
+every join hop and terminal field must exist. Individual `extdata.*` keys require the
+[instance-specific snapshot](./03-configuration.md#custom-field-validation); missing
+metadata fails explicitly. Use `--no-validate` only for a separately reviewed unsupported
+contract, never merely to silence a guessed field. If a filtered or searched list is empty, the CLI prints a stderr hint pointing
 to `describe` and `find`, including in JSON and YAML modes.
 
 **Transaction entities:**

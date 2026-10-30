@@ -4,6 +4,7 @@
  */
 import { createZeyosClient, MemoryTokenStore } from '@zeyos/client';
 import { loadConfigWithSource, persistTokens, requireConfig, listProfiles } from './config.mjs';
+import { loadCustomFieldConfig } from './custom-field-config.mjs';
 
 /** @typedef {import('./types.mjs').CliConfig} CliConfig */
 
@@ -23,6 +24,7 @@ export function buildClient(overrides = {}, opts = {}) {
     throw new Error(`Profile "${loaded.profile.name}" not found (selected via ${loaded.profile.origin}). ${known}`);
   }
   const config = { ...loaded.config, ...overrides };
+  const customFields = loadCustomFieldConfig({ platform: config.baseUrl });
   const tokenOnly = isTokenOnlyMode(config);
   requireConfig(tokenOnly ? ['baseUrl', 'accessToken'] : ['baseUrl', 'clientId', 'clientSecret', 'accessToken'], config);
 
@@ -50,6 +52,7 @@ export function buildClient(overrides = {}, opts = {}) {
   const client = createZeyosClient({
     platform: config.baseUrl,
     validate: config.validate === true,
+    customFields,
     // Without a timeout the runtime waits forever on a stalled connection, and
     // its retry logic (which keys off network errors and timeouts) never fires.
     timeoutMs: resolveTimeoutMs(config),

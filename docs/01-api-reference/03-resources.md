@@ -211,7 +211,7 @@ On the CLI, use the entity that binds the type for you:
 zeyos list billing_invoices --limit 25 --sort -date
 ```
 
-See [Transactions](#transactions) and the CLI's
+See the CLI's
 [transaction entities](../03-cli/02-commands.md#list).
 :::
 

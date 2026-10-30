@@ -6,7 +6,7 @@
  * can discover the data model before making any call.
  */
 
-import { createZeyosClient } from '@zeyos/client';
+import { createOfflineSchema } from '../lib/custom-field-config.mjs';
 import { canonicalName, resolveResource, suggestResource } from '../lib/resources.mjs';
 import { FILTER_VOCABULARY } from '../lib/command.mjs';
 import { colors as c, outputMode, printJson, printYaml, printTable, emitError } from '../lib/output.mjs';
@@ -31,12 +31,8 @@ Examples:
   zeyos describe accounts --json
 `;
 
-let cachedSchema;
 function schema() {
-  if (!cachedSchema) {
-    cachedSchema = createZeyosClient({ auth: { mode: 'none' } }).schema;
-  }
-  return cachedSchema;
+  return createOfflineSchema();
 }
 
 /**
@@ -150,6 +146,12 @@ export function run(values, positional = []) {
       }
     }
     process.stdout.write('\n');
+  }
+
+  if (def.customFieldSource) {
+    process.stdout.write(`  ${c.bold('custom fields')}  ${c.dim(`snapshot for ${def.customFieldSource.platform}; not live introspection`)}\n`);
+    const names = def.customFields === null ? 'metadata unavailable for this resource' : Object.keys(def.customFields).join(', ') || '(known empty)';
+    process.stdout.write(`    ${names}\n\n`);
   }
 
   if (operations.length > 0) {

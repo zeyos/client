@@ -1,10 +1,10 @@
 import {
-  createZeyosClient,
   normalizeCountResult,
   normalizeListResult,
   ZeyosApiError
 } from '@zeyos/client';
 import { buildClient, syncTokens } from './client.mjs';
+import { createOfflineSchema } from './custom-field-config.mjs';
 import { assertNoBoundConflict, FILTER_VOCABULARY, prepareResourceFilters, validateInput } from './command.mjs';
 import { getListFields } from './resource-config.mjs';
 import { canonicalName, listResources, resolveResource, resourceDescription } from './resources.mjs';
@@ -51,10 +51,8 @@ const RESOURCE_DESCRIPTIONS = {
   user: 'ZeyOS user accounts.'
 };
 
-let offlineSchema;
 function schema() {
-  if (!offlineSchema) offlineSchema = createZeyosClient({ auth: { mode: 'none' } }).schema;
-  return offlineSchema;
+  return createOfflineSchema();
 }
 
 const resourceProperty = {

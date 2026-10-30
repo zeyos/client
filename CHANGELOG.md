@@ -3,7 +3,23 @@
 Notable changes to `@zeyos/client` and `@zeyos/cli`. This project follows
 [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 1.0.0 — 2026-10-30
+
+### Migration
+
+- Validated calls now check complete foreign-key paths and terminal fields in selections, nested filters and sorting. Undocumented relationships and unknown destination fields are rejected instead of accepted unchecked.
+- Individual custom-field references and writes require a reviewed `customFields` contract. CLI/MCP load it from an absolute `ZEYOS_CUSTOM_FIELDS_FILE` path and reject snapshots belonging to another instance. Missing metadata is an error; an empty resource map means known empty.
+- Upgrade client and CLI together. Supply custom-field metadata before running existing validated integrations using `extdata.*`; do not disable validation to conceal unknown names. Reading the full collection with `extdata: 1` remains supported without individual definitions.
+
+### Added and fixed
+
+- Validate optional custom-field JSON types/enums and null removal; retain exact dotted keys and immutable definitions. Known-operation `client.request` now uses the same validation as generated methods.
+- Offline CLI/MCP schema descriptions expose custom-field definitions and snapshot provenance; metadata refreshes per command/tool call.
+- Add Kilo/native development setup, copyable agent instructions, and authoritative Zymba reference discovery with explicit validation boundaries.
+- Add focused regression coverage for joined paths, custom fields, request wrappers, invalid JSON values, snapshot refresh and instance mismatch.
+
+### Previously unreleased
+
 
 - MCP query tools expose canonical `filters`, retain singular `filter` as a
   deprecated alias, and reject both keys together before dispatch. Tool results

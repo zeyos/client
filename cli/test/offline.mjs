@@ -2218,7 +2218,7 @@ test('shipped resource configs only reference fields the schema knows', async ()
     const name = file.replace(/\.json$/, '');
     const resource = resolveResource(name);
     if (!resource) continue;
-    const valid = new Set(schema.fields(schema.resourceForOperation(resource.list || resource.get)));
+    const operation = resource.list || resource.get;
     const config = JSON.parse(await readFile(new URL(file, configDir), 'utf8'));
 
     for (const section of Object.values(config)) {
@@ -2227,9 +2227,9 @@ test('shipped resource configs only reference fields the schema knows', async ()
       const refs = Array.isArray(fields) ? fields
         : (fields && typeof fields === 'object' ? Object.values(fields) : []);
       for (const ref of refs) {
-        // Dot-notation joins are validated on their head field only.
-        const base = String(ref).split('.')[0];
-        if (!valid.has(base)) offenders.push(`${file}: ${ref}`);
+        // Validate the full reference so a renamed destination column is caught.
+        const result = schema.validate(operation, { fields: [ref] });
+        if (!result.valid) offenders.push(`${file}: ${ref}: ${result.errors.map((error) => error.message).join(' ')}`);
       }
     }
   }

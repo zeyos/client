@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { createZeyosClient, suggestClosest } from '@zeyos/client';
+import { suggestClosest } from '@zeyos/client';
+import { createOfflineSchema } from './custom-field-config.mjs';
 import { buildClient, syncTokens } from './client.mjs';
 import { collectFieldFlags } from './flags.mjs';
 import { resolveResource, suggestResource, resourceForTransactionType } from './resources.mjs';
@@ -27,10 +28,8 @@ export function fail(message, code = EXIT.ERROR, details = {}) {
  * The bundled schema, built lazily and without credentials. Used for typing
  * `--<field>` flags before a real client (and therefore auth) is required.
  */
-let _offlineSchema;
 export function offlineSchema() {
-  if (!_offlineSchema) _offlineSchema = createZeyosClient({ auth: { mode: 'none' } }).schema;
-  return _offlineSchema;
+  return createOfflineSchema();
 }
 
 /** Set of valid field names for the resource an operation belongs to, or null. */

@@ -860,7 +860,7 @@ test('client.schema exposes resources, fields, enums and operation mapping', () 
 });
 
 test('client.schema.validate flags unknown fields, filter spelling and bad enums', () => {
-  const client = createZeyosClient({ instance: 'demo', auth: { mode: 'none' }, fetch: async () => jsonResponse([]) });
+  const client = createZeyosClient({ instance: 'demo', auth: { mode: 'none' }, customFields: { accounts: { region: { type: 'string' } } } });
 
   const unknownField = client.schema.validate('createAccount', { name: 'Acme' });
   assert.equal(unknownField.valid, false);
