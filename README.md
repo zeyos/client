@@ -361,11 +361,11 @@ Full client reference: [docs/02-javascript-client](./docs/02-javascript-client/0
 
 ## Using ZeyOS with a coding agent
 
-For Kilo Code and other agents working on native iXML/Zymba as well as API integrations,
-start with [Kilo Code and Native Development](./docs/04-agent-workflows/04-kilo-code-and-native-development.md)
-and the [copyable ZeyOS project instructions](./docs/04-agent-workflows/05-zeyos-project-instructions.md).
+For Kilo Code, Pi, OpenCode, and other agents working on native iXML/Zymba as well as API integrations,
+start with [Agent Setup](./docs/04-agent-workflows/04-agent-setup.md)
+and the [copyable ZeyOS project instructions](./instructions/zeyos.md).
 These cover reference retrieval, model evaluation, XML formatting, parameter and
-schema validation, and bounded sandbox execution.
+schema validation, non-executing SDK compilation, and separately authorized sandbox tests.
 
 ZeyOS ships **agent skills** — curated instructions and query playbooks that teach a coding agent (Claude Code, Codex, etc.) how to operate against ZeyOS with the right conventions out of the box. This is the fastest way to let an agent read and write your business data correctly.
 

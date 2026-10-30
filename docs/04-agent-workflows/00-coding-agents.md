@@ -7,7 +7,7 @@ sidebar_label: Coding Agents
 
 This path is for coding agents, automation scripts, and operational tools that need a deterministic way to read and write business data in ZeyOS.
 
-ZeyOS should be treated as the central system for business records and business rules. Start with the CLI, JavaScript client, or REST/OpenAPI for external integrations. For native iXML/Zymba work, use [Kilo Code and Native Development](./04-kilo-code-and-native-development.md) and the [copyable project instructions](./05-zeyos-project-instructions.md); native execution uses the separate ZeyOS SDK.
+ZeyOS should be treated as the central system for business records and business rules. Start with the CLI, JavaScript client, or REST/OpenAPI for external integrations. For native iXML/Zymba work, use [Agent Setup](./04-agent-setup.md) and the [copyable project instructions](https://www.zeyos.com/ai/agent-instructions.md). The separate ZeyOS SDK provides compilation checks without executing the source; runtime tests are a separate step.
 
 ## Start Here
 

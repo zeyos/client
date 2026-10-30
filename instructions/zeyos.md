@@ -1,16 +1,3 @@
----
-title: ZeyOS Project Instructions for Coding Agents
-description: Reusable instructions for reference-driven iXML, Zymba, and ZeyOS API development.
-sidebar_label: Copyable Project Instructions
-sidebar_position: 6
-slug: /agent-workflows/project-instructions
----
-
-# ZeyOS Project Instructions for Coding Agents
-
-Copy the block below into your project's `AGENTS.md`, merging it with existing project rules. Alternatively, save it as `instructions/zeyos.md` and load it through your agent's instruction settings. Keep project paths and environment choices in the project; use global settings only for rules shared by all your ZeyOS projects. See [Kilo Code setup](./04-kilo-code-and-native-development.md).
-
-```markdown
 # ZeyOS development
 
 ## Working context
@@ -87,7 +74,9 @@ Use . for string concatenation; + is numeric addition. Arrays are objects.
 Use count or @String.countChars for string length, and @Array.joinValues to join.
 Do not invent @String.length, @String.joinValues, or PHP magic constants.
 Read service parameter and object-method conventions in the relevant application.
-Verify execution with the ZeyOS runtime, not a PHP or JavaScript linter.
+Use zeysdk compile for ZeyOS compiler diagnostics without executing the source.
+A PHP or JavaScript linter does not validate Zymba. Runtime testing is a separate
+step only when the task requires execution.
 
 ## Database and API requests
 
@@ -127,15 +116,30 @@ joined custom fields. Write custom values inside extdata; update related records
 through their own resource. Do not disable validation to silence a guessed name.
 Validation remains partial: undocumented relationships, native SQL, runtime
 permissions, cardinality and many required-input rules need separate verification
-and a sandbox test. Raw method/path calls without an operation ID bypass schema checks.
+and, when behavior must be tested, a separately authorized sandbox test. Raw
+method/path calls without an operation ID bypass schema checks.
 
 ## Validation and automation
 
+Default to validation without execution. A request to validate iXML or Zymba is
+not authorization to run code, invoke hooks, call services, or sync an application.
+Choose checks by their documented effects, not by whether they return errors.
 Work in small patches: retrieve evidence, edit, validate, inspect the result.
-Report separately: reference review, local/static checks, runtime execution,
-and behavior in the real hook/form/HTTP context. Say exactly what was not tested.
-zeysdk run EXECUTES code remotely; it is not a syntax-only validator.
-Use a confirmed sandbox and the existing private authentication mechanism.
+Report separately: reference review, local/static checks, remote SDK compilation,
+runtime execution, and behavior in the real hook/form/HTTP context. Say exactly
+what was not tested.
+For native diagnostics, inspect zeysdk compile --help and zeysdk lint --help.
+zeysdk compile PATH checks one selected asset; --ixml or --zy checks inline source.
+zeysdk lint checks eligible modified manifest-backed scripts; --all checks all
+eligible local scripts. Both submit source to the linked instance's authenticated
+PUT sdk/v1/compile endpoint without executing that source. They require network
+access and application linkage; --all does not make lint offline. Confirm the
+target and permission to transmit source. Inspect diagnostics and selected file
+counts: zero eligible scripts is not a coverage pass. Compilation does not prove
+DB/schema names, business inputs, runtime permissions or behavior.
+zeysdk run EXECUTES code remotely. Do not use it to satisfy a validation-only
+request. If execution is needed, obtain/confirm task authorization and use a
+bounded sandbox test with the existing private authentication mechanism.
 Do not read or print tokens, copy credentials into code, or expose customer data
 in prompts, test fixtures, logs, commits, or screenshots.
 Keep production writes, sending, sync/push/deployment, and deletion within explicit
@@ -150,10 +154,10 @@ Record reusable failures and verified fixes in the project's designated log.
 Do not modify the guide's pinned LEARN.md or release inputs during ordinary tasks.
 Finish with changed files, source evidence, checks and outcomes, unresolved inputs,
 and the next concrete verification step when execution was unavailable.
-```
 
-## Add a small project map
+## Project map
 
-Append actual values for the reference directory, application root, relevant example files, SDK/CLI versions, sandbox profile, test command, and permitted operations. Leave unknown values explicitly unset. Never put credentials in this map. A project with only API integration code does not need to preload the complete iXML or Zymba reference.
+Add the actual reference directory, application root, relevant examples, SDK/CLI
+versions, validation commands and their effects, sandbox profile, and permitted
+operations. Leave unknown values explicitly unset. Never store credentials here.
 
-For another coding agent, use its documented project-instruction mechanism and point it to the same text. Confirm in a fresh session that it can locate the instructions and the reference files before giving it a write task.
