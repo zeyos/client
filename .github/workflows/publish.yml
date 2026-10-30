@@ -8,6 +8,12 @@ name: Publish to npm
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Existing release tag to publish or resume (for example v1.0.0)'
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -17,6 +23,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.release_tag }}
 
       - uses: actions/setup-node@v4
         with:
@@ -25,8 +33,12 @@ jobs:
 
       - name: Verify package versions match the release tag
         env:
-          TAG_NAME: ${{ github.event.release.tag_name }}
+          TAG_NAME: ${{ github.event.release.tag_name || inputs.release_tag }}
         run: |
+          if ! [[ "$TAG_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
+            echo "An existing version tag is required." >&2
+            exit 1
+          fi
           TAG="${TAG_NAME#v}"
           CLIENT="$(node -p "require('./package.json').version")"
           CLI="$(node -p "require('./cli/package.json').version")"
@@ -51,15 +63,32 @@ jobs:
 
       # Both token env names are provided: the repo's committed .npmrc expands
       # ${NPM_TOKEN}, while setup-node's generated .npmrc uses ${NODE_AUTH_TOKEN}.
-      - name: Publish @zeyos/client
-        run: npm publish --access public
+      - name: Publish missing packages and verify completed packages
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Publish @zeyos/cli
-        run: npm publish --access public
-        working-directory: cli
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          import { resolve } from 'node:path';
+          import { spawnSync } from 'node:child_process';
+          for (const directory of ['.', 'cli']) {
+            const cwd = resolve(directory);
+            const { name, version } = JSON.parse(readFileSync(resolve(cwd, 'package.json')));
+            const response = await fetch(`https://registry.npmjs.org/${encodeURIComponent(name)}/${encodeURIComponent(version)}`);
+            if (response.ok) {
+              const published = await response.json();
+              const packed = spawnSync('npm', ['pack', '--dry-run', '--json'], { cwd, encoding: 'utf8' });
+              if (packed.status !== 0) throw new Error(`Unable to verify ${name}@${version}`);
+              const local = JSON.parse(packed.stdout)[0];
+              if (!published.dist?.integrity || published.dist.integrity !== local.integrity) {
+                throw new Error(`${name}@${version} exists with different package bytes; refusing to skip it.`);
+              }
+              console.log(`${name}@${version} is already published with matching integrity.`);
+              continue;
+            }
+            if (response.status !== 404) throw new Error(`Registry lookup failed for ${name}@${version}: HTTP ${response.status}`);
+            const result = spawnSync('npm', ['publish', '--access', 'public'], { cwd, stdio: 'inherit' });
+            if (result.status !== 0) process.exit(result.status ?? 1);
+          }
+          NODE

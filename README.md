@@ -542,6 +542,15 @@ A few platform facts that save debugging time (full list in the [Practical Guide
 
 ---
 
+## Resume a partial npm release
+
+The GitHub `Publish to npm` workflow also accepts a manual `release_tag` input.
+It checks out that existing tag, runs both existing test suites, and publishes
+only missing packages. Already-published versions must have the exact same package
+integrity as the checked-out source before they can be skipped. Keep `NPM_TOKEN`
+scoped for publishing **both** `@zeyos/client` and `@zeyos/cli`. Never move a published
+tag or republish locally to recover from a partial release.
+
 ## License
 
 MIT — see [LICENSE](./LICENSE).
